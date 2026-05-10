@@ -1,0 +1,65 @@
+name = "cinemood-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "6f96b54a60415fce0f7b33e17f2af17a"
+workers_dev = true
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cinemood"
+database_id = "7a435117-ca7b-42d2-a3fc-6a48b2e9b8f8"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "62827fe4e93c4600866cb0563719325a"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "1231d520cb284034bbebab7f0b701d24"
+
+[[r2_buckets]]
+binding = "INDEX_BUCKET"
+bucket_name = "cinemood-index"
+
+[ai]
+binding = "AI"
+
+# Production environment — same bindings, route attached.
+[env.production]
+name = "cinemood-api"
+workers_dev = false
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+[[env.production.routes]]
+pattern = "cinemood.sayantan.cloud/api/*"
+zone_name = "sayantan.cloud"
+
+[[env.production.routes]]
+pattern = "cinemood.sayantan.cloud/auth/*"
+zone_name = "sayantan.cloud"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "cinemood"
+database_id = "7a435117-ca7b-42d2-a3fc-6a48b2e9b8f8"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "62827fe4e93c4600866cb0563719325a"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "1231d520cb284034bbebab7f0b701d24"
+
+[[env.production.r2_buckets]]
+binding = "INDEX_BUCKET"
+bucket_name = "cinemood-index"
+
+[env.production.ai]
+binding = "AI"

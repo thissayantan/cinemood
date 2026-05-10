@@ -1,0 +1,25 @@
+{
+  "name": "@cinemood/api",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --port 8787 --local",
+    "build": "wrangler deploy --dry-run --outdir dist --env=''",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@cinemood/shared": "workspace:*",
+    "@orama/orama": "^3.1.13",
+    "hono": "^4.6.14",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.90.0"
+  }
+}

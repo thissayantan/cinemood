@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+apps/api/.dev.vars
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+graphify-out/

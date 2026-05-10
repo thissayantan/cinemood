@@ -1,0 +1,20 @@
+{
+  "name": "cinemood",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Movies and series, found by mood.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "bun --filter @cinemood/web dev",
+    "dev:api": "bun --filter @cinemood/api dev",
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
