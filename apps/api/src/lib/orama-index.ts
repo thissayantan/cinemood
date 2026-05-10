@@ -55,6 +55,24 @@ interface CachedIndex {
 
 const CACHE = new Map<string, CachedIndex>();
 
+// Per-user serialization queue. Ensures index mutations for a given userId
+// run one at a time inside an isolate; concurrent waitUntil tasks otherwise
+// interleave on the shared Orama db/docs Map and corrupt the embeddings.
+const QUEUES = new Map<string, Promise<unknown>>();
+
+async function serializePerUser<T>(
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = QUEUES.get(userId) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(fn);
+  QUEUES.set(
+    userId,
+    next.catch(() => undefined),
+  );
+  return next;
+}
+
 function r2Key(userId: string): string {
   return `index/${userId}.json`;
 }
@@ -128,8 +146,11 @@ async function buildFromDocs(docs: IndexDoc[]): Promise<CachedIndex> {
   const map = new Map<number, IndexDoc>();
   for (const doc of docs) {
     map.set(doc.tmdb_id, doc);
+    // Pass a clone to Orama — insert() converts vector fields to typed arrays
+    // in place, which would null-out the embedding when we later JSON-stringify
+    // cached.docs.values() back to R2.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await insert(db, doc as any);
+    await insert(db, structuredClone(doc) as any);
   }
   return { docs: map, db };
 }
@@ -185,50 +206,54 @@ export async function loadIndex(
   return cached;
 }
 
-export async function addTitleToIndex(
+export function addTitleToIndex(
   env: Env,
   userId: string,
   title: Title,
 ): Promise<void> {
-  const cached = await loadIndex(env, userId);
-  const text = buildIndexText({
-    title: title.title,
-    original_title: title.original_title,
-    overview: title.overview,
-    genres: title.genres,
-    keywords: title.keywords,
-    cast: title.cast,
-  });
-  const embedding = await embedText(env, text);
-  const doc = titleToIndexDoc(title, embedding);
+  return serializePerUser(userId, async () => {
+    const cached = await loadIndex(env, userId);
+    const text = buildIndexText({
+      title: title.title,
+      original_title: title.original_title,
+      overview: title.overview,
+      genres: title.genres,
+      keywords: title.keywords,
+      cast: title.cast,
+    });
+    const embedding = await embedText(env, text);
+    const doc = titleToIndexDoc(title, embedding);
 
-  if (cached.docs.has(doc.tmdb_id)) {
-    try {
-      await remove(cached.db, doc.id);
-    } catch {
-      /* doc not in db; fine */
+    if (cached.docs.has(doc.tmdb_id)) {
+      try {
+        await remove(cached.db, doc.id);
+      } catch {
+        /* doc not in db; fine */
+      }
     }
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await insert(cached.db, doc as any);
-  cached.docs.set(doc.tmdb_id, doc);
-  await persistIndex(env, userId, cached);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await insert(cached.db, structuredClone(doc) as any);
+    cached.docs.set(doc.tmdb_id, doc);
+    await persistIndex(env, userId, cached);
+  });
 }
 
-export async function removeTitleFromIndex(
+export function removeTitleFromIndex(
   env: Env,
   userId: string,
   tmdbId: number,
 ): Promise<void> {
-  const cached = await loadIndex(env, userId);
-  if (!cached.docs.has(tmdbId)) return;
-  try {
-    await remove(cached.db, String(tmdbId));
-  } catch {
-    /* ignore */
-  }
-  cached.docs.delete(tmdbId);
-  await persistIndex(env, userId, cached);
+  return serializePerUser(userId, async () => {
+    const cached = await loadIndex(env, userId);
+    if (!cached.docs.has(tmdbId)) return;
+    try {
+      await remove(cached.db, String(tmdbId));
+    } catch {
+      /* ignore */
+    }
+    cached.docs.delete(tmdbId);
+    await persistIndex(env, userId, cached);
+  });
 }
 
 export interface IndexHit {
@@ -288,18 +313,24 @@ export async function searchIndex(
     }
   }
 
-  const useHybrid = term.length > 0 && queryEmbedding !== null;
-  const params: Record<string, unknown> = {
-    limit: 100,
-    where,
-    properties: ["title", "overview"],
-  };
-  if (useHybrid) {
-    params.mode = "hybrid";
-    params.term = term;
-    params.vector = { value: queryEmbedding!, property: "embedding" };
+  // Orama 3.x's `mode: "hybrid"` collapses to zero hits when the term is not
+  // a literal title token even though the where filter and vector both have
+  // matches. Pick the strongest single mode for the inputs:
+  //   - vector + where (when we have an embedding) for semantic matching
+  //   - fulltext + where (when we only have a term) for bare-title lookups
+  //   - filter-only when there is no term at all.
+  const params: Record<string, unknown> = { limit: 100, where };
+  let mode: "vector" | "fulltext" | "filter" = "filter";
+  if (queryEmbedding) {
+    mode = "vector";
+    params.mode = "vector";
+    params.vector = { value: queryEmbedding, property: "embedding" };
+    params.similarity = 0;
+    if (term) params.term = term;
   } else if (term) {
+    mode = "fulltext";
     params.term = term;
+    params.properties = ["title", "overview"];
   } else {
     params.term = "";
     params.exact = false;
@@ -309,6 +340,9 @@ export async function searchIndex(
   const results = (await search(cached.db, params as any)) as {
     hits: { id: string; score: number }[];
   };
+  console.log(
+    `[search] term="${term}" mode=${mode} where=${JSON.stringify(where)} cache_size=${cached.docs.size} raw_hits=${results.hits.length}`,
+  );
   // Filter out exclude_genres in JS — Orama lacks a direct "containsNone".
   const exclude = new Set(f.exclude_genres ?? []);
   return results.hits

@@ -28,7 +28,17 @@ export async function embedTexts(
     text: texts,
   } as never)) as unknown as CfEmbeddingResponse;
   if (!result.data || result.data.length !== texts.length) {
-    throw new Error(`bad_embedding_batch: ${result.data?.length ?? 0}/${texts.length}`);
+    throw new Error(
+      `bad_embedding_batch: ${result.data?.length ?? 0}/${texts.length}`,
+    );
+  }
+  for (let i = 0; i < result.data.length; i++) {
+    const v = result.data[i];
+    if (!v || v.length !== EMBEDDING_DIM) {
+      throw new Error(
+        `bad_embedding_batch_inner: idx=${i} len=${v?.length ?? 0}`,
+      );
+    }
   }
   return result.data;
 }

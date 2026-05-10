@@ -201,3 +201,18 @@ _This section grows over time. Each entry is a lesson learned from a real mistak
 **ALWAYS** expose a single root `bun run dev` for monorepo dev. Two-terminal flows are a tax we've decided not to pay.
 - Why: starting `apps/api` and `apps/web` separately is fiddly, easy to forget, and turns "did you start both?" into a recurring question; a single command eliminates an entire class of self-inflicted bugs.
 - How to apply: keep `concurrently -n api,web -c blue,magenta --kill-others-on-fail "bun --filter @cinemood/api dev" "bun --filter @cinemood/web dev"` as the root `dev` script and add `concurrently` to root devDependencies. Per-side `dev:api`/`dev:web` may exist as escape hatches but never as the documented default.
+
+### Per-user serialization for Orama index mutations
+**ALWAYS** funnel `addTitleToIndex` / `removeTitleFromIndex` for the same userId through a per-user `Promise` queue.
+- Why: multiple `c.executionCtx.waitUntil(addTitleToIndex(...))` from back-to-back POSTs share the module-scope cache and the Orama db reference, then interleave at every `await` boundary; in our smoke this consistently left the first item's `embedding` empty and the index unsearchable. The waitUntil tasks must be serialized per-user — the global cache is not concurrency-safe.
+- How to apply: keep `serializePerUser(userId, async () => { … })` in `apps/api/src/lib/orama-index.ts` wrapping both mutators. Reads (search) need not be locked.
+
+### Orama insert mutates the doc in place
+**ALWAYS** pass a `structuredClone(doc)` to `insert(db, doc)` whenever the doc is also stored in your own cache and later JSON-serialised.
+- Why: Orama 3.x rewrites `vector[N]` fields into a typed-array view during insert; the original reference's `embedding` then `JSON.stringify`s as `null`, which permanently corrupts the persisted R2 snapshot.
+- How to apply: in `orama-index.ts`'s `addTitleToIndex` and `buildFromDocs`, store the original IndexDoc in `cached.docs` and hand `structuredClone(doc)` to Orama. Don't share refs between "what we own" and "what Orama owns."
+
+### Avoid Orama 3.x `mode: "hybrid"` with `where` filters
+**ALWAYS** pick a single Orama search mode based on what we have, never `"hybrid"` with where-clauses.
+- Why: in Orama 3.1.18 a hybrid search collapses to zero hits whenever the where-filter narrows the candidate set, even when the vector half clearly matches and the filtered docs exist. Bare-title queries that match by token still work; everything else loses recall.
+- How to apply: in `searchIndex`, use `mode: "vector"` (with `similarity: 0`, optional `term`) when we have a query embedding, `mode: "fulltext"` (with `properties: ["title","overview"]`) when we only have a term, and the default filter-only mode when there is no term — never `"hybrid"` with a where.
