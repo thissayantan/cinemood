@@ -3,6 +3,9 @@ import type { Env } from "./env";
 import { authMiddleware, type AuthVars } from "./middleware/auth";
 import authRoutes from "./routes/auth";
 import meRoutes from "./routes/me";
+import searchRoutes from "./routes/search";
+import titleRoutes from "./routes/title";
+import watchlistRoutes from "./routes/watchlist";
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
@@ -14,6 +17,9 @@ app.get("/api/health", (c) =>
 
 app.route("/", authRoutes);
 app.route("/", meRoutes);
+app.route("/", searchRoutes);
+app.route("/", titleRoutes);
+app.route("/", watchlistRoutes);
 
 app.notFound((c) =>
   c.json(

@@ -181,3 +181,8 @@ apps/web/dist/
 _This section grows over time. Each entry is a lesson learned from a real mistake during development. Use the Magic Prompt to add new ones._
 
 <!-- New rules will be appended below this line. -->
+
+### Hono context types
+**ALWAYS** declare an explicit `Context<{Bindings; Variables}>` alias for shared route helpers — never derive it via `Parameters<typeof app.get>` or similar.
+- Why: Hono overloads route methods so `Parameters<...>` collapses to `never` and your helper silently breaks every call site with `Argument of type Context is not assignable to parameter of type never`.
+- How to apply: at the top of any `apps/api/src/routes/*.ts` that needs a `requireUser`-style helper, add `type Ctx = Context<{Bindings: Env; Variables: AuthVars}>` and type helpers `(c: Ctx)`.

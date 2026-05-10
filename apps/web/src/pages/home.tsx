@@ -2,11 +2,14 @@ import { motion } from "framer-motion";
 import type { User } from "@cinemood/shared";
 import { PageShell } from "@/components/page-shell";
 import { AvatarMenu } from "@/components/avatar-menu";
-import { GlassCard } from "@/components/glass-card";
+import { SearchBar } from "@/components/search-bar";
+import { useWatchlistIds } from "@/lib/use-watchlist-ids";
 
 const SPRING = { type: "spring" as const, stiffness: 240, damping: 24 };
 
 export default function HomePage({ user }: { user: User }) {
+  const { ids, add } = useWatchlistIds();
+
   return (
     <PageShell>
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
@@ -16,31 +19,27 @@ export default function HomePage({ user }: { user: User }) {
         <AvatarMenu user={user} />
       </header>
 
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className="mx-auto max-w-6xl px-6 pb-20">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={SPRING}
+          className="mt-6 mb-8 max-w-3xl"
         >
-          <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
-            Welcome back{user.name ? `, ${user.name.split(" ")[0]}` : ""}.
+          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+            Find something to watch.
           </h1>
-          <p className="mt-3 text-white/65">
-            Your watchlist will live here. Search and import are wired up in the
-            next phases.
+          <p className="mt-2 text-sm text-white/60">
+            Search TMDB and tap a poster to save it to your watchlist.
           </p>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.08 }}
+          transition={{ ...SPRING, delay: 0.06 }}
         >
-          <GlassCard className="mt-10 p-6">
-            <p className="text-sm text-white/65">
-              You're signed in as <span className="text-white">{user.email}</span>.
-            </p>
-          </GlassCard>
+          <SearchBar savedIds={ids} onAdded={add} />
         </motion.div>
       </main>
     </PageShell>
