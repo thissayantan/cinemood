@@ -1,7 +1,10 @@
+import type React from "react";
 import { Routes, Route, useSearchParams, Navigate } from "react-router-dom";
+import type { User } from "@cinemood/shared";
 import HomePage from "./pages/home";
 import LandingPage from "./pages/landing";
 import SettingsSearchPage from "./pages/settings-search";
+import ImportPage from "./pages/import";
 import { useUser } from "./lib/use-user";
 import { PageShell } from "./components/page-shell";
 
@@ -23,7 +26,11 @@ function Root() {
   return <LandingPage authError={authError} />;
 }
 
-function SettingsRoute() {
+function AuthedShell({
+  render,
+}: {
+  render: (user: User) => React.ReactElement;
+}) {
   const state = useUser();
   if (state.status === "loading") {
     return (
@@ -35,13 +42,22 @@ function SettingsRoute() {
     );
   }
   if (state.status !== "ok") return <Navigate to="/" replace />;
-  return <SettingsSearchPage user={state.user} />;
+  return render(state.user);
 }
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/settings/search" element={<SettingsRoute />} />
+      <Route
+        path="/settings/search"
+        element={
+          <AuthedShell render={(u) => <SettingsSearchPage user={u} />} />
+        }
+      />
+      <Route
+        path="/import"
+        element={<AuthedShell render={(u) => <ImportPage user={u} />} />}
+      />
       <Route path="/" element={<Root />} />
       <Route path="*" element={<Root />} />
     </Routes>

@@ -40,6 +40,14 @@ export function AvatarMenu({ user }: { user: User }) {
             {user.email}
           </div>
           <Link
+            to="/import"
+            className="block px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            Import
+          </Link>
+          <Link
             to="/settings/search"
             className="block px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
             role="menuitem"

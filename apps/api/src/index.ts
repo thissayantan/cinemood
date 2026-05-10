@@ -8,6 +8,7 @@ import titleRoutes from "./routes/title";
 import watchlistRoutes from "./routes/watchlist";
 import nlSearchRoutes from "./routes/nl-search";
 import settingsRoutes from "./routes/settings";
+import importRoutes from "./routes/import";
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
@@ -24,6 +25,7 @@ app.route("/", titleRoutes);
 app.route("/", watchlistRoutes);
 app.route("/", nlSearchRoutes);
 app.route("/", settingsRoutes);
+app.route("/", importRoutes);
 
 app.notFound((c) =>
   c.json(
