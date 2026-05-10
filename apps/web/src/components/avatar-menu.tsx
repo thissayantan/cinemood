@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import type { User } from "@cinemood/shared";
 import { logout } from "@/lib/use-user";
 
@@ -38,10 +39,18 @@ export function AvatarMenu({ user }: { user: User }) {
           <div className="border-b border-white/10 px-3 py-2 text-xs text-white/50">
             {user.email}
           </div>
+          <Link
+            to="/settings/search"
+            className="block px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+          >
+            Search settings
+          </Link>
           <button
             type="button"
             onClick={logout}
-            className="block w-full px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/10"
+            className="block w-full border-t border-white/10 px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/10"
             role="menuitem"
           >
             Sign out
