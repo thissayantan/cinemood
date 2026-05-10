@@ -186,3 +186,13 @@ _This section grows over time. Each entry is a lesson learned from a real mistak
 **ALWAYS** declare an explicit `Context<{Bindings; Variables}>` alias for shared route helpers — never derive it via `Parameters<typeof app.get>` or similar.
 - Why: Hono overloads route methods so `Parameters<...>` collapses to `never` and your helper silently breaks every call site with `Argument of type Context is not assignable to parameter of type never`.
 - How to apply: at the top of any `apps/api/src/routes/*.ts` that needs a `requireUser`-style helper, add `type Ctx = Context<{Bindings: Env; Variables: AuthVars}>` and type helpers `(c: Ctx)`.
+
+### Workers AI response shapes vary per model family
+**ALWAYS** route every `env.AI.run(...)` chat result through a shape-probing extractor — never assume `result.response` exists.
+- Why: `@cf/openai/gpt-oss-*` returns the OpenAI Responses-API shape (`output[].content[].text`) with `instructions`+`input` request keys; `@cf/meta/llama-*` and friends return `{response}` with `messages`+`max_tokens` request keys. A single hard-coded shape produces silent empty-string responses.
+- How to apply: keep `extractText(result)` in `apps/api/src/llm/cloudflare.ts` covering `response`, `result.response`, `choices[0].message.content`, `output[].content[].text`, `output_text`. If you add a model whose family differs from the existing branches, also branch the request payload (`isGptOss` pattern).
+
+### Orama 3.x where/properties pitfalls
+**ALWAYS** keep Orama's where-clause shapes and full-text `properties` aligned with the schema types.
+- Why: (1) `properties: ['title', 'overview']` only accepts `string`/`string[]` fields — passing an `enum[]` like `keywords` throws `Invalid property name`. (2) `where` on `enum` needs `{eq}` or `{in: [...]}` — bare arrays throw `Invalid operation`. (3) Numeric ranges combine via `{between: [a,b]}`; mixing `{gte, lte}` throws `You can only use one operation per filter`.
+- How to apply: in `apps/api/src/lib/orama-index.ts`, restrict full-text `properties` to true string fields and rely on the embedding for keyword/cast recall; use `{eq}`/`{in}` for enums, `{containsAny}` for `enum[]`, and collapse `min`+`max` into `{between}`.

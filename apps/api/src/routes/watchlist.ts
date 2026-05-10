@@ -6,7 +6,7 @@ import type { AuthVars } from "../middleware/auth";
 type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
 import { fetchTmdbDetail } from "../lib/tmdb";
 import { fetchOmdbRating } from "../lib/omdb";
-import { upsertTitle } from "../db/titles";
+import { getTitle, upsertTitle } from "../db/titles";
 import {
   addToWatchlist,
   getWatchlistItem,
@@ -15,6 +15,7 @@ import {
   removeFromWatchlist,
   setWatchlistStatus,
 } from "../db/watchlist";
+import { addTitleToIndex, removeTitleFromIndex } from "../lib/orama-index";
 
 const PostSchema = z.object({
   tmdb_id: z.coerce.number().int().positive(),
@@ -121,6 +122,16 @@ app.post("/api/watchlist", async (c) => {
     await upsertTitle(c.env.DB, detail, imdbRating);
     await addToWatchlist(c.env.DB, user.id, parsed.data.tmdb_id);
     const item = await getWatchlistItem(c.env.DB, user.id, parsed.data.tmdb_id);
+
+    const fullTitle = await getTitle(c.env.DB, parsed.data.tmdb_id);
+    if (fullTitle) {
+      c.executionCtx.waitUntil(
+        addTitleToIndex(c.env, user.id, fullTitle).catch((err) => {
+          console.error("index add failed", err);
+        }),
+      );
+    }
+
     return c.json({ ok: true, data: item });
   } catch (err) {
     console.error("watchlist add failed", err);
@@ -145,6 +156,11 @@ app.delete("/api/watchlist/:id", async (c) => {
     );
   }
   await removeFromWatchlist(c.env.DB, user.id, id);
+  c.executionCtx.waitUntil(
+    removeTitleFromIndex(c.env, user.id, id).catch((err) => {
+      console.error("index remove failed", err);
+    }),
+  );
   return c.json({ ok: true, data: { removed: id } });
 });
 

@@ -4,6 +4,7 @@ import type { User } from "@cinemood/shared";
 import { PageShell } from "@/components/page-shell";
 import { AvatarMenu } from "@/components/avatar-menu";
 import { SearchBar } from "@/components/search-bar";
+import { NlSearch } from "@/components/nl-search";
 import { WatchlistGrid } from "@/components/watchlist-grid";
 import { useWatchlistIds } from "@/lib/use-watchlist-ids";
 
@@ -39,15 +40,27 @@ export default function HomePage({ user }: { user: User }) {
           className="space-y-4"
         >
           <h1 className="text-2xl font-semibold tracking-tight text-white/90">
-            Add to your watchlist
+            Find by mood
           </h1>
+          <NlSearch />
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SPRING, delay: 0.04 }}
+          className="space-y-4"
+        >
+          <h2 className="text-2xl font-semibold tracking-tight text-white/90">
+            Add to your watchlist
+          </h2>
           <SearchBar savedIds={ids} onAdded={handleAdded} />
         </motion.section>
 
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.06 }}
+          transition={{ ...SPRING, delay: 0.08 }}
           className="space-y-5"
         >
           <h2 className="text-2xl font-semibold tracking-tight text-white/90">
