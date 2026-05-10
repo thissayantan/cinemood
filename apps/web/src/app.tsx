@@ -5,6 +5,7 @@ import HomePage from "./pages/home";
 import LandingPage from "./pages/landing";
 import SettingsSearchPage from "./pages/settings-search";
 import ImportPage from "./pages/import";
+import NotFoundPage from "./pages/not-found";
 import { useUser } from "./lib/use-user";
 import { PageShell } from "./components/page-shell";
 
@@ -59,7 +60,7 @@ export default function App() {
         element={<AuthedShell render={(u) => <ImportPage user={u} />} />}
       />
       <Route path="/" element={<Root />} />
-      <Route path="*" element={<Root />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

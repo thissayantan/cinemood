@@ -4,7 +4,13 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Cinemood — movies and series, found by mood." />
+    <meta name="description" content="Cinemood — movies and series, found by mood. A personal watchlist with natural-language search." />
+    <meta name="theme-color" content="#0b0b12" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f4f8" media="(prefers-color-scheme: light)" />
+    <meta property="og:title" content="Cinemood" />
+    <meta property="og:description" content="Movies and series, found by mood." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,6 +20,18 @@
     <title>Cinemood</title>
   </head>
   <body>
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem("cm_theme") || "system";
+          var dark =
+            pref === "dark" ||
+            (pref === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (_) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
