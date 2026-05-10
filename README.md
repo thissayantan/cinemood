@@ -11,13 +11,18 @@ React 18 + Vite + Tailwind v4 (frontend) · Cloudflare Workers + Hono (API) · D
 - `packages/shared` — types shared by web + api.
 
 ## Local dev
+
 ```bash
+git clone …
+cd cinemood
 bun install
 cp .dev.vars.example apps/api/.dev.vars   # then fill values
 bun run dev
 ```
 
-Frontend runs on `:5173`, API on `:8787`. Vite proxies `/api` and `/auth` to the Worker.
+That single `bun run dev` from the repo root starts the Worker and the Vite dev server in parallel via `concurrently`, with prefixed colour-coded output (`api` blue, `web` magenta). Ctrl+C tears both down. The API listens on `:8787`, the web app on `:5173`, and Vite proxies `/api/*` and `/auth/*` to the Worker.
+
+Per-side scripts are kept around for the rare case you want only one half: `bun run dev:api` and `bun run dev:web`.
 
 ## Conventions
 See `CLAUDE.md` and `claude-instructions.md` for hard rules and the build plan.

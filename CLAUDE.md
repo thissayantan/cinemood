@@ -196,3 +196,8 @@ _This section grows over time. Each entry is a lesson learned from a real mistak
 **ALWAYS** keep Orama's where-clause shapes and full-text `properties` aligned with the schema types.
 - Why: (1) `properties: ['title', 'overview']` only accepts `string`/`string[]` fields — passing an `enum[]` like `keywords` throws `Invalid property name`. (2) `where` on `enum` needs `{eq}` or `{in: [...]}` — bare arrays throw `Invalid operation`. (3) Numeric ranges combine via `{between: [a,b]}`; mixing `{gte, lte}` throws `You can only use one operation per filter`.
 - How to apply: in `apps/api/src/lib/orama-index.ts`, restrict full-text `properties` to true string fields and rely on the embedding for keyword/cast recall; use `{eq}`/`{in}` for enums, `{containsAny}` for `enum[]`, and collapse `min`+`max` into `{between}`.
+
+### One-command monorepo dev
+**ALWAYS** expose a single root `bun run dev` for monorepo dev. Two-terminal flows are a tax we've decided not to pay.
+- Why: starting `apps/api` and `apps/web` separately is fiddly, easy to forget, and turns "did you start both?" into a recurring question; a single command eliminates an entire class of self-inflicted bugs.
+- How to apply: keep `concurrently -n api,web -c blue,magenta --kill-others-on-fail "bun --filter @cinemood/api dev" "bun --filter @cinemood/web dev"` as the root `dev` script and add `concurrently` to root devDependencies. Per-side `dev:api`/`dev:web` may exist as escape hatches but never as the documented default.

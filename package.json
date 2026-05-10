@@ -8,13 +8,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:web": "bun --filter @cinemood/web dev",
+    "dev": "concurrently -n api,web -c blue,magenta --kill-others-on-fail \"bun --filter @cinemood/api dev\" \"bun --filter @cinemood/web dev\"",
     "dev:api": "bun --filter @cinemood/api dev",
-    "dev": "bun run --filter '*' dev",
+    "dev:web": "bun --filter @cinemood/web dev",
     "build": "bun run --filter '*' build",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "typescript": "^5.7.2"
   }
 }
