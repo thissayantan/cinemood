@@ -18,21 +18,27 @@ export function useWatchlistIds(): {
     void reload();
   }, [reload]);
 
-  const add = useCallback((id: number) => {
-    setIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  }, []);
+  // Optimistic mutation: clone the Set so React sees a new reference and
+  // re-renders consumers immediately, without waiting for a server reload.
+  const updateIds = useCallback(
+    (mutate: (next: Set<number>) => void) => {
+      setIds((prev) => {
+        const next = new Set(prev);
+        mutate(next);
+        return next;
+      });
+    },
+    [],
+  );
 
-  const remove = useCallback((id: number) => {
-    setIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
+  const add = useCallback(
+    (id: number) => updateIds((s) => void s.add(id)),
+    [updateIds],
+  );
+  const remove = useCallback(
+    (id: number) => updateIds((s) => void s.delete(id)),
+    [updateIds],
+  );
 
   return { ids, add, remove, reload };
 }

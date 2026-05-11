@@ -8,25 +8,27 @@ import type {
 import { api } from "./api";
 
 function buildQuery(filters: WatchlistFilters): string {
-  const p = new URLSearchParams();
-  if (filters.status) p.set("status", filters.status);
-  if (filters.type) p.set("type", filters.type);
-  if (filters.genre) p.set("genre", filters.genre);
-  if (typeof filters.year_min === "number")
-    p.set("year_min", String(filters.year_min));
-  if (typeof filters.year_max === "number")
-    p.set("year_max", String(filters.year_max));
-  if (typeof filters.min_rating === "number")
-    p.set("min_rating", String(filters.min_rating));
-  if (typeof filters.runtime_min === "number")
-    p.set("runtime_min", String(filters.runtime_min));
-  if (typeof filters.runtime_max === "number")
-    p.set("runtime_max", String(filters.runtime_max));
+  const params = new URLSearchParams();
+  const setStr = (key: string, value: string | undefined) => {
+    if (value) params.set(key, value);
+  };
+  const setNum = (key: string, value: number | undefined) => {
+    if (typeof value === "number") params.set(key, String(value));
+  };
+
+  setStr("status", filters.status);
+  setStr("type", filters.type);
+  setStr("genre", filters.genre);
+  setNum("year_min", filters.year_min);
+  setNum("year_max", filters.year_max);
+  setNum("min_rating", filters.min_rating);
+  setNum("runtime_min", filters.runtime_min);
+  setNum("runtime_max", filters.runtime_max);
   if (filters.providers && filters.providers.length > 0) {
-    for (const pr of filters.providers) p.append("provider", pr);
+    for (const provider of filters.providers) params.append("provider", provider);
   }
-  if (filters.sort) p.set("sort", filters.sort);
-  return p.toString();
+  setStr("sort", filters.sort);
+  return params.toString();
 }
 
 export const SORT_LABELS: Record<WatchlistSort, string> = {
@@ -145,35 +147,43 @@ export function useWatchlist(reloadKey = 0): WatchlistView {
 
 /** Derive available facets (genres, years, providers) from the unfiltered set. */
 export function deriveFacets(items: WatchlistItem[] | null) {
-  if (!items) return { genres: [] as string[], years: [] as number[], providers: [] as string[] };
-  const g = new Set<string>();
-  const y = new Set<number>();
-  const p = new Set<string>();
-  for (const it of items) {
-    for (const gen of it.title.genres) g.add(gen);
-    if (it.title.release_date) {
-      const yr = Number(it.title.release_date.slice(0, 4));
-      if (Number.isFinite(yr) && yr > 1880) y.add(yr);
+  if (!items) {
+    return { genres: [] as string[], years: [] as number[], providers: [] as string[] };
+  }
+  const genres = new Set<string>();
+  const years = new Set<number>();
+  const providers = new Set<string>();
+  for (const item of items) {
+    for (const genre of item.title.genres) genres.add(genre);
+    if (item.title.release_date) {
+      const yr = Number(item.title.release_date.slice(0, 4));
+      if (Number.isFinite(yr) && yr > 1880) years.add(yr);
     }
-    const providers = it.title.providers as Record<string, unknown> | null;
-    if (providers) {
-      for (const region of Object.values(providers)) {
-        if (!region || typeof region !== "object") continue;
-        for (const bucket of Object.values(region as Record<string, unknown>)) {
-          if (!Array.isArray(bucket)) continue;
-          for (const entry of bucket) {
-            if (entry && typeof entry === "object" && "provider_name" in entry) {
-              const name = (entry as { provider_name?: string }).provider_name;
-              if (typeof name === "string" && name) p.add(name);
-            }
-          }
-        }
+    collectProviderNames(item.title.providers as Record<string, unknown> | null, providers);
+  }
+  return {
+    genres: [...genres].sort(),
+    years: [...years].sort((a, b) => b - a),
+    providers: [...providers].sort(),
+  };
+}
+
+/** Walk the TMDB providers shape (region → bucket → entries) and collect
+ *  every `provider_name` into `out`. Used for the providers facet. */
+function collectProviderNames(
+  providers: Record<string, unknown> | null,
+  out: Set<string>,
+): void {
+  if (!providers) return;
+  for (const region of Object.values(providers)) {
+    if (!region || typeof region !== "object") continue;
+    for (const bucket of Object.values(region as Record<string, unknown>)) {
+      if (!Array.isArray(bucket)) continue;
+      for (const entry of bucket) {
+        if (!entry || typeof entry !== "object" || !("provider_name" in entry)) continue;
+        const name = (entry as { provider_name?: string }).provider_name;
+        if (typeof name === "string" && name) out.add(name);
       }
     }
   }
-  return {
-    genres: [...g].sort(),
-    years: [...y].sort((a, b) => b - a),
-    providers: [...p].sort(),
-  };
 }

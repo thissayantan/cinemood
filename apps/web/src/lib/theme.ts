@@ -46,10 +46,19 @@ export function useTheme(): {
   }, [pref]);
 
   function cycle() {
-    setPrefState((p) =>
-      p === "system" ? "light" : p === "light" ? "dark" : "system",
-    );
+    setPrefState(nextPref);
   }
 
   return { pref, setPref: setPrefState, cycle };
+}
+
+function nextPref(current: ThemePref): ThemePref {
+  switch (current) {
+    case "system":
+      return "light";
+    case "light":
+      return "dark";
+    case "dark":
+      return "system";
+  }
 }

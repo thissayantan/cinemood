@@ -7,12 +7,22 @@ interface Handlers {
   onFocusFilterSearch?: () => void;
 }
 
+/** Window (ms) within which a "g" press is considered the start of a
+ *  two-key navigation sequence. */
+const G_SEQUENCE_WINDOW_MS = 1500;
+
+/** Routes reachable via the "g x" two-key sequence. */
+const G_ROUTES: Record<string, string> = {
+  h: "/",
+  i: "/import",
+  s: "/settings/search",
+};
+
 function isTypingContext(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if (target.isContentEditable) return true;
-  return false;
+  return target.isContentEditable;
 }
 
 /** Global app-level shortcuts. Card-scoped shortcuts (W, Del, arrows) live
@@ -42,23 +52,12 @@ export function useKeyboardShortcuts({
         lastG.current = now;
         return;
       }
-      if (now - lastG.current < 1500) {
-        if (e.key.toLowerCase() === "h") {
+      if (now - lastG.current < G_SEQUENCE_WINDOW_MS) {
+        const route = G_ROUTES[e.key.toLowerCase()];
+        if (route) {
           e.preventDefault();
           lastG.current = 0;
-          nav("/");
-          return;
-        }
-        if (e.key.toLowerCase() === "i") {
-          e.preventDefault();
-          lastG.current = 0;
-          nav("/import");
-          return;
-        }
-        if (e.key.toLowerCase() === "s") {
-          e.preventDefault();
-          lastG.current = 0;
-          nav("/settings/search");
+          nav(route);
           return;
         }
       }
