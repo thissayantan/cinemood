@@ -1,3 +1,5 @@
+import { kvPutSafe } from "./kv-safe";
+
 const OMDB_BASE = "https://www.omdbapi.com/";
 const OMDB_TTL = 60 * 60 * 24 * 30; // 30 days
 
@@ -37,7 +39,7 @@ export async function fetchOmdbRating(
     console.error("omdb fetch failed", err);
   }
 
-  await cache.put(cacheKey, rating === null ? "" : String(rating), {
+  await kvPutSafe(cache, cacheKey, rating === null ? "" : String(rating), {
     expirationTtl: OMDB_TTL,
   });
   return rating;

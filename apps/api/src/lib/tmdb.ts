@@ -1,4 +1,5 @@
 import type { TitleType } from "@cinemood/shared";
+import { kvPutSafe } from "./kv-safe";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const SEARCH_TTL = 60 * 60 * 24; // 1 day
@@ -102,7 +103,7 @@ export async function searchTmdb(
     })
     .slice(0, 20);
 
-  await cache.put(cacheKey, JSON.stringify(results), {
+  await kvPutSafe(cache, cacheKey, JSON.stringify(results), {
     expirationTtl: SEARCH_TTL,
   });
   return results;
@@ -229,7 +230,7 @@ export async function fetchTmdbDetail(
     raw: json,
   };
 
-  await cache.put(cacheKey, JSON.stringify(detail), {
+  await kvPutSafe(cache, cacheKey, JSON.stringify(detail), {
     expirationTtl: DETAIL_TTL,
   });
   return detail;
