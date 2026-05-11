@@ -513,11 +513,11 @@ export default function ImportPage({ user }: { user: User }) {
               <AnimatedDialogContent
                 open={!!dialogItem}
                 side="center"
-                className="!w-[min(440px,calc(100vw-32px))]"
+                className="!w-[min(640px,calc(100vw-32px))]"
               >
                 {dialogItem ? (
                   <div className="p-2">
-                    <PickPreview
+                    <PickPreviewExpanded
                       pick={dialogItem.pick}
                       raw={dialogItem.raw}
                       detail={dialogDetail}
@@ -824,6 +824,187 @@ function PickPreview({
         <div className="mt-3 border-t border-[var(--rule)] pt-3 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-faint)]">
           picked for &ldquo;{raw}&rdquo;
         </div>
+      </div>
+    </div>
+  );
+}
+
+function formatRuntime(mins: number | null): string | null {
+  if (!mins || mins <= 0) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+/** Expanded variant of PickPreview shown in the tap-to-open dialog. The
+ *  dialog has more surface than the sidebar, so it carries cast, runtime,
+ *  and IMDb rating in a two-column poster + content layout. */
+function PickPreviewExpanded({
+  pick,
+  raw,
+  detail,
+}: {
+  pick: TmdbHit;
+  raw: string;
+  detail: Title | null;
+}) {
+  const poster = posterUrl(pick.poster_path, "w342");
+  const year = pick.release_date ? pick.release_date.slice(0, 4) : "—";
+  const tmdbRating =
+    typeof pick.vote_average === "number" && pick.vote_average > 0
+      ? pick.vote_average.toFixed(1)
+      : null;
+  const runtime = formatRuntime(detail?.runtime ?? null);
+  const imdb = detail?.imdb_rating ? detail.imdb_rating.toFixed(1) : null;
+  const originalTitle =
+    detail?.original_title && detail.original_title !== pick.title
+      ? detail.original_title
+      : null;
+  const genres = detail?.genres ?? [];
+  const providers = selectProviders(detail?.providers ?? null);
+  const cast = (detail?.cast ?? []).slice(0, 8);
+
+  return (
+    <div className="rounded-2xl border border-[var(--rule)] bg-[var(--paper)] p-5 shadow-[var(--shadow-card)]">
+      <div className="grid gap-5 sm:grid-cols-[180px_minmax(0,1fr)]">
+        <div
+          className="overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
+          style={{ aspectRatio: "2 / 3" }}
+        >
+          {poster ? (
+            <img
+              src={poster}
+              alt=""
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="grid h-full place-items-center font-label text-[10px] text-[var(--paper-faint)]">
+              no poster
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <h3
+            className="font-display-sm leading-tight text-[var(--ink)]"
+            style={{ fontVariationSettings: '"opsz" 32, "wght" 700, "SOFT" 30' }}
+          >
+            {pick.title}
+          </h3>
+          {originalTitle && (
+            <div className="mt-1 truncate font-mono text-[10.5px] italic text-[var(--paper-faint)]">
+              {originalTitle}
+            </div>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
+            <span>{year}</span>
+            <span aria-hidden>·</span>
+            <span>{pick.type}</span>
+            {runtime && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{runtime}</span>
+              </>
+            )}
+            {tmdbRating && (
+              <>
+                <span aria-hidden>·</span>
+                <span>★ {tmdbRating} tmdb</span>
+              </>
+            )}
+            {imdb && (
+              <>
+                <span aria-hidden>·</span>
+                <span>★ {imdb} imdb</span>
+              </>
+            )}
+          </div>
+
+          <p className="mt-3 line-clamp-6 text-[13px] leading-snug text-[var(--paper-dim)]">
+            {pick.overview || (
+              <span className="italic text-[var(--paper-faint)]">
+                No synopsis on file.
+              </span>
+            )}
+          </p>
+
+          {genres.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {genres.map((g) => (
+                <span
+                  key={g}
+                  className="rounded-full border border-[var(--rule)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-dim)]"
+                >
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {cast.length > 0 && (
+        <div className="mt-5 border-t border-[var(--rule)] pt-4">
+          <div className="font-label text-[9px] text-[var(--paper-faint)]">
+            Cast
+          </div>
+          <ul className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+            {cast.map((c) => (
+              <li
+                key={`${c.name}:${c.character ?? ""}`}
+                className="min-w-0 text-[12px] leading-tight"
+              >
+                <span className="block truncate text-[var(--ink)]">
+                  {c.name}
+                </span>
+                {c.character && (
+                  <span className="block truncate font-mono text-[9.5px] uppercase tracking-wider text-[var(--paper-faint)]">
+                    as {c.character}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {providers.length > 0 && (
+        <div className="mt-4 border-t border-[var(--rule)] pt-4">
+          <div className="font-label text-[9px] text-[var(--paper-faint)]">
+            Stream on
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {providers.map((p) => (
+              <span
+                key={p.name}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--paper-dim)]"
+                title={p.name}
+              >
+                {p.logo ? (
+                  <img
+                    src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+                    alt=""
+                    className="h-4 w-4 rounded-[3px] object-cover"
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="grid h-4 w-4 place-items-center rounded-[3px] bg-[var(--paper-3)] font-mono text-[8px] text-[var(--paper-faint)]">
+                    {p.name.slice(0, 1)}
+                  </span>
+                )}
+                <span className="truncate">{p.name}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 border-t border-[var(--rule)] pt-3 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-faint)]">
+        picked for &ldquo;{raw}&rdquo;
       </div>
     </div>
   );
