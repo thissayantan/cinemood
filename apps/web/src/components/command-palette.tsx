@@ -205,7 +205,12 @@ export function CommandPalette({
       <AnimatedDialogContent
         open={open}
         side="center"
-        className="!top-[26%] !translate-y-0 max-h-[min(78vh,720px)] overflow-hidden !w-[min(880px,calc(100vw-32px))]"
+        // Anchored in the upper third instead of dead-centre so the
+        // input lands near eye-level and the results occupy the visual
+        // centre band (Linear / Raycast / Spotlight pattern).
+        // top-[12vh] + max-h 76vh keeps a comfortable ≈12vh tail of
+        // breathing room at the bottom even on a long result list.
+        className="!top-[12vh] !translate-y-0 max-h-[min(76vh,720px)] overflow-hidden !w-[min(880px,calc(100vw-32px))]"
         title="Command palette"
       >
         <Command
