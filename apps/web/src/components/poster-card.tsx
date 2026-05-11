@@ -234,8 +234,12 @@ function QuickAction({
         e.stopPropagation();
         onClick();
       }}
+      // These overlays sit on a poster image (any colour, often dark), not
+      // on the page surface, so a theme-following palette would tank
+      // contrast in dark mode. Lock to white-on-near-black with a subtle
+      // white edge — high contrast on every poster regardless of theme.
       className={cn(
-        "grid h-7 w-7 place-items-center rounded-full border border-[var(--paper)]/30 bg-[var(--paper-3)]/85 text-[var(--paper)] backdrop-blur-sm transition hover:bg-[var(--paper-3)]",
+        "grid h-7 w-7 place-items-center rounded-full border border-white/25 bg-black/65 text-white shadow-sm shadow-black/30 backdrop-blur-sm transition hover:bg-black/85",
         danger && "hover:border-[var(--accent)] hover:text-[var(--accent)]",
       )}
     >

@@ -17,6 +17,7 @@ import { EmptyWatchlist } from "@/components/empty-watchlist";
 import { RouteTitle } from "@/components/route-title";
 import { ShortcutsSheet } from "@/components/shortcuts-sheet";
 import { WelcomeOverlay } from "@/components/welcome-overlay";
+import { Toast } from "@/components/toast";
 
 function activeFilterCount(filters: ReturnType<typeof useWatchlist>["filters"]): number {
   let n = 0;
@@ -39,6 +40,9 @@ export default function HomePage({ user }: { user: User }) {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<WatchlistItem | null>(null);
+  // Tracks the most-recently removed item so the toast can offer Undo.
+  // Only the latest removal is undoable; sequential removes overwrite.
+  const [removedItem, setRemovedItem] = useState<WatchlistItem | null>(null);
 
   useKeyboardShortcuts({
     onOpenPalette: () => setPaletteOpen((o) => !o),
@@ -98,10 +102,28 @@ export default function HomePage({ user }: { user: User }) {
         setDetailItem((prev) =>
           prev && prev.title.id === item.title.id ? null : prev,
         );
+        setRemovedItem(item);
       }
     },
     [removeId],
   );
+
+  const handleUndoRemove = useCallback(async () => {
+    if (!removedItem) return;
+    const target = removedItem;
+    setRemovedItem(null);
+    const res = await api("/api/watchlist", {
+      method: "POST",
+      body: JSON.stringify({
+        tmdb_id: target.title.id,
+        type: target.title.type,
+      }),
+    });
+    if (res.ok) {
+      addId(target.title.id);
+      setReloadKey((k) => k + 1);
+    }
+  }, [removedItem, addId]);
 
   const items = wl.visible;
   const isEmpty = wl.all !== null && wl.all.length === 0;
@@ -219,6 +241,13 @@ export default function HomePage({ user }: { user: User }) {
           onReset={wl.resetFilters}
         />
       </Sheet>
+
+      <Toast
+        open={!!removedItem}
+        message={removedItem ? `Removed "${removedItem.title.title}"` : ""}
+        action={{ label: "Undo", onClick: handleUndoRemove }}
+        onDismiss={() => setRemovedItem(null)}
+      />
     </div>
   );
 }
