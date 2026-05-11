@@ -2,8 +2,6 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
-
-type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
 import { fetchTmdbDetail } from "../lib/tmdb";
 import { fetchOmdbRating } from "../lib/omdb";
 import { getTitle, upsertTitle } from "../db/titles";
@@ -16,6 +14,8 @@ import {
   setWatchlistStatus,
 } from "../db/watchlist";
 import { addTitleToIndex, removeTitleFromIndex } from "../lib/orama-index";
+
+type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
 
 const PostSchema = z.object({
   tmdb_id: z.coerce.number().int().positive(),
@@ -62,14 +62,24 @@ function authGuard(c: Ctx) {
   return user;
 }
 
-app.get("/api/watchlist", async (c) => {
-  const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
+function validationError(c: Ctx, message: string) {
+  return c.json(
+    { ok: false, error: { code: "VALIDATION", message } },
+    400,
+  );
+}
+
+async function readJsonBody(c: Ctx): Promise<unknown | Response> {
+  try {
+    return await c.req.json();
+  } catch {
+    return validationError(c, "Invalid JSON");
   }
+}
+
+app.get("/api/watchlist", async (c) => {
+  const user = authGuard(c);
+  if (user instanceof Response) return user;
   const parsed = ListQuerySchema.safeParse({
     status: c.req.query("status"),
     type: c.req.query("type"),
@@ -82,15 +92,7 @@ app.get("/api/watchlist", async (c) => {
     runtime_max: c.req.query("runtime_max"),
     sort: c.req.query("sort"),
   });
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
   const providers = c.req.queries("provider") ?? undefined;
   const items = await listWatchlist(c.env.DB, user.id, {
     ...parsed.data,
@@ -100,13 +102,8 @@ app.get("/api/watchlist", async (c) => {
 });
 
 app.get("/api/watchlist/ids", async (c) => {
-  const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
+  const user = authGuard(c);
+  if (user instanceof Response) return user;
   const ids = await listWatchlistTitleIds(c.env.DB, user.id);
   return c.json({ ok: true, data: ids });
 });
@@ -115,25 +112,10 @@ app.post("/api/watchlist", async (c) => {
   const user = authGuard(c);
   if (user instanceof Response) return user;
 
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
 
   try {
     const detail = await fetchTmdbDetail(
@@ -175,12 +157,7 @@ app.delete("/api/watchlist/:id", async (c) => {
   const user = authGuard(c);
   if (user instanceof Response) return user;
   const id = Number(c.req.param("id"));
-  if (!Number.isInteger(id) || id <= 0) {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Bad id" } },
-      400,
-    );
-  }
+  if (!Number.isInteger(id) || id <= 0) return validationError(c, "Bad id");
   await removeFromWatchlist(c.env.DB, user.id, id);
   c.executionCtx.waitUntil(
     removeTitleFromIndex(c.env, user.id, id).catch((err) => {
@@ -194,31 +171,11 @@ app.patch("/api/watchlist/:id", async (c) => {
   const user = authGuard(c);
   if (user instanceof Response) return user;
   const id = Number(c.req.param("id"));
-  if (!Number.isInteger(id) || id <= 0) {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Bad id" } },
-      400,
-    );
-  }
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  if (!Number.isInteger(id) || id <= 0) return validationError(c, "Bad id");
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsed = PatchSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
   await setWatchlistStatus(c.env.DB, user.id, id, parsed.data.status);
   const item = await getWatchlistItem(c.env.DB, user.id, id);
   return c.json({ ok: true, data: item });

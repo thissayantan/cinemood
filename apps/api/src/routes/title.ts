@@ -20,10 +20,7 @@ app.get("/api/title/:type/:id", async (c) => {
   });
   if (!parsed.success) {
     return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
+      { ok: false, error: { code: "VALIDATION", message: parsed.error.message } },
       400,
     );
   }

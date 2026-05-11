@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { LlmConfig, LlmConfigPublic } from "@cinemood/shared";
 import type { Env } from "../env";
@@ -11,6 +11,30 @@ import {
   readUserLlmConfig,
   writeUserLlmConfig,
 } from "../lib/user-llm";
+
+type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
+
+function authError(c: Ctx) {
+  return c.json(
+    { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
+    401,
+  );
+}
+
+function validationError(c: Ctx, message: string) {
+  return c.json(
+    { ok: false, error: { code: "VALIDATION", message } },
+    400,
+  );
+}
+
+async function readJsonBody(c: Ctx): Promise<unknown | Response> {
+  try {
+    return await c.req.json();
+  } catch {
+    return validationError(c, "Invalid JSON");
+  }
+}
 
 const PutSchema = z
   .discriminatedUnion("provider", [
@@ -53,12 +77,7 @@ function publicView(cfg: LlmConfig): LlmConfigPublic {
 
 app.get("/api/settings/llm", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
+  if (!user) return authError(c);
   const userCfg = await readUserLlmConfig(c.env, user.id);
   const effective = userCfg ?? (await resolveLlmConfig(c.env, user.id));
   return c.json({
@@ -107,46 +126,16 @@ async function buildConfigFromBody(
 
 app.put("/api/settings/llm", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  if (!user) return authError(c);
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsed = PutSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
   let cfg: LlmConfig;
   try {
     cfg = await buildConfigFromBody(parsed.data, c.env, user.id);
   } catch (err) {
-    return c.json(
-      {
-        ok: false,
-        error: {
-          code: "VALIDATION",
-          message:
-            err instanceof Error ? err.message : "Bad config",
-        },
-      },
-      400,
-    );
+    return validationError(c, err instanceof Error ? err.message : "Bad config");
   }
   await writeUserLlmConfig(c.env, user.id, cfg);
   return c.json({ ok: true, data: { saved: publicView(cfg) } });
@@ -154,12 +143,7 @@ app.put("/api/settings/llm", async (c) => {
 
 app.delete("/api/settings/llm", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
+  if (!user) return authError(c);
   await deleteUserLlmConfig(c.env, user.id);
   const effective = await resolveLlmConfig(c.env, user.id);
   return c.json({
@@ -170,45 +154,16 @@ app.delete("/api/settings/llm", async (c) => {
 
 app.post("/api/settings/llm/test", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  if (!user) return authError(c);
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsed = TestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
   let cfg: LlmConfig;
   try {
     cfg = await buildConfigFromBody(parsed.data, c.env, user.id);
   } catch (err) {
-    return c.json(
-      {
-        ok: false,
-        error: {
-          code: "VALIDATION",
-          message: err instanceof Error ? err.message : "Bad config",
-        },
-      },
-      400,
-    );
+    return validationError(c, err instanceof Error ? err.message : "Bad config");
   }
   const provider = createLlmProvider(cfg, c.env);
   const result = await provider.testConnection();

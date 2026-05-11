@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
@@ -8,18 +8,22 @@ import { rebuildIndex, searchIndex } from "../lib/orama-index";
 import { listWatchlist } from "../db/watchlist";
 import type { ParsedQuery, WatchlistItem } from "@cinemood/shared";
 
+type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
+
+function authError(c: Ctx) {
+  return c.json(
+    { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
+    401,
+  );
+}
+
 const BodySchema = z.object({ query: z.string().min(1).max(500) });
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 app.post("/api/search", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
+  if (!user) return authError(c);
 
   let body: unknown;
   try {
@@ -94,12 +98,7 @@ app.post("/api/search", async (c) => {
 
 app.post("/api/search/reindex", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
+  if (!user) return authError(c);
   try {
     const result = await rebuildIndex(c.env, user.id);
     return c.json({ ok: true, data: result });

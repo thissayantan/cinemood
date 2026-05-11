@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
@@ -8,6 +8,30 @@ import { fetchOmdbRating } from "../lib/omdb";
 import { getTitlesById, upsertTitleStmt } from "../db/titles";
 import { addManyToWatchlist, listWatchlistTitleIds } from "../db/watchlist";
 import { addTitlesToIndex } from "../lib/orama-index";
+
+type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
+
+function authError(c: Ctx) {
+  return c.json(
+    { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
+    401,
+  );
+}
+
+function validationError(c: Ctx, message: string) {
+  return c.json(
+    { ok: false, error: { code: "VALIDATION", message } },
+    400,
+  );
+}
+
+async function readJsonBody(c: Ctx): Promise<unknown | Response> {
+  try {
+    return await c.req.json();
+  } catch {
+    return validationError(c, "Invalid JSON");
+  }
+}
 
 const TITLE_FRESH_SECONDS = 60 * 60 * 24 * 7; // 7 days — same as KV detail TTL
 
@@ -53,31 +77,11 @@ const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 app.post("/api/import/resolve", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  if (!user) return authError(c);
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsed = ResolveBody.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
   const resolved = await resolveBatch(c.env, parsed.data.items);
   // Server-side "already in catalog" tagging so the FE doesn't race a
   // parallel watchlist-ids fetch against the resolve POST. Cheap query —
@@ -91,31 +95,11 @@ app.post("/api/import/resolve", async (c) => {
 
 app.post("/api/import/commit", async (c) => {
   const user = c.get("user");
-  if (!user) {
-    return c.json(
-      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-      401,
-    );
-  }
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  if (!user) return authError(c);
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsed = CommitBody.safeParse(body);
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsed.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsed.success) return validationError(c, parsed.error.message);
 
   // The naive per-item pipeline (TMDB → OMDB → D1 upsert → D1 catalog query
   // → D1 watchlist insert → D1 read → waitUntil(addTitleToIndex)) blew the

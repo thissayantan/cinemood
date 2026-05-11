@@ -23,20 +23,24 @@ function webUrl(env: Env, path: string): string {
   return origin + path;
 }
 
+function stateCookie(value: string, maxAge: number, isProd: boolean): string {
+  const parts = [
+    `${STATE_COOKIE}=${value}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAge}`,
+  ];
+  if (isProd) parts.push("Secure");
+  return parts.join("; ");
+}
+
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 app.get("/auth/google", async (c) => {
   const state = newSessionId();
   const isProd = c.env.ENVIRONMENT === "production";
-  const stateCookieParts = [
-    `${STATE_COOKIE}=${state}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Lax",
-    `Max-Age=${STATE_TTL_SECONDS}`,
-  ];
-  if (isProd) stateCookieParts.push("Secure");
-  c.header("Set-Cookie", stateCookieParts.join("; "));
+  c.header("Set-Cookie", stateCookie(state, STATE_TTL_SECONDS, isProd));
   return c.redirect(buildAuthUrl(c.env, state));
 });
 
@@ -75,6 +79,16 @@ app.get("/auth/google/callback", async (c) => {
   // INTERNAL which makes "Sign-in failed" undebuggable. Each side-effect
   // gets its own labelled error so the user (and the logs) see which
   // step actually broke.
+  function errorRedirect(code: string, err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.redirect(
+      webUrl(
+        c.env,
+        `/?auth_error=${code}&detail=${encodeURIComponent(msg.slice(0, 120))}`,
+      ),
+    );
+  }
+
   try {
     await upsertUser(c.env.DB, {
       id: profile.sub,
@@ -84,13 +98,7 @@ app.get("/auth/google/callback", async (c) => {
     });
   } catch (err) {
     console.error("oauth callback: upsertUser failed", err);
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.redirect(
-      webUrl(
-        c.env,
-        `/?auth_error=db_write_failed&detail=${encodeURIComponent(msg.slice(0, 120))}`,
-      ),
-    );
+    return errorRedirect("db_write_failed", err);
   }
 
   let session;
@@ -98,13 +106,7 @@ app.get("/auth/google/callback", async (c) => {
     session = await createSession(c.env.SESSION_SIGNING_KEY, profile.sub);
   } catch (err) {
     console.error("oauth callback: createSession failed", err);
-    const msg = err instanceof Error ? err.message : String(err);
-    return c.redirect(
-      webUrl(
-        c.env,
-        `/?auth_error=session_create_failed&detail=${encodeURIComponent(msg.slice(0, 120))}`,
-      ),
-    );
+    return errorRedirect("session_create_failed", err);
   }
   const isProd = c.env.ENVIRONMENT === "production";
   c.header("Set-Cookie", buildSessionCookie(session.value, isProd), {
@@ -112,15 +114,7 @@ app.get("/auth/google/callback", async (c) => {
   });
 
   // Clear the state cookie.
-  const stateClearParts = [
-    `${STATE_COOKIE}=`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Lax",
-    "Max-Age=0",
-  ];
-  if (isProd) stateClearParts.push("Secure");
-  c.header("Set-Cookie", stateClearParts.join("; "), { append: true });
+  c.header("Set-Cookie", stateCookie("", 0, isProd), { append: true });
 
   return c.redirect(webUrl(c.env, "/"));
 });
@@ -170,10 +164,7 @@ app.post("/auth/logout-everywhere", async (c) => {
   const user = c.get("user");
   if (!user) {
     return c.json(
-      {
-        ok: false,
-        error: { code: "AUTH_REQUIRED", message: "Sign in required" },
-      },
+      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
       401,
     );
   }
