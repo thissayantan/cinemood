@@ -29,6 +29,21 @@ bucket_name = "cinemood-index"
 binding = "AI"
 
 # Production environment — same bindings, route attached.
+#
+# Bound static assets: the Worker also serves the SPA build from
+# apps/web/dist. Wrangler routes the request via run_worker_first:
+#   /api/*  and /auth/* — handled by the Worker (Hono routes).
+#   anything else       — served from assets, with SPA fallback to
+#                         /index.html so client-side routes work.
+#
+# This sidesteps the Pages "CNAME Cross-User Banned" (error 1014)
+# situation: the Pages project lives on a different Cloudflare
+# account than the `sayantan.cloud` zone, so a plain CNAME to
+# `cinemood.pages.dev` is blocked by Cloudflare policy. Serving the
+# frontend through this Worker means the only DNS we need is a
+# proxied placeholder record on the zone (any orange-clouded record
+# is fine — the Worker route intercepts the request before origin
+# resolution).
 [env.production]
 name = "cinemood-api"
 workers_dev = false
@@ -36,12 +51,14 @@ workers_dev = false
 [env.production.vars]
 ENVIRONMENT = "production"
 
-[[env.production.routes]]
-pattern = "cinemood.sayantan.cloud/api/*"
-zone_name = "sayantan.cloud"
+[env.production.assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/auth/*"]
 
 [[env.production.routes]]
-pattern = "cinemood.sayantan.cloud/auth/*"
+pattern = "cinemood.sayantan.cloud/*"
 zone_name = "sayantan.cloud"
 
 [[env.production.d1_databases]]

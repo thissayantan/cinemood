@@ -12,7 +12,9 @@
     "dev:api": "bun --filter @cinemood/api dev",
     "dev:web": "bun --filter @cinemood/web dev",
     "build": "bun run --filter '*' build",
-    "typecheck": "bun run --filter '*' typecheck"
+    "typecheck": "bun run --filter '*' typecheck",
+    "deploy": "bun run --filter @cinemood/web build && bunx wrangler --cwd apps/api deploy --env production",
+    "reset:data": "bash apps/api/scripts/reset-data.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

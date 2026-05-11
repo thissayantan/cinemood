@@ -5,6 +5,14 @@ export interface Env {
   CACHE: KVNamespace;
   INDEX_BUCKET: R2Bucket;
   AI: Ai;
+  // Static assets binding — present in production where the Worker also
+  // serves the SPA build from apps/web/dist via wrangler `[assets]`.
+  // Unbound in local dev (Vite serves the frontend separately on :5173).
+  // Routing happens before user code: run_worker_first routes /api/* and
+  // /auth/* here, everything else is served by the asset router. The
+  // binding is declared so the type stays accurate, but the Worker code
+  // never needs to call it manually.
+  ASSETS?: Fetcher;
 
   // Vars / secrets
   ENVIRONMENT: "development" | "production";
