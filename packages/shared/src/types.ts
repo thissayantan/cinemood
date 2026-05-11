@@ -37,6 +37,31 @@ export interface WatchlistItem {
   added_at: number;
   watched_at: number | null;
   notes: string | null;
+  /** Per-user catalog number (Criterion-spine style). Auto-assigned on insert. */
+  catalog_no: number;
+}
+
+export type WatchlistSort =
+  | "added_desc"
+  | "added_asc"
+  | "title_asc"
+  | "year_desc"
+  | "year_asc"
+  | "rating_desc"
+  | "catalog_desc";
+
+export interface WatchlistFilters {
+  status?: WatchStatus;
+  type?: TitleType;
+  genre?: string;
+  year?: string;
+  year_min?: number;
+  year_max?: number;
+  min_rating?: number;
+  runtime_min?: number;
+  runtime_max?: number;
+  providers?: string[];
+  sort?: WatchlistSort;
 }
 
 export type LlmProviderId = "cloudflare" | "anthropic" | "openai" | "google";

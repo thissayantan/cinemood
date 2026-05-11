@@ -31,6 +31,22 @@ const ListQuerySchema = z.object({
   type: z.enum(["movie", "series"]).optional(),
   genre: z.string().min(1).optional(),
   year: z.string().regex(/^\d{4}$/).optional(),
+  year_min: z.coerce.number().int().min(1800).max(2200).optional(),
+  year_max: z.coerce.number().int().min(1800).max(2200).optional(),
+  min_rating: z.coerce.number().min(0).max(10).optional(),
+  runtime_min: z.coerce.number().int().min(0).max(1000).optional(),
+  runtime_max: z.coerce.number().int().min(0).max(1000).optional(),
+  sort: z
+    .enum([
+      "added_desc",
+      "added_asc",
+      "title_asc",
+      "year_desc",
+      "year_asc",
+      "rating_desc",
+      "catalog_desc",
+    ])
+    .optional(),
 });
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
@@ -59,6 +75,12 @@ app.get("/api/watchlist", async (c) => {
     type: c.req.query("type"),
     genre: c.req.query("genre"),
     year: c.req.query("year"),
+    year_min: c.req.query("year_min"),
+    year_max: c.req.query("year_max"),
+    min_rating: c.req.query("min_rating"),
+    runtime_min: c.req.query("runtime_min"),
+    runtime_max: c.req.query("runtime_max"),
+    sort: c.req.query("sort"),
   });
   if (!parsed.success) {
     return c.json(
@@ -69,7 +91,11 @@ app.get("/api/watchlist", async (c) => {
       400,
     );
   }
-  const items = await listWatchlist(c.env.DB, user.id, parsed.data);
+  const providers = c.req.queries("provider") ?? undefined;
+  const items = await listWatchlist(c.env.DB, user.id, {
+    ...parsed.data,
+    providers: providers && providers.length > 0 ? providers : undefined,
+  });
   return c.json({ ok: true, data: items });
 });
 
