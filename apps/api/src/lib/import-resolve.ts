@@ -19,9 +19,101 @@ export interface ResolvedHit {
   alternatives: TmdbSearchResult[];
 }
 
+// ---------- normalization helpers ---------------------------------------
+
+const PLACEHOLDERS = new Set([
+  "unknown item",
+  "unknown title",
+  "untitled",
+]);
+
 function normalize(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[''`]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
+
+function tokens(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of normalize(s).split(/\s+/)) if (w) out.add(w);
+  return out;
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter++;
+  const union = a.size + b.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+function hasLatin(s: string): boolean {
+  return /[A-Za-z]/.test(s);
+}
+
+// ---------- query expansion ---------------------------------------------
+
+interface SearchQuery {
+  q: string;
+  year?: number;
+}
+
+/** Expand a single candidate into 1–3 TMDB-friendly search queries.
+ *
+ *  Real-world watchlist exports (Google Play, IMDb, Letterboxd) tag titles
+ *  with suffixes TMDB doesn't recognise:
+ *    "Joe Pickett (TV)"               → suffix tag, strip it
+ *    "M3GAN (Unrated)"                → suffix tag, strip it
+ *    "Dahan: Raakan Ka Rahasya (Marathi)" → language tag, strip
+ *    "War Dogs (2016)"                → year hint, strip + use year
+ *    "แผนล่มรักวันคริสต์มาส (Christmas Is Canceled)"
+ *      → non-Latin primary, English fallback in parens; try BOTH
+ *
+ *  We always include the original title (so well-formed titles still hit
+ *  TMDB's exact-match path), but layer stripped + alternative variants so
+ *  the resolver doesn't give up on the suffix-laden cases. */
+export function expandQueries(cand: ImportCandidate): SearchQuery[] {
+  const out: SearchQuery[] = [];
+  const seenQ = new Set<string>();
+  const push = (q: string, year?: number) => {
+    const trimmed = q.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed) return;
+    if (seenQ.has(key)) return;
+    seenQ.add(key);
+    out.push({ q: trimmed, year: year ?? cand.year });
+  };
+
+  push(cand.title, cand.year);
+
+  // Year-in-parens suffix: "Title (1999)" → split off as a year hint.
+  const yearMatch = cand.title.match(/^(.+?)\s*\((\d{4})\)\s*$/);
+  if (yearMatch) {
+    push(yearMatch[1]!, Number(yearMatch[2]));
+  }
+
+  // Generic parenthetical suffix: "Title (Marathi)", "Title (TV)", etc.
+  const parenMatch = cand.title.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+  if (parenMatch && !yearMatch) {
+    const main = parenMatch[1]!.trim();
+    const tag = parenMatch[2]!.trim();
+    push(main);
+    // The parenthetical might be a transliterated / English fallback for a
+    // non-Latin primary. Only fire this query when the primary lacks Latin
+    // characters but the parenthetical has them — otherwise it's a tag
+    // ("TV"/"Marathi") that won't help TMDB.
+    if (!hasLatin(main) && hasLatin(tag)) {
+      push(tag);
+    }
+  }
+
+  return out;
+}
+
+// ---------- scoring -----------------------------------------------------
 
 function score(
   cand: ImportCandidate,
@@ -30,44 +122,140 @@ function score(
   total: number,
 ): number {
   let s = 0;
-  const a = normalize(cand.title);
-  const b = normalize(hit.title);
-  if (a === b) s += 0.6;
-  else if (b.includes(a) || a.includes(b)) s += 0.35;
+  const aN = normalize(cand.title);
+  const bN = normalize(hit.title);
+  const aT = tokens(cand.title);
+  const bT = tokens(hit.title);
+  const j = jaccard(aT, bT);
+
+  if (aN && aN === bN) s += 0.6;
+  else if (j >= 0.85) s += 0.5;
+  else if (j >= 0.6) s += 0.35;
+  else if (j >= 0.4) s += 0.18;
+  else if (aN && bN && (aN.startsWith(bN) || bN.startsWith(aN))) s += 0.18;
+  else if (aN && bN && (aN.includes(bN) || bN.includes(aN))) s += 0.12;
+
   if (cand.year && hit.release_date) {
     const hy = Number(hit.release_date.slice(0, 4));
     if (hy === cand.year) s += 0.3;
     else if (Math.abs(hy - cand.year) <= 1) s += 0.18;
     else if (Math.abs(hy - cand.year) <= 3) s += 0.05;
   }
+
   if (cand.type && hit.type === cand.type) s += 0.15;
-  // Position bonus.
-  s += Math.max(0, 0.1 * (1 - rank / Math.max(total, 1)));
+
+  // Position bonus (cheap tie-break, doesn't dominate similarity).
+  s += Math.max(0, 0.06 * (1 - rank / Math.max(total, 1)));
+
   return Math.min(1, s);
 }
 
 function pickStatus(
   scored: { hit: TmdbSearchResult; score: number }[],
-  cand: ImportCandidate,
 ): ResolveStatus {
   if (scored.length === 0) return "unmatched";
   const top = scored[0]!;
-  if (top.score >= 0.7) return "matched";
-  if (
-    top.score >= 0.45 &&
-    (cand.year ? Boolean(top.hit.release_date) : true)
-  ) {
-    return "matched";
-  }
-  if (scored.length === 1 && top.score >= 0.3) return "matched";
+  if (top.score >= 0.65) return "matched";
+  if (scored.length === 1 && top.score >= 0.4) return "matched";
+  if (top.score >= 0.5) return "matched";
   return "ambiguous";
 }
+
+// ---------- per-candidate resolution ------------------------------------
+
+interface FoundHit {
+  hit: TmdbSearchResult;
+  /** Every search query string that surfaced this hit. The scorer compares
+   *  the hit against each — TMDB's exact title often matches the *stripped*
+   *  query ("M3GAN") instead of the original suffixed candidate
+   *  ("M3GAN (Unrated)"), and the best of those scores is what we want. */
+  queries: string[];
+  rank: number;
+  total: number;
+}
+
+async function resolveOne(
+  env: Env,
+  cand: ImportCandidate,
+): Promise<ResolvedHit> {
+  const title = cand.title.trim();
+  if (!title || PLACEHOLDERS.has(title.toLowerCase())) {
+    return { raw: cand.raw, status: "unmatched", confidence: 0, alternatives: [] };
+  }
+
+  const queries = expandQueries(cand);
+
+  const seen = new Map<number, FoundHit>();
+  for (const q of queries) {
+    let hits: TmdbSearchResult[];
+    try {
+      hits = await searchTmdb(env.TMDB_API_KEY, env.CACHE, q.q);
+    } catch (err) {
+      console.error("import search failed", cand.raw, q.q, err);
+      continue;
+    }
+    if (hits.length === 0) continue;
+    hits.forEach((h, idx) => {
+      const existing = seen.get(h.id);
+      if (existing) {
+        existing.queries.push(q.q);
+        // Prefer the strongest (lowest rank) position over the noisier one.
+        if (idx < existing.rank) {
+          existing.rank = idx;
+          existing.total = hits.length;
+        }
+        return;
+      }
+      seen.set(h.id, { hit: h, queries: [q.q], rank: idx, total: hits.length });
+    });
+    if (seen.size >= 30) break;
+  }
+
+  const effectiveYear =
+    queries.find((q) => typeof q.year === "number")?.year ?? cand.year;
+
+  const scored = [...seen.values()]
+    .map((found) => {
+      // Score the hit against the original candidate title AND against every
+      // query that produced it; keep the best.
+      let best = score(
+        { ...cand, title: cand.title, year: effectiveYear },
+        found.hit,
+        found.rank,
+        found.total,
+      );
+      for (const qt of found.queries) {
+        const s = score(
+          { ...cand, title: qt, year: effectiveYear },
+          found.hit,
+          found.rank,
+          found.total,
+        );
+        if (s > best) best = s;
+      }
+      return { hit: found.hit, score: best };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  return {
+    raw: cand.raw,
+    status: pickStatus(scored),
+    confidence: top?.score ?? 0,
+    best: top?.hit,
+    alternatives: scored.slice(1, 5).map((s) => s.hit),
+  };
+}
+
+// ---------- batch ------------------------------------------------------
 
 export async function resolveBatch(
   env: Env,
   candidates: ImportCandidate[],
 ): Promise<ResolvedHit[]> {
-  // Limit concurrency to be polite to TMDB. 5 in flight at a time.
+  // Polite concurrency against TMDB. Each candidate may issue up to 3
+  // searches, but searchTmdb is KV-cached after the first hit so the steady
+  // state is fast.
   const out: ResolvedHit[] = new Array(candidates.length);
   const queue = candidates.map((c, i) => ({ c, i }));
   const concurrency = 5;
@@ -75,29 +263,7 @@ export async function resolveBatch(
     while (queue.length > 0) {
       const item = queue.shift();
       if (!item) return;
-      const { c, i } = item;
-      try {
-        const hits = await searchTmdb(env.TMDB_API_KEY, env.CACHE, c.title);
-        const scored = hits
-          .map((h, idx) => ({ hit: h, score: score(c, h, idx, hits.length) }))
-          .sort((a, b) => b.score - a.score);
-        const top = scored[0];
-        out[i] = {
-          raw: c.raw,
-          status: pickStatus(scored, c),
-          confidence: top?.score ?? 0,
-          best: top?.hit,
-          alternatives: scored.slice(1, 5).map((s) => s.hit),
-        };
-      } catch (err) {
-        console.error("resolve item failed", c.raw, err);
-        out[i] = {
-          raw: c.raw,
-          status: "unmatched",
-          confidence: 0,
-          alternatives: [],
-        };
-      }
+      out[item.i] = await resolveOne(env, item.c);
     }
   }
   await Promise.all(
