@@ -18,6 +18,8 @@ import { RouteTitle } from "@/components/route-title";
 import { FilmstripProgress } from "@/components/filmstrip-progress";
 import { Dialog, AnimatedDialogContent } from "@/components/dialog";
 import { cn } from "@/lib/utils";
+import { selectProviders } from "@/lib/providers";
+import { useWatchlistIds } from "@/lib/use-watchlist-ids";
 
 interface TmdbHit {
   id: number;
@@ -53,6 +55,12 @@ export default function ImportPage({ user }: { user: User }) {
   // "— skip —" pseudo-option that used to confuse the dropdown is gone.
   type Pick = { hit: TmdbHit; included: boolean };
   const [picks, setPicks] = useState<Record<string, Pick | null>>({});
+  // The user's existing watchlist ids — drives the "already in catalog"
+  // badge so re-imports of the same Takeout file don't surprise-add
+  // duplicates. Switching candidates via the dropdown to a different year /
+  // movie vs series re-evaluates against this set, so a same-name-different
+  // -year title can still be imported.
+  const { ids: existingIds } = useWatchlistIds();
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [parseInfo, setParseInfo] = useState<string | null>(null);
@@ -125,10 +133,17 @@ export default function ImportPage({ user }: { user: User }) {
     setResolved(all);
     const initialPicks: Record<string, Pick | null> = {};
     for (const r of all) {
-      initialPicks[r.raw] =
-        r.status === "unmatched" || !r.best
-          ? null
-          : { hit: r.best, included: true };
+      if (r.status === "unmatched" || !r.best) {
+        initialPicks[r.raw] = null;
+      } else {
+        // Default-uncheck items already in the user's catalog so a casual
+        // "Add 200 to catalog" click doesn't silently no-op on duplicates.
+        // The user can re-check or switch candidates via the dropdown.
+        initialPicks[r.raw] = {
+          hit: r.best,
+          included: !existingIds.has(r.best.id),
+        };
+      }
     }
     setPicks(initialPicks);
   }
@@ -179,9 +194,53 @@ export default function ImportPage({ user }: { user: User }) {
     nav("/?imported=" + ok);
   }
 
-  const selectedCount = Object.values(picks).filter(
-    (p): p is Pick => Boolean(p?.included),
-  ).length;
+  // Honest count: dedupe by (type, tmdb_id) so the "Add N to catalog"
+  // button matches the actual number of inserts the commit will make.
+  // Otherwise a 200-row import where many raw lines collapse to the same
+  // TMDB title shows e.g. "Add 200" but produces 67 inserts.
+  const selectedCount = (() => {
+    const seen = new Set<string>();
+    for (const p of Object.values(picks)) {
+      if (!p?.included) continue;
+      seen.add(`${p.hit.type}:${p.hit.id}`);
+    }
+    return seen.size;
+  })();
+
+  // Breakdown for the review header — explains where the entries went so
+  // a 200→67 import doesn't feel like a silent drop.
+  const breakdown = (() => {
+    if (!resolved) {
+      return { total: 0, ready: 0, inCatalog: 0, unmatched: 0, dupes: 0 };
+    }
+    let inCatalog = 0;
+    let unmatched = 0;
+    const includedKeys = new Set<string>();
+    let includedRaw = 0;
+    for (const r of resolved) {
+      if (r.status === "unmatched") {
+        unmatched++;
+        continue;
+      }
+      const p = picks[r.raw];
+      if (p && existingIds.has(p.hit.id)) {
+        inCatalog++;
+        continue;
+      }
+      if (p?.included) {
+        includedRaw++;
+        includedKeys.add(`${p.hit.type}:${p.hit.id}`);
+      }
+    }
+    return {
+      total: resolved.length,
+      ready: includedKeys.size,
+      inCatalog,
+      unmatched,
+      // raw included entries collapsed into a smaller set of unique titles.
+      dupes: includedRaw - includedKeys.size,
+    };
+  })();
 
   // The sticky sidebar preview shows whichever row the user last hovered (or
   // focused via keyboard). Initialised to the first picked row so the sidebar
@@ -421,10 +480,24 @@ export default function ImportPage({ user }: { user: User }) {
             }
             className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-4"
           >
-            <div className="mb-3 flex items-center justify-between px-2">
-              <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
-                Review & pick — {selectedCount} of {resolved.length} selected
-              </h2>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-2">
+              <div className="min-w-0">
+                <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
+                  Review &amp; pick
+                </h2>
+                <p className="mt-1 font-mono text-[11px] tracking-wider text-[var(--paper-dim)]">
+                  <span className="text-[var(--ink)]">{breakdown.ready}</span> ready to add
+                  {breakdown.inCatalog > 0 && (
+                    <> · <span className="text-[var(--ink)]">{breakdown.inCatalog}</span> already in your catalog</>
+                  )}
+                  {breakdown.unmatched > 0 && (
+                    <> · <span className="text-[var(--ink)]">{breakdown.unmatched}</span> unmatched</>
+                  )}
+                  {breakdown.dupes > 0 && (
+                    <> · <span className="text-[var(--ink)]">{breakdown.dupes}</span> duplicate pick{breakdown.dupes === 1 ? "" : "s"} collapsed</>
+                  )}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={reset}
@@ -439,26 +512,31 @@ export default function ImportPage({ user }: { user: User }) {
               onMouseEnter={cancelClear}
             >
               <ul className="divide-y divide-[var(--rule)]">
-                {resolved.map((r) => (
-                  <ResolvedRow
-                    key={r.raw}
-                    row={r}
-                    pick={picks[r.raw] ?? null}
-                    onChange={(next) => {
-                      setPicks((prev) => ({ ...prev, [r.raw]: next }));
-                      if (next?.hit) {
-                        setPreviewItem({ pick: next.hit, raw: r.raw });
-                      }
-                    }}
-                    onPreview={(hit) => {
-                      cancelClear();
-                      if (hit) setPreviewItem({ pick: hit, raw: r.raw });
-                    }}
-                    onOpenDialog={(hit) => {
-                      if (hit) setDialogItem({ pick: hit, raw: r.raw });
-                    }}
-                  />
-                ))}
+                {resolved.map((r) => {
+                  const p = picks[r.raw] ?? null;
+                  const inCatalog = p ? existingIds.has(p.hit.id) : false;
+                  return (
+                    <ResolvedRow
+                      key={r.raw}
+                      row={r}
+                      pick={p}
+                      inCatalog={inCatalog}
+                      onChange={(next) => {
+                        setPicks((prev) => ({ ...prev, [r.raw]: next }));
+                        if (next?.hit) {
+                          setPreviewItem({ pick: next.hit, raw: r.raw });
+                        }
+                      }}
+                      onPreview={(hit) => {
+                        cancelClear();
+                        if (hit) setPreviewItem({ pick: hit, raw: r.raw });
+                      }}
+                      onOpenDialog={(hit) => {
+                        if (hit) setDialogItem({ pick: hit, raw: r.raw });
+                      }}
+                    />
+                  );
+                })}
               </ul>
 
               {/* Sticky preview sidebar — desktop only. Always rendered while
@@ -578,12 +656,18 @@ export default function ImportPage({ user }: { user: User }) {
 function ResolvedRow({
   row,
   pick,
+  inCatalog,
   onChange,
   onPreview,
   onOpenDialog,
 }: {
   row: ResolvedHit;
   pick: { hit: TmdbHit; included: boolean } | null;
+  /** True when the currently-displayed candidate's tmdb_id is already in
+   *  the user's watchlist. Re-evaluated when the user switches candidates,
+   *  so picking a different-year movie with the same title can flip this
+   *  back to false. */
+  inCatalog: boolean;
   /** Update both candidate selection and inclusion in one call. Passing
    *  null means "the row has no candidates" (only relevant for unmatched
    *  rows that started life as null and can't be recovered). */
@@ -647,17 +731,19 @@ function ResolvedRow({
             {row.raw}
           </span>
           <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider">
-            {row.status === "matched" && (
+            {inCatalog ? (
+              <span className="text-[var(--paper-dim)]">
+                in your catalog
+              </span>
+            ) : row.status === "matched" ? (
               <span className="text-[var(--accent)]">
                 matched · {Math.round(row.confidence * 100)}%
               </span>
-            )}
-            {row.status === "ambiguous" && (
+            ) : row.status === "ambiguous" ? (
               <span className="text-[var(--paper-dim)]">
                 ambiguous · {Math.round(row.confidence * 100)}%
               </span>
-            )}
-            {row.status === "unmatched" && (
+            ) : (
               <span className="text-[var(--paper-faint)]">no match</span>
             )}
           </span>
@@ -696,55 +782,6 @@ function ResolvedRow({
       )}
     </li>
   );
-}
-
-interface ProviderRow {
-  name: string;
-  logo: string | null;
-}
-
-/** Pick the streaming providers (flatrate) for the user's region, falling
- *  back to US, then to the union across regions if neither has any. We
- *  prefer subscription (flatrate) over rent/buy since the user is browsing
- *  "what's available to watch", not the store. */
-function selectProviders(
-  providers: Record<string, unknown> | null,
-): ProviderRow[] {
-  if (!providers) return [];
-  const tryRegion = (code: string): ProviderRow[] => {
-    const region = (providers as Record<string, unknown>)[code];
-    if (!region || typeof region !== "object") return [];
-    const flat = (region as Record<string, unknown>).flatrate;
-    if (!Array.isArray(flat)) return [];
-    return (flat as unknown[])
-      .map((p) => {
-        if (!p || typeof p !== "object") return null;
-        const r = p as { provider_name?: string; logo_path?: string };
-        if (!r.provider_name) return null;
-        return { name: r.provider_name, logo: r.logo_path ?? null };
-      })
-      .filter((x): x is ProviderRow => Boolean(x));
-  };
-  const inRegion = tryRegion("IN");
-  if (inRegion.length > 0) return inRegion.slice(0, 6);
-  const us = tryRegion("US");
-  if (us.length > 0) return us.slice(0, 6);
-  // Union across all regions, deduped by provider name.
-  const seen = new Set<string>();
-  const out: ProviderRow[] = [];
-  for (const region of Object.values(providers)) {
-    if (!region || typeof region !== "object") continue;
-    const flat = (region as Record<string, unknown>).flatrate;
-    if (!Array.isArray(flat)) continue;
-    for (const p of flat as unknown[]) {
-      if (!p || typeof p !== "object") continue;
-      const r = p as { provider_name?: string; logo_path?: string };
-      if (!r.provider_name || seen.has(r.provider_name)) continue;
-      seen.add(r.provider_name);
-      out.push({ name: r.provider_name, logo: r.logo_path ?? null });
-    }
-  }
-  return out.slice(0, 6);
 }
 
 function PickPreview({

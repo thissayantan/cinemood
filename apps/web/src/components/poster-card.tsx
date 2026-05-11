@@ -4,6 +4,7 @@ import type { WatchlistItem } from "@cinemood/shared";
 import { cn } from "@/lib/utils";
 import { useMotionConfig, staggerDelay } from "@/lib/motion";
 import { posterUrl } from "@/lib/tmdb";
+import { selectProviders } from "@/lib/providers";
 
 interface Props {
   item: WatchlistItem;
@@ -12,10 +13,6 @@ interface Props {
   onToggleWatched: () => void;
   onRemove: () => void;
   focusable?: boolean;
-}
-
-function fmtCatalog(n: number): string {
-  return `C-${String(n).padStart(4, "0")}`;
 }
 
 export function PosterCard({
@@ -78,15 +75,44 @@ export function PosterCard({
           </div>
         )}
 
-        {/* Top-left: catalog spine number */}
-        <span
-          className={cn(
-            "absolute left-2 top-2 rounded-md border border-[var(--paper)]/30 bg-[var(--paper)]/12 px-1.5 py-0.5 font-mono text-[10px] leading-none tracking-wider text-[var(--paper)] backdrop-blur-sm",
-            isWatched && "opacity-55",
-          )}
-        >
-          {fmtCatalog(item.catalog_no)}
-        </span>
+        {/* Top-left: OTT providers — informational, always visible (no
+            hover needed). Caps at 3 logos to keep the corner uncluttered;
+            the detail dialog shows the full list. */}
+        {(() => {
+          const providers = selectProviders(t.providers, 3);
+          if (providers.length === 0) return null;
+          return (
+            <div
+              className={cn(
+                "absolute left-2 top-2 flex items-center gap-1",
+                isWatched && "opacity-55",
+              )}
+              aria-label={`Available on ${providers.map((p) => p.name).join(", ")}`}
+            >
+              {providers.map((p) =>
+                p.logo ? (
+                  <img
+                    key={p.name}
+                    src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+                    alt={p.name}
+                    title={p.name}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="h-[18px] w-[18px] rounded-[4px] border border-white/25 object-cover shadow-sm shadow-black/30"
+                  />
+                ) : (
+                  <span
+                    key={p.name}
+                    title={p.name}
+                    className="grid h-[18px] w-[18px] place-items-center rounded-[4px] border border-white/25 bg-black/65 font-mono text-[9px] text-white shadow-sm shadow-black/30"
+                  >
+                    {p.name.slice(0, 1)}
+                  </span>
+                ),
+              )}
+            </div>
+          );
+        })()}
 
         {/* Top-right: type glyph */}
         <span
@@ -139,30 +165,35 @@ export function PosterCard({
           </motion.span>
         )}
 
-        {/* Hover/focus synopsis overlay */}
+        {/* Hover/focus synopsis overlay. Text is locked to white because
+            the overlay sits on the poster image — a theme-following colour
+            collapses to dark-on-dark in dark mode. */}
         {hovered && !m.reduced && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: m.durBase, ease: m.easeOutQuint }}
-            className="absolute inset-0 flex flex-col justify-end p-4 text-[var(--paper)]"
+            className="absolute inset-0 flex flex-col justify-end p-4 text-white"
             style={{
               background:
-                "linear-gradient(180deg, transparent 0%, rgba(10,9,8,0.0) 28%, rgba(10,9,8,0.85) 64%, rgba(10,9,8,0.96) 100%)",
+                "linear-gradient(180deg, transparent 0%, rgba(10,9,8,0.0) 18%, rgba(10,9,8,0.78) 50%, rgba(10,9,8,0.94) 78%, rgba(10,9,8,0.98) 100%)",
             }}
           >
-            <p className="line-clamp-4 text-[12px] leading-snug">
+            <p
+              className="line-clamp-3 text-[12px] leading-snug"
+              style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}
+            >
               {t.overview || (
-                <span className="text-[var(--paper)]/70 italic">
+                <span className="text-white/70 italic">
                   No synopsis on file.
                 </span>
               )}
             </p>
-            <div className="mt-3 flex flex-wrap items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-[var(--paper)]/75">
+            <div className="mt-2 flex flex-wrap items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-white/85">
               {t.runtime ? <span>{t.runtime}m</span> : null}
               {t.genres.slice(0, 2).map((g) => (
-                <span key={g} className="rounded-md border border-[var(--paper)]/30 px-1.5 py-0.5">
+                <span key={g} className="rounded-md border border-white/30 px-1.5 py-0.5">
                   {g}
                 </span>
               ))}
