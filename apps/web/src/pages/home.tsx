@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useMotionConfig } from "@/lib/motion";
 import { useWatchlist } from "@/lib/use-watchlist";
 import { useWatchlistIds } from "@/lib/use-watchlist-ids";
+import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
 import { TopBar } from "@/components/top-bar";
 import { FilterRail } from "@/components/filter-rail";
 import { ActiveChips } from "@/components/active-chips";
@@ -14,6 +15,8 @@ import { CommandPalette } from "@/components/command-palette";
 import { Sheet } from "@/components/sheet";
 import { EmptyWatchlist } from "@/components/empty-watchlist";
 import { RouteTitle } from "@/components/route-title";
+import { ShortcutsSheet } from "@/components/shortcuts-sheet";
+import { WelcomeOverlay } from "@/components/welcome-overlay";
 
 function activeFilterCount(filters: ReturnType<typeof useWatchlist>["filters"]): number {
   let n = 0;
@@ -34,15 +37,20 @@ export default function HomePage({ user }: { user: User }) {
   const { ids, add: addId, remove: removeId } = useWatchlistIds();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<WatchlistItem | null>(null);
 
-  // ⌘K / Ctrl+K opens the palette anywhere.
+  useKeyboardShortcuts({
+    onOpenPalette: () => setPaletteOpen((o) => !o),
+    onOpenShortcuts: () => setShortcutsOpen(true),
+  });
+
+  // Keep an explicit Esc listener for the welcome flow — keyboard shortcuts
+  // hook ignores Esc since Radix handles it inside dialogs.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const isMod = e.metaKey || e.ctrlKey;
-      if (isMod && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen((o) => !o);
+      if (e.key === "Escape") {
+        setShortcutsOpen(false);
       }
     }
     document.addEventListener("keydown", onKey);
@@ -178,6 +186,10 @@ export default function HomePage({ user }: { user: User }) {
         onOpenItem={(it) => setDetailItem(it)}
         savedIds={ids}
       />
+
+      <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      <WelcomeOverlay name={user.name} />
 
       <Sheet
         open={filterSheetOpen}
