@@ -38,10 +38,6 @@ interface Props {
   savedIds: Set<number>;
 }
 
-function fmtCatalog(n: number): string {
-  return `C-${String(n).padStart(4, "0")}`;
-}
-
 export function CommandPalette({
   open,
   onOpenChange,
@@ -125,23 +121,34 @@ export function CommandPalette({
     else setFindResp(null);
   }
 
-  // Resolve the highlighted hit (or null when nothing applicable).
+  // Resolve the highlighted hit + (when available) its full Title detail
+  // so the preview pane can show genres / providers / cast in both modes.
+  // Find-mode results already carry a full Title from /api/search; only
+  // Add-mode (TMDB search) hits need the lazy /api/title fetch.
+  const findHighlightItem =
+    mode === "find" && findResp
+      ? findResp.results.find((it) => String(it.title.id) === highlightValue) ??
+        null
+      : null;
   const previewHit: TmdbHit | null =
     mode === "add"
       ? tmdbHits.find((h) => String(h.id) === highlightValue) ?? null
-      : null;
+      : findHighlightItem
+        ? asHit(findHighlightItem)
+        : null;
   const previewKey = previewHit
     ? `${previewHit.type}:${previewHit.id}`
     : null;
   const previewDetail =
-    previewKey && titleCache.has(previewKey)
+    findHighlightItem?.title ??
+    (previewKey && titleCache.has(previewKey)
       ? titleCache.get(previewKey)!
-      : null;
+      : null);
 
-  // Lazy-fetch full Title detail for the previewed row. Cached so
-  // navigating the list with arrow keys doesn't re-fetch already-seen
-  // items.
+  // Lazy-fetch full Title detail for the Add-mode preview only. Find-mode
+  // results carry a full Title already, so we skip the round-trip there.
   useEffect(() => {
+    if (mode !== "add") return;
     if (!previewHit || !previewKey) return;
     if (titleCache.has(previewKey)) return;
     let cancelled = false;
@@ -159,7 +166,7 @@ export function CommandPalette({
     return () => {
       cancelled = true;
     };
-  }, [previewHit, previewKey, titleCache]);
+  }, [mode, previewHit, previewKey, titleCache]);
 
   async function add(hit: TmdbHit) {
     if (adding) return;
@@ -312,8 +319,12 @@ export function CommandPalette({
                             {it.title.title}
                           </div>
                           <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-                            {fmtCatalog(it.catalog_no)} · {it.title.type} ·{" "}
+                            {it.title.type} ·{" "}
                             {it.title.release_date?.slice(0, 4) ?? "—"}
+                            {typeof it.title.vote_average === "number" &&
+                            it.title.vote_average > 0
+                              ? ` · ★ ${it.title.vote_average.toFixed(1)}`
+                              : ""}
                           </div>
                         </div>
                         <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
