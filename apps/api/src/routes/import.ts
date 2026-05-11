@@ -3,11 +3,13 @@ import { z } from "zod";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
 import { resolveBatch } from "../lib/import-resolve";
-import { fetchTmdbDetail } from "../lib/tmdb";
+import { fetchTmdbDetail, type TmdbDetail } from "../lib/tmdb";
 import { fetchOmdbRating } from "../lib/omdb";
-import { getTitle, upsertTitle } from "../db/titles";
-import { addToWatchlist } from "../db/watchlist";
-import { addTitleToIndex } from "../lib/orama-index";
+import { getTitlesById, upsertTitleStmt } from "../db/titles";
+import { addManyToWatchlist } from "../db/watchlist";
+import { addTitlesToIndex } from "../lib/orama-index";
+
+const TITLE_FRESH_SECONDS = 60 * 60 * 24 * 7; // 7 days — same as KV detail TTL
 
 const ResolveBody = z.object({
   items: z
@@ -103,37 +105,125 @@ app.post("/api/import/commit", async (c) => {
     );
   }
 
-  const outcomes: CommitOutcome[] = [];
-  for (const item of parsed.data.items) {
-    try {
-      const detail = await fetchTmdbDetail(
-        c.env.TMDB_API_KEY,
-        c.env.CACHE,
-        item.type,
-        item.tmdb_id,
-      );
-      const imdbRating = detail.imdb_id
-        ? await fetchOmdbRating(c.env.OMDB_API_KEY, c.env.CACHE, detail.imdb_id)
-        : null;
-      await upsertTitle(c.env.DB, detail, imdbRating);
-      await addToWatchlist(c.env.DB, user.id, item.tmdb_id);
-      const fullTitle = await getTitle(c.env.DB, item.tmdb_id);
-      if (fullTitle) {
-        c.executionCtx.waitUntil(
-          addTitleToIndex(c.env, user.id, fullTitle).catch((err) => {
-            console.error("import index add failed", err);
-          }),
-        );
-      }
-      outcomes.push({ tmdb_id: item.tmdb_id, type: item.type, ok: true });
-    } catch (err) {
-      outcomes.push({
-        tmdb_id: item.tmdb_id,
-        type: item.type,
-        ok: false,
-        error: err instanceof Error ? err.message : "import_failed",
-      });
+  // The naive per-item pipeline (TMDB → OMDB → D1 upsert → D1 catalog query
+  // → D1 watchlist insert → D1 read → waitUntil(addTitleToIndex)) blew the
+  // Worker's per-invocation subrequest cap on real Takeout imports of
+  // 200+ items. New shape:
+  //   1. Skip TMDB/OMDB for items already cached in titles (≤7d old).
+  //   2. Fan out remaining TMDB+OMDB fetches with concurrency 8.
+  //   3. Batch every D1 write (title upserts + watchlist inserts) in a
+  //      single env.DB.batch() round-trip.
+  //   4. Schedule ONE addTitlesToIndex(allTitles) via waitUntil — one
+  //      Workers AI embed for the whole batch + one R2 persist instead
+  //      of N serialised mutations.
+
+  const now = Math.floor(Date.now() / 1000);
+  const items = parsed.data.items;
+  const outcomes: CommitOutcome[] = items.map((it) => ({
+    tmdb_id: it.tmdb_id,
+    type: it.type,
+    ok: false,
+  }));
+
+  // (1) Which items already have a fresh titles row?
+  const existing = await getTitlesById(
+    c.env.DB,
+    items.map((i) => i.tmdb_id),
+  );
+  const toFetch: typeof items = [];
+  // Track full Title objects we'll hand to the index step.
+  const titlesByTmdbId = new Map<number, import("@cinemood/shared").Title>();
+  for (const item of items) {
+    const cached = existing.get(item.tmdb_id);
+    if (cached && now - cached.fetched_at < TITLE_FRESH_SECONDS) {
+      titlesByTmdbId.set(item.tmdb_id, cached.title);
+    } else {
+      toFetch.push(item);
     }
+  }
+
+  // (2) Parallel TMDB detail + OMDB rating with concurrency 8.
+  interface Fetched {
+    item: (typeof items)[number];
+    detail: TmdbDetail;
+    imdbRating: number | null;
+  }
+  const fetched: Fetched[] = [];
+  const failed = new Set<number>();
+  if (toFetch.length > 0) {
+    const queue = toFetch.slice();
+    const concurrency = Math.min(8, queue.length);
+    async function worker() {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (!item) return;
+        try {
+          const detail = await fetchTmdbDetail(
+            c.env.TMDB_API_KEY,
+            c.env.CACHE,
+            item.type,
+            item.tmdb_id,
+          );
+          const imdbRating = detail.imdb_id
+            ? await fetchOmdbRating(c.env.OMDB_API_KEY, c.env.CACHE, detail.imdb_id)
+            : null;
+          fetched.push({ item, detail, imdbRating });
+        } catch (err) {
+          console.error("commit fetch failed", item.tmdb_id, err);
+          failed.add(item.tmdb_id);
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  }
+
+  // (3) Batched D1 writes: title upserts in one round-trip, watchlist
+  //     inserts in another (catalog_no is pre-allocated in addManyToWatchlist).
+  if (fetched.length > 0) {
+    const stmts = fetched.map((f) =>
+      upsertTitleStmt(c.env.DB, f.detail, f.imdbRating),
+    );
+    await c.env.DB.batch(stmts);
+  }
+
+  // Re-read the freshly-upserted rows so the index step gets fully
+  // hydrated Title objects (cast/keywords/providers parsed).
+  if (fetched.length > 0) {
+    const fresh = await getTitlesById(
+      c.env.DB,
+      fetched.map((f) => f.item.tmdb_id),
+    );
+    for (const f of fetched) {
+      const row = fresh.get(f.item.tmdb_id);
+      if (row) titlesByTmdbId.set(f.item.tmdb_id, row.title);
+    }
+  }
+
+  const successfulIds: number[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    if (failed.has(item.tmdb_id)) {
+      outcomes[i] = { tmdb_id: item.tmdb_id, type: item.type, ok: false, error: "fetch_failed" };
+    } else if (titlesByTmdbId.has(item.tmdb_id)) {
+      outcomes[i] = { tmdb_id: item.tmdb_id, type: item.type, ok: true };
+      successfulIds.push(item.tmdb_id);
+    } else {
+      outcomes[i] = { tmdb_id: item.tmdb_id, type: item.type, ok: false, error: "missing_title" };
+    }
+  }
+
+  if (successfulIds.length > 0) {
+    await addManyToWatchlist(c.env.DB, user.id, successfulIds);
+
+    // Single batched index update for the whole chunk.
+    const titlesForIndex = successfulIds
+      .map((id) => titlesByTmdbId.get(id))
+      .filter((t): t is import("@cinemood/shared").Title => Boolean(t));
+    c.executionCtx.waitUntil(
+      addTitlesToIndex(c.env, user.id, titlesForIndex).catch((err) => {
+        console.error("import batch index add failed", err);
+      }),
+    );
   }
 
   return c.json({ ok: true, data: { outcomes } });

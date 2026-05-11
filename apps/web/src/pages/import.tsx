@@ -140,11 +140,12 @@ export default function ImportPage({ user }: { user: User }) {
     setError(null);
     setProgress({ done: 0, total: items.length });
 
-    // Commit in 50-item chunks — each commit row does TMDB detail + OMDB +
-    // upsert + index update via waitUntil, so smaller batches keep things
-    // observable.
+    // Commit in 25-item chunks — each chunk fans out TMDB+OMDB at
+    // concurrency 8 on the server and batches D1 writes + a single index
+    // update via waitUntil, so 25 items per chunk stays well under the
+    // Worker subrequest cap even when every title needs a fresh fetch.
     let ok = 0;
-    for (const batch of chunk(items, 50)) {
+    for (const batch of chunk(items, 25)) {
       const res = (await api<{
         outcomes: { tmdb_id: number; ok: boolean }[];
       }>("/api/import/commit", {

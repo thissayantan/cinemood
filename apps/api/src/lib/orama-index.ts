@@ -206,6 +206,46 @@ export async function loadIndex(
   return cached;
 }
 
+/** Batched index add: embed N titles in one Workers AI call, insert all,
+ *  persist R2 once. Bulk imports must use this instead of N x
+ *  addTitleToIndex — the per-item path otherwise blows the Worker's
+ *  per-invocation subrequest cap. */
+export function addTitlesToIndex(
+  env: Env,
+  userId: string,
+  titles: Title[],
+): Promise<void> {
+  if (titles.length === 0) return Promise.resolve();
+  return serializePerUser(userId, async () => {
+    const cached = await loadIndex(env, userId);
+    const texts = titles.map((t) =>
+      buildIndexText({
+        title: t.title,
+        original_title: t.original_title,
+        overview: t.overview,
+        genres: t.genres,
+        keywords: t.keywords,
+        cast: t.cast,
+      }),
+    );
+    const vectors = await embedTexts(env, texts);
+    for (let i = 0; i < titles.length; i++) {
+      const doc = titleToIndexDoc(titles[i]!, vectors[i]!);
+      if (cached.docs.has(doc.tmdb_id)) {
+        try {
+          await remove(cached.db, doc.id);
+        } catch {
+          /* not present */
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await insert(cached.db, structuredClone(doc) as any);
+      cached.docs.set(doc.tmdb_id, doc);
+    }
+    await persistIndex(env, userId, cached);
+  });
+}
+
 export function addTitleToIndex(
   env: Env,
   userId: string,
