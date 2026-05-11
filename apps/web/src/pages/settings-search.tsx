@@ -9,9 +9,11 @@ import type {
   User,
 } from "@cinemood/shared";
 import { api } from "@/lib/api";
-import { PageShell } from "@/components/page-shell";
-import { GlassCard } from "@/components/glass-card";
+import { useMotionConfig } from "@/lib/motion";
 import { AvatarMenu } from "@/components/avatar-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { RouteTitle } from "@/components/route-title";
+import { cn } from "@/lib/utils";
 
 type Catalog = Record<LlmProviderId, ReadonlyArray<{ id: string; label: string }>>;
 
@@ -21,8 +23,6 @@ interface SettingsResponse {
   catalog: Catalog;
 }
 
-const SPRING = { type: "spring" as const, stiffness: 240, damping: 24 };
-
 const PROVIDER_LABEL: Record<LlmProviderId, string> = {
   cloudflare: "Cloudflare",
   anthropic: "Anthropic",
@@ -31,6 +31,7 @@ const PROVIDER_LABEL: Record<LlmProviderId, string> = {
 };
 
 export default function SettingsSearchPage({ user }: { user: User }) {
+  const m = useMotionConfig();
   const [data, setData] = useState<SettingsResponse | null>(null);
   const [provider, setProvider] = useState<LlmProviderId>("cloudflare");
   const [model, setModel] = useState<string>("");
@@ -47,8 +48,7 @@ export default function SettingsSearchPage({ user }: { user: User }) {
     let cancelled = false;
     (async () => {
       const res = (await api<SettingsResponse>("/api/settings/llm")) as
-        | ApiResponse<SettingsResponse>
-        | { ok: false; error: { code: string; message: string } };
+        | ApiResponse<SettingsResponse>;
       if (cancelled) return;
       if (res.ok) {
         setData(res.data);
@@ -65,7 +65,6 @@ export default function SettingsSearchPage({ user }: { user: User }) {
   const models = useMemo(() => data?.catalog[provider] ?? [], [data, provider]);
 
   useEffect(() => {
-    // When provider changes, ensure model is valid for it.
     if (models.length > 0 && !models.some((m) => m.id === model)) {
       setModel(models[0]!.id);
     }
@@ -89,13 +88,9 @@ export default function SettingsSearchPage({ user }: { user: User }) {
     if (res.ok) {
       setStatus({ kind: "ok", text: "Saved." });
       setApiKey("");
-      // Refresh effective config.
-      const next = (await api<SettingsResponse>("/api/settings/llm")) as
-        | ApiResponse<SettingsResponse>;
+      const next = (await api<SettingsResponse>("/api/settings/llm")) as ApiResponse<SettingsResponse>;
       if (next.ok) setData(next.data);
-    } else {
-      setStatus({ kind: "err", text: res.error.message });
-    }
+    } else setStatus({ kind: "err", text: res.error.message });
   }
 
   async function reset() {
@@ -106,16 +101,13 @@ export default function SettingsSearchPage({ user }: { user: User }) {
     if (res.ok) {
       setStatus({ kind: "ok", text: "Reset to default." });
       setApiKey("");
-      const next = (await api<SettingsResponse>("/api/settings/llm")) as
-        | ApiResponse<SettingsResponse>;
+      const next = (await api<SettingsResponse>("/api/settings/llm")) as ApiResponse<SettingsResponse>;
       if (next.ok) {
         setData(next.data);
         setProvider(next.data.effective.provider);
         setModel(next.data.effective.model);
       }
-    } else {
-      setStatus({ kind: "err", text: res.error.message });
-    }
+    } else setStatus({ kind: "err", text: res.error.message });
   }
 
   async function test() {
@@ -139,16 +131,9 @@ export default function SettingsSearchPage({ user }: { user: User }) {
       return;
     }
     if (res.data.ok && res.data.sampleOutput) {
-      setStatus({
-        kind: "ok",
-        text: "Connected.",
-        sample: res.data.sampleOutput,
-      });
+      setStatus({ kind: "ok", text: "Connected.", sample: res.data.sampleOutput });
     } else {
-      setStatus({
-        kind: "err",
-        text: res.data.error ?? "Test failed",
-      });
+      setStatus({ kind: "err", text: res.data.error ?? "Test failed" });
     }
   }
 
@@ -157,186 +142,194 @@ export default function SettingsSearchPage({ user }: { user: User }) {
     needsKey && data?.effective.provider === provider && data.effective.hasKey;
 
   return (
-    <PageShell>
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <Link
-          to="/"
-          className="bg-gradient-to-br from-fuchsia-200 via-violet-200 to-cyan-200 bg-clip-text text-xl font-bold tracking-tight text-transparent"
-        >
-          Cinemood
-        </Link>
-        <AvatarMenu user={user} />
+    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
+      <RouteTitle title="Search settings" />
+      <header className="border-b border-[var(--rule)]">
+        <div className="mx-auto flex h-16 max-w-[1100px] items-center justify-between px-5 md:px-8">
+          <Link
+            to="/"
+            className="font-display-md text-[24px] leading-none text-[var(--ink)]"
+            style={{ fontVariationSettings: '"opsz" 36, "wght" 800, "SOFT" 20' }}
+          >
+            Cinemood
+          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <AvatarMenu user={user} />
+          </div>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-6 pb-24">
+      <main className="mx-auto max-w-[760px] px-5 pb-24 pt-10 md:px-8">
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
           animate={{ opacity: 1, y: 0 }}
-          transition={SPRING}
-          className="space-y-2"
+          transition={m.reduced ? { duration: 0 } : m.springEntry}
         >
           <Link
             to="/"
-            className="text-xs text-white/50 underline-offset-4 hover:text-white/80 hover:underline"
+            className="font-label text-[10px] text-[var(--paper-faint)] hover:text-[var(--ink)]"
           >
-            ← Back to watchlist
+            ← Back to your collection
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Search settings</h1>
-          <p className="text-sm text-white/65">
-            Choose which model parses your natural-language queries. Cloudflare
-            is the default and free; bring your own key for Anthropic, OpenAI,
-            or Google.
+          <h1
+            className="mt-3 font-display text-[44px] leading-[1.02] text-[var(--ink)]"
+            style={{ fontVariationSettings: '"opsz" 72, "wght" 800, "SOFT" 20' }}
+          >
+            Search settings
+          </h1>
+          <p className="mt-3 max-w-[55ch] text-[15px] text-[var(--paper-dim)]">
+            Choose which model parses your natural-language queries. Cloudflare is the default and free; bring your own key for Anthropic, OpenAI, or Google.
           </p>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
+          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SPRING, delay: 0.06 }}
+          transition={
+            m.reduced
+              ? { duration: 0 }
+              : { ...m.springEntry, delay: 0.05 }
+          }
+          className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-7"
         >
-          <GlassCard className="mt-8 p-6">
-            {loading ? (
-              <div className="text-sm text-white/50">Loading…</div>
-            ) : (
-              <div className="space-y-6">
-                <div>
-                  <Label>Provider</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {(Object.keys(PROVIDER_LABEL) as LlmProviderId[]).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => {
-                          setProvider(p);
-                          setStatus(null);
-                        }}
-                        className={`rounded-xl border px-3 py-2 text-sm transition ${
-                          provider === p
-                            ? "border-white/40 bg-white/15 text-white"
-                            : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
-                        }`}
-                      >
-                        {PROVIDER_LABEL[p]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Model</Label>
-                  <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-white/30"
-                  >
-                    {models.map((m) => (
-                      <option key={m.id} value={m.id} className="bg-[#15151c]">
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {needsKey && (
-                  <div>
-                    <Label>
-                      API key{" "}
-                      {keyAlreadySet && (
-                        <span className="ml-1 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
-                          Saved
-                        </span>
-                      )}
-                    </Label>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={
-                        keyAlreadySet
-                          ? "Leave blank to keep saved key"
-                          : "Paste your API key"
-                      }
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-white placeholder:text-white/30 outline-none transition focus:border-white/30"
-                    />
-                    <p className="mt-2 text-xs text-white/45">
-                      Stored encrypted with AES-GCM (per-user). Never logged.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <button
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={test}
-                    className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/85 transition hover:bg-white/10 disabled:opacity-50"
-                  >
-                    {busy === "test" ? "Testing…" : "Test connection"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={save}
-                    className="rounded-full border border-white/25 bg-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
-                  >
-                    {busy === "save" ? "Saving…" : "Save"}
-                  </button>
-                  <span className="flex-1" />
-                  {data?.isUserOverride && (
+          {loading ? (
+            <div className="font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
+              Loading…
+            </div>
+          ) : (
+            <div className="space-y-7">
+              <div>
+                <Label>Provider</Label>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {(Object.keys(PROVIDER_LABEL) as LlmProviderId[]).map((p) => (
                     <button
+                      key={p}
                       type="button"
-                      disabled={busy !== null}
-                      onClick={reset}
-                      className="rounded-full border border-red-300/20 bg-red-500/10 px-4 py-2 text-sm text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                      onClick={() => { setProvider(p); setStatus(null); }}
+                      className={cn(
+                        "rounded-xl border px-3 py-2.5 text-[13px] transition",
+                        provider === p
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
+                          : "border-[var(--rule)] bg-[var(--paper)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
+                      )}
                     >
-                      {busy === "reset" ? "Resetting…" : "Reset to default"}
+                      {PROVIDER_LABEL[p]}
                     </button>
-                  )}
+                  ))}
                 </div>
+              </div>
 
-                {status && (
-                  <div
-                    className={`rounded-md border px-3 py-2 text-xs ${
-                      status.kind === "ok"
-                        ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
-                        : "border-red-300/30 bg-red-400/10 text-red-200"
-                    }`}
-                  >
-                    <div>{status.text}</div>
-                    {status.sample && (
-                      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[10px] text-emerald-100/80">
-                        {JSON.stringify(status.sample, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                )}
+              <div>
+                <Label>Model</Label>
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="mt-3 w-full rounded-xl border border-[var(--rule)] bg-[var(--paper)] px-3 py-2.5 text-[13px] text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
+                >
+                  {models.map((mm) => (
+                    <option key={mm.id} value={mm.id} className="bg-[var(--paper-2)]">
+                      {mm.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                {data && (
-                  <div className="border-t border-white/10 pt-4 text-xs text-white/55">
-                    Currently in use:{" "}
-                    <span className="text-white/90">
-                      {PROVIDER_LABEL[data.effective.provider]} ·{" "}
-                      {data.effective.model}
-                    </span>
-                    {data.isUserOverride && (
-                      <span className="ml-2 rounded-full bg-violet-400/15 px-2 py-0.5 text-[10px] text-violet-100">
-                        custom
+              {needsKey && (
+                <div>
+                  <Label>
+                    API key{" "}
+                    {keyAlreadySet && (
+                      <span className="ml-1 rounded-full bg-[var(--accent)]/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--accent)]">
+                        Saved
                       </span>
                     )}
-                  </div>
+                  </Label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={keyAlreadySet ? "Leave blank to keep saved key" : "Paste your API key"}
+                    className="mt-3 w-full rounded-xl border border-[var(--rule)] bg-[var(--paper)] px-3 py-2.5 font-mono text-[12px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] outline-none transition focus:border-[var(--accent)]"
+                  />
+                  <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                    Stored encrypted with AES-GCM. Never logged.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={test}
+                  className="rounded-full border border-[var(--rule)] bg-[var(--paper)] px-4 py-2 text-[12.5px] text-[var(--paper-dim)] transition hover:text-[var(--ink)] disabled:opacity-50"
+                >
+                  {busy === "test" ? "Testing…" : "Test connection"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={save}
+                  className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy === "save" ? "Saving…" : "Save"}
+                </button>
+                <span className="flex-1" />
+                {data?.isUserOverride && (
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={reset}
+                    className="rounded-full border border-[var(--rule)] bg-transparent px-4 py-2 text-[12.5px] text-[var(--paper-dim)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+                  >
+                    {busy === "reset" ? "Resetting…" : "Reset to default"}
+                  </button>
                 )}
               </div>
-            )}
-          </GlassCard>
+
+              {status && (
+                <div
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-[11px]",
+                    status.kind === "ok"
+                      ? "border-[var(--accent)]/30 bg-[var(--accent)]/8 text-[var(--accent)]"
+                      : "border-[var(--accent)] bg-[var(--accent)]/12 text-[var(--accent)]",
+                  )}
+                >
+                  <div>{status.text}</div>
+                  {status.sample && (
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-[var(--paper-dim)]">
+                      {JSON.stringify(status.sample, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+
+              {data && (
+                <div className="border-t border-[var(--rule)] pt-4 font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
+                  Currently in use:{" "}
+                  <span className="text-[var(--ink)]">
+                    {PROVIDER_LABEL[data.effective.provider]} · {data.effective.model}
+                  </span>
+                  {data.isUserOverride && (
+                    <span className="ml-2 rounded-full border border-[var(--accent)]/40 px-1.5 py-0.5 text-[9px] text-[var(--accent)]">
+                      custom
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </motion.div>
       </main>
-    </PageShell>
+    </div>
   );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs font-medium uppercase tracking-wider text-white/55">
+    <span className="font-label text-[10px] text-[var(--paper-faint)]">
       {children}
     </span>
   );

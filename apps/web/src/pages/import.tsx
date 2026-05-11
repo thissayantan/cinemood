@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { ApiResponse, User } from "@cinemood/shared";
 import { api } from "@/lib/api";
 import { posterUrl } from "@/lib/tmdb";
+import { useMotionConfig } from "@/lib/motion";
 import {
   parseCsvImport,
   parseTakeoutJson,
@@ -11,9 +12,10 @@ import {
   type ImportCandidate,
   type TitleType,
 } from "@/lib/import-parsers";
-import { PageShell } from "@/components/page-shell";
-import { GlassCard } from "@/components/glass-card";
 import { AvatarMenu } from "@/components/avatar-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { RouteTitle } from "@/components/route-title";
+import { cn } from "@/lib/utils";
 
 interface TmdbHit {
   id: number;
@@ -35,9 +37,8 @@ interface ResolvedHit {
 
 type Mode = "paste" | "csv" | "takeout";
 
-const SPRING = { type: "spring" as const, stiffness: 240, damping: 24 };
-
 export default function ImportPage({ user }: { user: User }) {
+  const m = useMotionConfig();
   const nav = useNavigate();
   const [mode, setMode] = useState<Mode>("paste");
   const [text, setText] = useState("");
@@ -61,7 +62,7 @@ export default function ImportPage({ user }: { user: User }) {
   function handlePasteParse() {
     const items = parseTextarea(text);
     setCandidates(items);
-    setParseInfo(`${items.length} line(s) detected`);
+    setParseInfo(`${items.length} line${items.length === 1 ? "" : "s"} detected`);
   }
 
   async function handleFile(file: File, kind: "csv" | "takeout") {
@@ -69,13 +70,11 @@ export default function ImportPage({ user }: { user: User }) {
     if (kind === "csv") {
       const { candidates: items, detected } = parseCsvImport(body);
       setCandidates(items);
-      setParseInfo(
-        `${items.length} row(s), detected format: ${detected}`,
-      );
+      setParseInfo(`${items.length} rows · detected format: ${detected}`);
     } else {
       const items = parseTakeoutJson(body);
       setCandidates(items);
-      setParseInfo(`${items.length} item(s) found in JSON`);
+      setParseInfo(`${items.length} items found in JSON`);
     }
   }
 
@@ -126,194 +125,198 @@ export default function ImportPage({ user }: { user: User }) {
   const selectedCount = Object.values(picks).filter(Boolean).length;
 
   return (
-    <PageShell>
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <Link
-          to="/"
-          className="bg-gradient-to-br from-fuchsia-200 via-violet-200 to-cyan-200 bg-clip-text text-xl font-bold tracking-tight text-transparent"
-        >
-          Cinemood
-        </Link>
-        <AvatarMenu user={user} />
+    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
+      <RouteTitle title="Import" />
+      <header className="border-b border-[var(--rule)]">
+        <div className="mx-auto flex h-16 max-w-[1100px] items-center justify-between px-5 md:px-8">
+          <Link
+            to="/"
+            className="font-display-md text-[24px] leading-none text-[var(--ink)]"
+            style={{ fontVariationSettings: '"opsz" 36, "wght" 800, "SOFT" 20' }}
+          >
+            Cinemood
+          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <AvatarMenu user={user} />
+          </div>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 pb-24">
+      <main className="mx-auto max-w-[860px] px-5 pb-24 pt-10 md:px-8">
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
           animate={{ opacity: 1, y: 0 }}
-          transition={SPRING}
-          className="space-y-2"
+          transition={m.reduced ? { duration: 0 } : m.springEntry}
         >
           <Link
             to="/"
-            className="text-xs text-white/50 underline-offset-4 hover:text-white/80 hover:underline"
+            className="font-label text-[10px] text-[var(--paper-faint)] hover:text-[var(--ink)]"
           >
-            ← Back to watchlist
+            ← Back to your collection
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">Import</h1>
-          <p className="text-sm text-white/65">
-            Paste a list, upload a Letterboxd/Trakt/IMDb CSV, or drop in a
-            Google Takeout JSON. Each item is resolved against TMDB and shown
-            for review before anything is added.
+          <h1
+            className="mt-3 font-display text-[44px] leading-[1.02] text-[var(--ink)]"
+            style={{ fontVariationSettings: '"opsz" 72, "wght" 800, "SOFT" 20' }}
+          >
+            Import a list
+          </h1>
+          <p className="mt-3 max-w-[60ch] text-[15px] text-[var(--paper-dim)]">
+            Paste titles, upload a Letterboxd / Trakt / IMDb CSV, or drop in a Google Takeout JSON. Each entry is resolved against TMDB and shown for review before anything is added to your catalog.
           </p>
         </motion.div>
 
         {!resolved && (
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
+            initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ ...SPRING, delay: 0.04 }}
+            transition={
+              m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.05 }
+            }
+            className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-7"
           >
-            <GlassCard className="mt-8 p-6">
-              <div className="mb-5 flex flex-wrap gap-2">
-                {(["paste", "csv", "takeout"] as Mode[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      setMode(m);
-                      reset();
-                    }}
-                    className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                      mode === m
-                        ? "border-white/40 bg-white/15 text-white"
-                        : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
-                    }`}
-                  >
-                    {m === "paste"
-                      ? "Paste list"
-                      : m === "csv"
-                        ? "Upload CSV"
-                        : "Google Takeout"}
-                  </button>
-                ))}
+            <div className="mb-5 flex flex-wrap gap-2">
+              {(["paste", "csv", "takeout"] as Mode[]).map((mm) => (
+                <button
+                  key={mm}
+                  type="button"
+                  onClick={() => { setMode(mm); reset(); }}
+                  aria-pressed={mode === mm}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-[12px] transition",
+                    mode === mm
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
+                      : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
+                  )}
+                >
+                  {mm === "paste" ? "Paste list" : mm === "csv" ? "Upload CSV" : "Google Takeout"}
+                </button>
+              ))}
+            </div>
+
+            {mode === "paste" && (
+              <div className="space-y-3">
+                <textarea
+                  rows={10}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={
+                    "One title per line — year in parentheses optional.\n\nE.g.\nBlade Runner (1982)\nSeverance\nPast Lives (2023)"
+                  }
+                  className="w-full rounded-xl border border-[var(--rule)] bg-[var(--paper)] px-4 py-3 font-mono text-[12.5px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] outline-none transition focus:border-[var(--accent)]"
+                />
+                <button
+                  type="button"
+                  onClick={handlePasteParse}
+                  disabled={!text.trim()}
+                  className="rounded-full border border-[var(--rule)] bg-[var(--paper)] px-4 py-2 text-[12.5px] text-[var(--paper-dim)] transition hover:text-[var(--ink)] disabled:opacity-50"
+                >
+                  Parse
+                </button>
               </div>
+            )}
 
-              {mode === "paste" && (
-                <div className="space-y-3">
-                  <textarea
-                    rows={10}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder={
-                      "One title per line — year in parentheses optional.\n\nE.g.\nBlade Runner (1982)\nSeverance\nPast Lives (2023)"
-                    }
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white placeholder:text-white/30 outline-none transition focus:border-white/30"
-                  />
-                  <button
-                    type="button"
-                    onClick={handlePasteParse}
-                    disabled={!text.trim()}
-                    className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/85 transition hover:bg-white/10 disabled:opacity-50"
-                  >
-                    Parse
-                  </button>
-                </div>
-              )}
+            {mode === "csv" && (
+              <FileInput
+                label="Letterboxd / Trakt / IMDb / generic CSV"
+                accept=".csv,text/csv"
+                onFile={(f) => handleFile(f, "csv")}
+              />
+            )}
 
-              {mode === "csv" && (
-                <FileInput
-                  label="Letterboxd / Trakt / IMDb / generic CSV"
-                  accept=".csv,text/csv"
-                  onFile={(f) => handleFile(f, "csv")}
-                />
-              )}
+            {mode === "takeout" && (
+              <FileInput
+                label="Google Takeout JSON (YouTube watchlist, Google TV, etc.)"
+                accept=".json,application/json"
+                onFile={(f) => handleFile(f, "takeout")}
+              />
+            )}
 
-              {mode === "takeout" && (
-                <FileInput
-                  label="Google Takeout JSON (YouTube watchlist, Google TV, etc.)"
-                  accept=".json,application/json"
-                  onFile={(f) => handleFile(f, "takeout")}
-                />
-              )}
+            {parseInfo && (
+              <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                {parseInfo}
+              </p>
+            )}
 
-              {parseInfo && (
-                <p className="mt-4 text-xs text-white/55">{parseInfo}</p>
-              )}
+            {candidates.length > 0 && (
+              <div className="mt-6 flex items-center justify-between border-t border-[var(--rule)] pt-5">
+                <span className="text-[13px] text-[var(--paper-dim)]">
+                  Ready to resolve {candidates.length} title{candidates.length === 1 ? "" : "s"} against TMDB.
+                </span>
+                <button
+                  type="button"
+                  onClick={runResolve}
+                  disabled={loading}
+                  className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {loading ? "Resolving…" : "Resolve"}
+                </button>
+              </div>
+            )}
 
-              {candidates.length > 0 && (
-                <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-5">
-                  <span className="text-sm text-white/65">
-                    Ready to resolve {candidates.length} title
-                    {candidates.length === 1 ? "" : "s"} against TMDB.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={runResolve}
-                    disabled={loading}
-                    className="rounded-full border border-white/25 bg-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
-                  >
-                    {loading ? "Resolving…" : "Resolve"}
-                  </button>
-                </div>
-              )}
-
-              {error && (
-                <div className="mt-4 rounded-md border border-red-300/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
-                  {error}
-                </div>
-              )}
-            </GlassCard>
+            {error && (
+              <div className="mt-4 rounded-md border border-[var(--accent)] bg-[var(--accent)]/10 px-3 py-2 text-[11.5px] text-[var(--accent)]">
+                {error}
+              </div>
+            )}
           </motion.div>
         )}
 
         {resolved && (
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
+            initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ ...SPRING, delay: 0.04 }}
+            transition={
+              m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.05 }
+            }
+            className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-4"
           >
-            <GlassCard className="mt-8 p-4">
-              <div className="mb-3 flex items-center justify-between px-2">
-                <h2 className="text-sm font-medium text-white/85">
-                  Review &amp; pick — {selectedCount} of {resolved.length}{" "}
-                  selected
-                </h2>
-                <button
-                  type="button"
-                  onClick={reset}
-                  className="text-xs text-white/55 hover:text-white"
-                >
-                  Start over
-                </button>
+            <div className="mb-3 flex items-center justify-between px-2">
+              <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
+                Review & pick — {selectedCount} of {resolved.length} selected
+              </h2>
+              <button
+                type="button"
+                onClick={reset}
+                className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)] hover:text-[var(--ink)]"
+              >
+                Start over
+              </button>
+            </div>
+            <ul className="divide-y divide-[var(--rule)]">
+              {resolved.map((r) => (
+                <ResolvedRow
+                  key={r.raw}
+                  row={r}
+                  pick={picks[r.raw] ?? null}
+                  onPick={(hit) =>
+                    setPicks((prev) => ({ ...prev, [r.raw]: hit }))
+                  }
+                />
+              ))}
+            </ul>
+            <div className="mt-5 flex items-center justify-between border-t border-[var(--rule)] pt-5">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                Unselected items can be re-tried by editing the input.
+              </span>
+              <button
+                type="button"
+                onClick={commit}
+                disabled={committing || selectedCount === 0}
+                className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
+              >
+                {committing ? "Adding…" : `Add ${selectedCount} to catalog`}
+              </button>
+            </div>
+            {error && (
+              <div className="mt-4 rounded-md border border-[var(--accent)] bg-[var(--accent)]/10 px-3 py-2 text-[11.5px] text-[var(--accent)]">
+                {error}
               </div>
-              <ul className="divide-y divide-white/10">
-                {resolved.map((r) => (
-                  <ResolvedRow
-                    key={r.raw}
-                    row={r}
-                    pick={picks[r.raw] ?? null}
-                    onPick={(hit) =>
-                      setPicks((prev) => ({ ...prev, [r.raw]: hit }))
-                    }
-                  />
-                ))}
-              </ul>
-              <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-5">
-                <span className="text-xs text-white/55">
-                  Skipped items can be re-tried by editing the input.
-                </span>
-                <button
-                  type="button"
-                  onClick={commit}
-                  disabled={committing || selectedCount === 0}
-                  className="rounded-full border border-emerald-300/40 bg-emerald-400/15 px-4 py-2 text-sm font-medium text-emerald-50 transition hover:bg-emerald-400/25 disabled:opacity-50"
-                >
-                  {committing
-                    ? "Adding…"
-                    : `Add ${selectedCount} to watchlist`}
-                </button>
-              </div>
-              {error && (
-                <div className="mt-4 rounded-md border border-red-300/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
-                  {error}
-                </div>
-              )}
-            </GlassCard>
+            )}
           </motion.div>
         )}
       </main>
-    </PageShell>
+    </div>
   );
 }
 
@@ -338,9 +341,9 @@ function ResolvedRow({
         onChange={(e) =>
           onPick(e.target.checked ? candidates[0] ?? null : null)
         }
-        className="h-4 w-4 accent-violet-400"
+        className="h-4 w-4 accent-[var(--accent)]"
       />
-      <div className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-white/5">
+      <div className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
         {pick && pick.poster_path ? (
           <img
             src={posterUrl(pick.poster_path, "w185") ?? ""}
@@ -348,26 +351,20 @@ function ResolvedRow({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="grid h-full place-items-center text-[9px] text-white/40">
-            ·
-          </div>
+          <div className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">·</div>
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-white/90">{row.raw}</div>
-        <div className="mt-0.5 text-xs text-white/45">
+        <div className="truncate text-[13px] text-[var(--ink)]">{row.raw}</div>
+        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider">
           {row.status === "matched" && (
-            <span className="text-emerald-200/85">
-              matched ({Math.round(row.confidence * 100)}%)
-            </span>
+            <span className="text-[var(--accent)]">matched · {Math.round(row.confidence * 100)}%</span>
           )}
           {row.status === "ambiguous" && (
-            <span className="text-amber-200/85">
-              ambiguous ({Math.round(row.confidence * 100)}%)
-            </span>
+            <span className="text-[var(--paper-dim)]">ambiguous · {Math.round(row.confidence * 100)}%</span>
           )}
           {row.status === "unmatched" && (
-            <span className="text-red-200/85">no match</span>
+            <span className="text-[var(--paper-faint)]">no match</span>
           )}
         </div>
       </div>
@@ -379,21 +376,18 @@ function ResolvedRow({
             const hit = candidates.find((h) => h.id === id) ?? null;
             onPick(hit);
           }}
-          className="max-w-[16rem] rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+          className="max-w-[16rem] rounded-md border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-[11.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
         >
-          <option value="" className="bg-[#15151c]">
-            — skip —
-          </option>
+          <option value="" className="bg-[var(--paper-2)]">— skip —</option>
           {candidates.map((h) => (
-            <option key={h.id} value={h.id} className="bg-[#15151c]">
+            <option key={h.id} value={h.id} className="bg-[var(--paper-2)]">
               {h.title}
-              {h.release_date ? ` (${h.release_date.slice(0, 4)})` : ""} ·{" "}
-              {h.type}
+              {h.release_date ? ` (${h.release_date.slice(0, 4)})` : ""} · {h.type}
             </option>
           ))}
         </select>
       ) : (
-        <span className="text-xs text-white/40">no candidates</span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">no candidates</span>
       )}
     </li>
   );
@@ -410,9 +404,7 @@ function FileInput({
 }) {
   return (
     <label className="flex flex-col items-start gap-2">
-      <span className="text-xs uppercase tracking-wider text-white/55">
-        {label}
-      </span>
+      <span className="font-label text-[10px] text-[var(--paper-faint)]">{label}</span>
       <input
         type="file"
         accept={accept}
@@ -420,7 +412,7 @@ function FileInput({
           const f = e.target.files?.[0];
           if (f) onFile(f);
         }}
-        className="block rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/85 file:mr-3 file:rounded-md file:border-0 file:bg-white/15 file:px-3 file:py-1.5 file:text-xs file:text-white hover:file:bg-white/20"
+        className="block rounded-xl border border-[var(--rule)] bg-[var(--paper)] px-3 py-2 text-[13px] text-[var(--paper-dim)] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--ink)] file:px-3 file:py-1.5 file:text-[12px] file:text-[var(--paper)] hover:file:opacity-90"
       />
     </label>
   );

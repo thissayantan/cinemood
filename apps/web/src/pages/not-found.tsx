@@ -1,35 +1,43 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { PageShell } from "@/components/page-shell";
-
-const SPRING = { type: "spring" as const, stiffness: 240, damping: 24 };
+import filmReel from "@/lottie/film-reel.json";
+import { LottieLoop } from "@/components/lottie-loop";
+import { useMotionConfig } from "@/lib/motion";
+import { RouteTitle } from "@/components/route-title";
 
 export default function NotFoundPage() {
+  const m = useMotionConfig();
   return (
-    <PageShell>
+    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
+      <RouteTitle title="404" />
       <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
           animate={{ opacity: 1, y: 0 }}
-          transition={SPRING}
+          transition={m.reduced ? { duration: 0 } : m.springEntry}
+          className="flex flex-col items-center"
         >
-          <p className="text-xs uppercase tracking-[0.2em] text-current opacity-50">
-            404
+          <LottieLoop source={filmReel} size={160} speed={0.4} />
+          <p className="mt-4 font-label text-[10px] text-[var(--paper-faint)]">
+            404 · Off-reel
           </p>
-          <h1 className="mt-3 bg-gradient-to-br from-fuchsia-400 via-violet-400 to-cyan-400 bg-clip-text text-5xl font-bold tracking-tight text-transparent dark:from-fuchsia-200 dark:via-violet-200 dark:to-cyan-200 md:text-6xl">
+          <h1
+            className="mt-2 font-display text-[44px] leading-[1.02] text-[var(--ink)] md:text-[64px]"
+            style={{ fontVariationSettings: '"opsz" 84, "wght" 800, "SOFT" 20' }}
+          >
             Lost in the credits.
           </h1>
-          <p className="mt-4 text-sm opacity-65">
-            That page isn't on your watchlist (or anywhere else).
+          <p className="mt-3 max-w-sm text-[15px] text-[var(--paper-dim)]">
+            That page isn't on your watchlist — or anywhere else.
           </p>
           <Link
             to="/"
-            className="mt-8 inline-block rounded-full border border-black/15 bg-black/5 px-5 py-2.5 text-sm font-medium transition hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/15"
+            className="mt-7 inline-block rounded-full border border-[var(--ink)] bg-[var(--ink)] px-4 py-2 text-[13px] text-[var(--paper)] transition hover:opacity-90"
           >
-            Back to watchlist
+            Back to your collection
           </Link>
         </motion.div>
       </main>
-    </PageShell>
+    </div>
   );
 }

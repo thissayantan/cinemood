@@ -10,3 +10,4 @@ apps/api/.dev.vars
 !.env.example
 *.tsbuildinfo
 graphify-out/
+.playwright-mcp/

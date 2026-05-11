@@ -7,22 +7,21 @@ import SettingsSearchPage from "./pages/settings-search";
 import ImportPage from "./pages/import";
 import NotFoundPage from "./pages/not-found";
 import { useUser } from "./lib/use-user";
-import { PageShell } from "./components/page-shell";
+
+function Loading() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-[var(--paper)] font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
+      Loading…
+    </div>
+  );
+}
 
 function Root() {
   const state = useUser();
   const [params] = useSearchParams();
   const authError = params.get("auth_error");
 
-  if (state.status === "loading") {
-    return (
-      <PageShell>
-        <div className="grid min-h-screen place-items-center text-sm text-white/40">
-          Loading…
-        </div>
-      </PageShell>
-    );
-  }
+  if (state.status === "loading") return <Loading />;
   if (state.status === "ok") return <HomePage user={state.user} />;
   return <LandingPage authError={authError} />;
 }
@@ -33,15 +32,7 @@ function AuthedShell({
   render: (user: User) => React.ReactElement;
 }) {
   const state = useUser();
-  if (state.status === "loading") {
-    return (
-      <PageShell>
-        <div className="grid min-h-screen place-items-center text-sm text-white/40">
-          Loading…
-        </div>
-      </PageShell>
-    );
-  }
+  if (state.status === "loading") return <Loading />;
   if (state.status !== "ok") return <Navigate to="/" replace />;
   return render(state.user);
 }
@@ -51,9 +42,7 @@ export default function App() {
     <Routes>
       <Route
         path="/settings/search"
-        element={
-          <AuthedShell render={(u) => <SettingsSearchPage user={u} />} />
-        }
+        element={<AuthedShell render={(u) => <SettingsSearchPage user={u} />} />}
       />
       <Route
         path="/import"

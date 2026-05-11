@@ -1,73 +1,269 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
+import type { WatchlistItem } from "@cinemood/shared";
+import { cn } from "@/lib/utils";
+import { useMotionConfig, staggerDelay } from "@/lib/motion";
 import { posterUrl } from "@/lib/tmdb";
 
 interface Props {
-  title: string;
-  year: string | null;
-  posterPath: string | null;
-  badge?: string;
-  rating?: number | null;
-  onClick?: () => void;
-  disabled?: boolean;
-  added?: boolean;
+  item: WatchlistItem;
+  index: number;
+  onOpen: () => void;
+  onToggleWatched: () => void;
+  onRemove: () => void;
+  focusable?: boolean;
+}
+
+function fmtCatalog(n: number): string {
+  return `C-${String(n).padStart(4, "0")}`;
 }
 
 export function PosterCard({
-  title,
-  year,
-  posterPath,
-  badge,
-  rating,
-  onClick,
-  disabled,
-  added,
+  item,
+  index,
+  onOpen,
+  onToggleWatched,
+  onRemove,
+  focusable = true,
 }: Props) {
-  const src = posterUrl(posterPath, "w342");
+  const t = item.title;
+  const m = useMotionConfig();
+  const [hovered, setHovered] = useState(false);
+
+  const src = posterUrl(t.poster_path, "w342");
+  const year = t.release_date ? t.release_date.slice(0, 4) : "—";
+  const rating = typeof t.vote_average === "number" ? t.vote_average : null;
+  const isWatched = item.status === "watched";
 
   return (
-    <motion.button
-      type="button"
-      whileHover={disabled ? {} : { scale: 1.02 }}
-      transition={{ type: "spring", stiffness: 300, damping: 22 }}
-      onClick={disabled ? undefined : onClick}
-      aria-disabled={disabled}
-      className={`group relative block w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left backdrop-blur-xl transition ${
-        disabled ? "cursor-default opacity-60" : "hover:border-white/25 hover:bg-white/10"
-      }`}
+    <motion.article
+      initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={
+        m.reduced
+          ? { duration: 0 }
+          : { ...m.springEntry, delay: staggerDelay(index, m) }
+      }
+      className="group relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
     >
-      <div className="relative aspect-[2/3] w-full bg-black/30">
+      <motion.button
+        type="button"
+        tabIndex={focusable ? 0 : -1}
+        aria-label={`Open ${t.title}`}
+        onClick={onOpen}
+        whileHover={m.reduced ? undefined : { scale: m.scaleHover }}
+        whileTap={m.reduced ? undefined : { scale: 0.985 }}
+        transition={{ duration: m.durFast, ease: m.easeOutQuint }}
+        className="relative block w-full overflow-hidden rounded-xl border border-[var(--rule)] bg-[var(--paper-2)] text-left"
+        style={{ aspectRatio: "2 / 3" }}
+      >
+        {/* Poster image */}
         {src ? (
           <img
             src={src}
-            alt={title}
+            alt=""
             loading="lazy"
-            className="h-full w-full object-cover"
+            className={cn(
+              "h-full w-full object-cover transition-all",
+              isWatched && "saturate-[0.55] brightness-[0.78]",
+            )}
           />
         ) : (
-          <div className="grid h-full w-full place-items-center text-xs text-white/40">
-            No poster
+          <div className="grid h-full w-full place-items-center bg-[var(--paper-3)] text-[var(--paper-faint)]">
+            <span className="font-label text-[11px]">No poster</span>
           </div>
         )}
-        {badge && (
-          <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/85 backdrop-blur">
-            {badge}
-          </span>
+
+        {/* Top-left: catalog spine number */}
+        <span
+          className={cn(
+            "absolute left-2 top-2 rounded-md border border-[var(--paper)]/30 bg-[var(--paper)]/12 px-1.5 py-0.5 font-mono text-[10px] leading-none tracking-wider text-[var(--paper)] backdrop-blur-sm",
+            isWatched && "opacity-55",
+          )}
+        >
+          {fmtCatalog(item.catalog_no)}
+        </span>
+
+        {/* Top-right: type glyph */}
+        <span
+          aria-hidden
+          className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full border border-[var(--paper)]/30 bg-[var(--paper)]/10 text-[var(--paper)] backdrop-blur-sm"
+        >
+          {t.type === "series" ? (
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="3" width="13" height="8.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M5 13.5h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6.4" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M8 1.6v12.8M1.6 8h12.8" stroke="currentColor" strokeWidth="1" strokeDasharray="0.5 1.3" />
+            </svg>
+          )}
+        </span>
+
+        {/* Watched checkmark draw-in */}
+        {isWatched && (
+          <motion.span
+            initial={m.reduced ? { opacity: 1 } : { pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={
+              m.reduced
+                ? { duration: 0 }
+                : { duration: m.durSlow, ease: m.easeOutQuint }
+            }
+            className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-[var(--paper)]"
+            aria-label="Watched"
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16">
+              <motion.path
+                d="M3.5 8.5l3 3 6-6.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                initial={m.reduced ? false : { pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={
+                  m.reduced
+                    ? { duration: 0 }
+                    : { duration: m.durSlow, ease: m.easeOutQuint }
+                }
+              />
+            </svg>
+          </motion.span>
         )}
-        {added && (
-          <span className="absolute right-2 top-2 rounded-full bg-emerald-400/85 px-2 py-0.5 text-[10px] font-semibold text-black">
-            Saved
-          </span>
+
+        {/* Hover/focus synopsis overlay */}
+        {hovered && !m.reduced && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: m.durBase, ease: m.easeOutQuint }}
+            className="absolute inset-0 flex flex-col justify-end p-4 text-[var(--paper)]"
+            style={{
+              background:
+                "linear-gradient(180deg, transparent 0%, rgba(10,9,8,0.0) 28%, rgba(10,9,8,0.85) 64%, rgba(10,9,8,0.96) 100%)",
+            }}
+          >
+            <p className="line-clamp-4 text-[12px] leading-snug">
+              {t.overview || (
+                <span className="text-[var(--paper)]/70 italic">
+                  No synopsis on file.
+                </span>
+              )}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-[var(--paper)]/75">
+              {t.runtime ? <span>{t.runtime}m</span> : null}
+              {t.genres.slice(0, 2).map((g) => (
+                <span key={g} className="rounded-md border border-[var(--paper)]/30 px-1.5 py-0.5">
+                  {g}
+                </span>
+              ))}
+            </div>
+          </motion.div>
         )}
-        {typeof rating === "number" && rating > 0 && (
-          <span className="absolute bottom-2 right-2 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur">
-            ★ {rating.toFixed(1)}
-          </span>
-        )}
+      </motion.button>
+
+      {/* Hover quick-actions; positioned outside the button for accessible activation */}
+      {hovered && !m.reduced && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: m.durBase, ease: m.easeOutQuint }}
+          className="absolute right-2 top-2 z-10 flex gap-1.5"
+          style={{ transform: "translateY(36px)" }}
+        >
+          <QuickAction
+            label={isWatched ? "Unmark watched" : "Mark watched"}
+            onClick={onToggleWatched}
+          >
+            {isWatched ? <UndoIcon /> : <CheckIcon />}
+          </QuickAction>
+          <QuickAction label="Remove from watchlist" onClick={onRemove} danger>
+            <TrashIcon />
+          </QuickAction>
+        </motion.div>
+      )}
+
+      {/* Metadata strip below poster */}
+      <div className="mt-2 flex items-baseline justify-between gap-2 px-0.5">
+        <h3
+          className={cn(
+            "truncate font-display-sm text-[14px] leading-tight text-[var(--ink)]",
+            isWatched && "text-[var(--paper-dim)]",
+          )}
+          style={{ fontVariationSettings: '"opsz" 14, "wght" 600, "SOFT" 40' }}
+          title={t.title}
+        >
+          {t.title}
+        </h3>
+        <div className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+          {year}
+          {rating !== null && rating > 0 ? (
+            <span className="ml-1">· ★{rating.toFixed(1)}</span>
+          ) : null}
+        </div>
       </div>
-      <div className="px-3 py-2.5">
-        <div className="line-clamp-2 text-sm font-medium text-white/90">{title}</div>
-        {year && <div className="mt-0.5 text-xs text-white/45">{year}</div>}
-      </div>
-    </motion.button>
+    </motion.article>
+  );
+}
+
+function QuickAction({
+  label,
+  onClick,
+  danger,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "grid h-7 w-7 place-items-center rounded-full border border-[var(--paper)]/30 bg-[var(--paper-3)]/85 text-[var(--paper)] backdrop-blur-sm transition hover:bg-[var(--paper-3)]",
+        danger && "hover:border-[var(--accent)] hover:text-[var(--accent)]",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+      <path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function UndoIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+      <path d="M3 8a5 5 0 1 1 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3 5v3h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+      <path d="M3.5 4.5h9M6 4V2.8c0-.5.4-.8.8-.8h2.4c.4 0 .8.3.8.8V4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4.5 4.5l.5 8a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
