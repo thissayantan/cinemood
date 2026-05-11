@@ -51,7 +51,11 @@ export function TopBar({
           <button
             type="button"
             onClick={onOpenPalette}
-            className="group flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-4 text-left text-[13px] text-[var(--paper-dim)] transition hover:bg-[var(--paper-3)] hover:text-[var(--ink)]"
+            // Subtle inset shadow in light mode so the bar lifts off the
+            // cream page (paper-2 alone is too close to paper to read as
+            // a distinct surface). The shadow is invisible in dark mode
+            // where paper-2 is already well-separated from paper.
+            className="group flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-4 text-left text-[13px] text-[var(--paper-dim)] shadow-[inset_0_-1px_0_rgba(26,24,20,0.04)] transition hover:bg-[var(--paper-3)] hover:text-[var(--ink)] dark:shadow-none"
           >
             <SearchIcon />
             <span className="truncate">Search or add a film…</span>

@@ -98,8 +98,21 @@ export default function LandingPage({ authError }: { authError: string | null })
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+      {/* Radial glow centred behind the wordmark. In dark mode the
+          accent-tinted glow reads as warm cinematic light; in light
+          mode the same red gradient on cream looks like a stain, so
+          we use a neutral warm-paper glow that just lifts the centre
+          of the page off the background instead. */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 dark:hidden"
+        style={{
+          background:
+            "radial-gradient(ellipse 55% 45% at 50% 48%, color-mix(in srgb, var(--paper) 70%, var(--ink) 30%) 0%, transparent 70%)",
+          opacity: 0.18,
+        }}
+      />
+      <div
+        className="absolute inset-0 hidden dark:block"
         style={{
           background:
             "radial-gradient(ellipse 60% 50% at 50% 50%, var(--accent-glow) 0%, transparent 70%)",
@@ -115,6 +128,11 @@ function FilmstripRail({ position }: { position: "top" | "bottom" }) {
   // 28 perforation holes spaced evenly. We render them as a flex row of
   // small dimensional rectangles inset from the screen edge — a quiet
   // film-archive cue without screaming "filmstrip!" at the user.
+  //
+  // Opacity is tuned per theme: 7% on dark (cream specks on near-black
+  // — they read as faint perforations); 3.5% on light (dark specks on
+  // cream — at the previous 7% they looked like dust). The bg colour
+  // is `--ink` in both, so the dark class flips it automatically.
   const holes = Array.from({ length: 28 });
   return (
     <div
@@ -125,7 +143,7 @@ function FilmstripRail({ position }: { position: "top" | "bottom" }) {
       {holes.map((_, i) => (
         <span
           key={i}
-          className="h-2.5 w-3 rounded-[2px] bg-[var(--ink)] opacity-[0.07]"
+          className="h-2.5 w-3 rounded-[2px] bg-[var(--ink)] opacity-[0.035] dark:opacity-[0.07]"
         />
       ))}
     </div>

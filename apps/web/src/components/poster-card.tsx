@@ -98,13 +98,25 @@ export function PosterCard({
                     title={p.name}
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    className="h-[18px] w-[18px] rounded-[4px] border border-white/25 object-cover shadow-sm shadow-black/30"
+                    // Subtle ring + drop-shadow rather than a flat border so
+                    // the badge has edge separation on both pale and dark
+                    // posters (a white border vanishes on cream in light
+                    // mode, a black border vanishes on dark posters).
+                    style={{
+                      boxShadow:
+                        "0 0 0 1px rgba(0,0,0,0.35), 0 0 0 2px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.35)",
+                    }}
+                    className="h-[18px] w-[18px] rounded-[4px] object-cover"
                   />
                 ) : (
                   <span
                     key={p.name}
                     title={p.name}
-                    className="grid h-[18px] w-[18px] place-items-center rounded-[4px] border border-white/25 bg-black/65 font-mono text-[9px] text-white shadow-sm shadow-black/30"
+                    style={{
+                      boxShadow:
+                        "0 0 0 1px rgba(0,0,0,0.35), 0 0 0 2px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.35)",
+                    }}
+                    className="grid h-[18px] w-[18px] place-items-center rounded-[4px] bg-black/65 font-mono text-[9px] text-white"
                   >
                     {p.name.slice(0, 1)}
                   </span>
