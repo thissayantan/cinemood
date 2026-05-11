@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import type { ApiResponse, User } from "@cinemood/shared";
+import { AnimatePresence, motion } from "framer-motion";
+import type { ApiResponse, Title, User } from "@cinemood/shared";
 import { api } from "@/lib/api";
 import { posterUrl } from "@/lib/tmdb";
 import { useMotionConfig } from "@/lib/motion";
@@ -16,6 +16,7 @@ import { AvatarMenu } from "@/components/avatar-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RouteTitle } from "@/components/route-title";
 import { FilmstripProgress } from "@/components/filmstrip-progress";
+import { Dialog, AnimatedDialogContent } from "@/components/dialog";
 import { cn } from "@/lib/utils";
 
 interface TmdbHit {
@@ -172,12 +173,29 @@ export default function ImportPage({ user }: { user: User }) {
   const selectedCount = Object.values(picks).filter(Boolean).length;
 
   // The sticky sidebar preview shows whichever row the user last hovered (or
-  // focused via keyboard). It never auto-clears — flicker-free, persistent.
-  // Initialised to the first picked row so the sidebar isn't blank on entry.
+  // focused via keyboard). Initialised to the first picked row so the sidebar
+  // isn't blank on entry. Cleared with a 200ms grace period so brief cursor
+  // drift between list and sidebar doesn't flicker the panel out.
   const [previewItem, setPreviewItem] = useState<{
     pick: TmdbHit;
     raw: string;
   } | null>(null);
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClear = useCallback(() => {
+    if (clearTimerRef.current) {
+      clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+  }, []);
+  const scheduleClear = useCallback(() => {
+    cancelClear();
+    clearTimerRef.current = setTimeout(() => {
+      setPreviewItem(null);
+      clearTimerRef.current = null;
+    }, 200);
+  }, [cancelClear]);
+  useEffect(() => () => cancelClear(), [cancelClear]);
+
   useEffect(() => {
     if (previewItem) return;
     if (!resolved) return;
@@ -189,6 +207,44 @@ export default function ImportPage({ user }: { user: User }) {
       }
     }
   }, [resolved, picks, previewItem]);
+
+  // Lazy-fetch full Title detail (genres + providers) for the previewed row.
+  // Cached by `${type}:${id}` so re-hovering or switching back is instant.
+  const [titleCache, setTitleCache] = useState<Map<string, Title>>(new Map());
+  useEffect(() => {
+    if (!previewItem) return;
+    const key = `${previewItem.pick.type}:${previewItem.pick.id}`;
+    if (titleCache.has(key)) return;
+    let cancelled = false;
+    (async () => {
+      const res = (await api<Title>(
+        `/api/title/${previewItem.pick.type}/${previewItem.pick.id}`,
+      )) as ApiResponse<Title>;
+      if (cancelled || !res.ok) return;
+      setTitleCache((prev) => {
+        const next = new Map(prev);
+        next.set(key, res.data);
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [previewItem, titleCache]);
+  const previewDetail = previewItem
+    ? titleCache.get(`${previewItem.pick.type}:${previewItem.pick.id}`) ?? null
+    : null;
+
+  // Tap-to-preview: the same content as the sidebar, but in a centered
+  // Dialog so mobile users (no hover) and desktop users who tap a row get
+  // the full preview surface.
+  const [dialogItem, setDialogItem] = useState<{
+    pick: TmdbHit;
+    raw: string;
+  } | null>(null);
+  const dialogDetail = dialogItem
+    ? titleCache.get(`${dialogItem.pick.type}:${dialogItem.pick.id}`) ?? null
+    : null;
 
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
@@ -368,7 +424,8 @@ export default function ImportPage({ user }: { user: User }) {
             </div>
             <div
               className="md:grid md:grid-cols-[minmax(0,1fr)_320px] md:gap-6"
-              onMouseLeave={() => setPreviewItem(null)}
+              onMouseLeave={scheduleClear}
+              onMouseEnter={cancelClear}
             >
               <ul className="divide-y divide-[var(--rule)]">
                 {resolved.map((r) => (
@@ -381,7 +438,11 @@ export default function ImportPage({ user }: { user: User }) {
                       if (hit) setPreviewItem({ pick: hit, raw: r.raw });
                     }}
                     onPreview={(hit) => {
+                      cancelClear();
                       if (hit) setPreviewItem({ pick: hit, raw: r.raw });
+                    }}
+                    onOpenDialog={(hit) => {
+                      if (hit) setDialogItem({ pick: hit, raw: r.raw });
                     }}
                   />
                 ))}
@@ -389,23 +450,82 @@ export default function ImportPage({ user }: { user: User }) {
 
               {/* Sticky preview sidebar — desktop only. Always rendered while
                   the review step is up; content swaps on each row's hover or
-                  keyboard focus. Hidden on mobile where the dropdown alone
-                  is the affordance. */}
+                  keyboard focus. Hidden on mobile where the tap-to-preview
+                  dialog is the affordance. */}
               <aside className="hidden md:block">
                 <div className="sticky top-4">
-                  {previewItem ? (
-                    <PickPreview
-                      pick={previewItem.pick}
-                      raw={previewItem.raw}
-                    />
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-[var(--rule)] p-6 text-center font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-                      Hover a row to preview
-                    </div>
-                  )}
+                  <AnimatePresence mode="wait">
+                    {previewItem ? (
+                      <motion.div
+                        key={`${previewItem.pick.type}:${previewItem.pick.id}`}
+                        initial={
+                          m.reduced
+                            ? false
+                            : { opacity: 0, y: 4 }
+                        }
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={
+                          m.reduced
+                            ? { opacity: 0 }
+                            : { opacity: 0, y: 2 }
+                        }
+                        transition={
+                          m.reduced
+                            ? { duration: 0 }
+                            : { duration: 0.15, ease: m.easeOutQuint }
+                        }
+                      >
+                        <PickPreview
+                          pick={previewItem.pick}
+                          raw={previewItem.raw}
+                          detail={previewDetail}
+                        />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="empty"
+                        initial={m.reduced ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={
+                          m.reduced
+                            ? { duration: 0 }
+                            : { duration: 0.15, ease: m.easeOutQuint }
+                        }
+                        className="rounded-2xl border border-dashed border-[var(--rule)] p-6 text-center font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]"
+                      >
+                        Hover a row to preview
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </aside>
             </div>
+
+            {/* Tap-to-preview dialog — opens on row tap on any device, with
+                the same content as the sidebar. */}
+            <Dialog
+              open={!!dialogItem}
+              onOpenChange={(open) => {
+                if (!open) setDialogItem(null);
+              }}
+            >
+              <AnimatedDialogContent
+                open={!!dialogItem}
+                side="center"
+                className="!w-[min(440px,calc(100vw-32px))]"
+              >
+                {dialogItem ? (
+                  <div className="p-2">
+                    <PickPreview
+                      pick={dialogItem.pick}
+                      raw={dialogItem.raw}
+                      detail={dialogDetail}
+                    />
+                  </div>
+                ) : null}
+              </AnimatedDialogContent>
+            </Dialog>
             <div className="mt-5 border-t border-[var(--rule)] pt-5">
               {committing && progress ? (
                 <FilmstripProgress
@@ -446,14 +566,18 @@ function ResolvedRow({
   pick,
   onPick,
   onPreview,
+  onOpenDialog,
 }: {
   row: ResolvedHit;
   pick: TmdbHit | null;
   onPick: (hit: TmdbHit | null) => void;
   /** Notify the parent that this row was just hovered / focused so the
-   *  sticky preview sidebar can swap its content. Fires only when there's
-   *  an actual pick to show. */
+   *  sticky preview sidebar can swap its content. */
   onPreview: (hit: TmdbHit | null) => void;
+  /** Tap on the thumbnail/title block opens a centered dialog with the
+   *  same preview content — the only way to preview on mobile and a quick
+   *  big-format view on desktop. */
+  onOpenDialog: (hit: TmdbHit | null) => void;
 }) {
   const candidates = [row.best, ...row.alternatives].filter(
     (h): h is TmdbHit => Boolean(h),
@@ -463,7 +587,6 @@ function ResolvedRow({
     <li
       className="flex items-center gap-3 px-2 py-3 transition-colors hover:bg-[var(--paper-3)]/30 focus-within:bg-[var(--paper-3)]/30"
       onMouseEnter={() => onPreview(pick)}
-      onFocus={() => onPreview(pick)}
     >
       <input
         type="checkbox"
@@ -474,37 +597,48 @@ function ResolvedRow({
         className="h-4 w-4 accent-[var(--accent)]"
         aria-label={`Include ${row.raw}`}
       />
-      <div className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
-        {pick && pick.poster_path ? (
-          <img
-            src={posterUrl(pick.poster_path, "w185") ?? ""}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">
-            ·
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] text-[var(--ink)]">{row.raw}</div>
-        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider">
-          {row.status === "matched" && (
-            <span className="text-[var(--accent)]">
-              matched · {Math.round(row.confidence * 100)}%
+      <button
+        type="button"
+        disabled={!pick}
+        onClick={() => onOpenDialog(pick)}
+        onFocus={() => onPreview(pick)}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none disabled:cursor-default"
+        aria-label={pick ? `Preview ${pick.title}` : undefined}
+      >
+        <span className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
+          {pick && pick.poster_path ? (
+            <img
+              src={posterUrl(pick.poster_path, "w185") ?? ""}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">
+              ·
             </span>
           )}
-          {row.status === "ambiguous" && (
-            <span className="text-[var(--paper-dim)]">
-              ambiguous · {Math.round(row.confidence * 100)}%
-            </span>
-          )}
-          {row.status === "unmatched" && (
-            <span className="text-[var(--paper-faint)]">no match</span>
-          )}
-        </div>
-      </div>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] text-[var(--ink)]">
+            {row.raw}
+          </span>
+          <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider">
+            {row.status === "matched" && (
+              <span className="text-[var(--accent)]">
+                matched · {Math.round(row.confidence * 100)}%
+              </span>
+            )}
+            {row.status === "ambiguous" && (
+              <span className="text-[var(--paper-dim)]">
+                ambiguous · {Math.round(row.confidence * 100)}%
+              </span>
+            )}
+            {row.status === "unmatched" && (
+              <span className="text-[var(--paper-faint)]">no match</span>
+            )}
+          </span>
+        </span>
+      </button>
       {candidates.length > 0 ? (
         <select
           value={pick?.id ?? ""}
@@ -530,13 +664,75 @@ function ResolvedRow({
   );
 }
 
-function PickPreview({ pick, raw }: { pick: TmdbHit; raw: string }) {
+interface ProviderRow {
+  name: string;
+  logo: string | null;
+}
+
+/** Pick the streaming providers (flatrate) for the user's region, falling
+ *  back to US, then to the union across regions if neither has any. We
+ *  prefer subscription (flatrate) over rent/buy since the user is browsing
+ *  "what's available to watch", not the store. */
+function selectProviders(
+  providers: Record<string, unknown> | null,
+): ProviderRow[] {
+  if (!providers) return [];
+  const tryRegion = (code: string): ProviderRow[] => {
+    const region = (providers as Record<string, unknown>)[code];
+    if (!region || typeof region !== "object") return [];
+    const flat = (region as Record<string, unknown>).flatrate;
+    if (!Array.isArray(flat)) return [];
+    return (flat as unknown[])
+      .map((p) => {
+        if (!p || typeof p !== "object") return null;
+        const r = p as { provider_name?: string; logo_path?: string };
+        if (!r.provider_name) return null;
+        return { name: r.provider_name, logo: r.logo_path ?? null };
+      })
+      .filter((x): x is ProviderRow => Boolean(x));
+  };
+  const inRegion = tryRegion("IN");
+  if (inRegion.length > 0) return inRegion.slice(0, 6);
+  const us = tryRegion("US");
+  if (us.length > 0) return us.slice(0, 6);
+  // Union across all regions, deduped by provider name.
+  const seen = new Set<string>();
+  const out: ProviderRow[] = [];
+  for (const region of Object.values(providers)) {
+    if (!region || typeof region !== "object") continue;
+    const flat = (region as Record<string, unknown>).flatrate;
+    if (!Array.isArray(flat)) continue;
+    for (const p of flat as unknown[]) {
+      if (!p || typeof p !== "object") continue;
+      const r = p as { provider_name?: string; logo_path?: string };
+      if (!r.provider_name || seen.has(r.provider_name)) continue;
+      seen.add(r.provider_name);
+      out.push({ name: r.provider_name, logo: r.logo_path ?? null });
+    }
+  }
+  return out.slice(0, 6);
+}
+
+function PickPreview({
+  pick,
+  raw,
+  detail,
+}: {
+  pick: TmdbHit;
+  raw: string;
+  /** Full Title detail from /api/title/:type/:id, when loaded. Provides
+   *  `genres` and `providers` that the search-level pick doesn't carry. */
+  detail: Title | null;
+}) {
   const poster = posterUrl(pick.poster_path, "w342");
   const year = pick.release_date ? pick.release_date.slice(0, 4) : "—";
   const rating =
     typeof pick.vote_average === "number" && pick.vote_average > 0
       ? pick.vote_average.toFixed(1)
       : null;
+  const genres = detail?.genres ?? [];
+  const providers = selectProviders(detail?.providers ?? null);
+
   return (
     <div className="rounded-2xl border border-[var(--rule)] bg-[var(--paper)] p-4 shadow-[var(--shadow-card)]">
       <div
@@ -567,13 +763,64 @@ function PickPreview({ pick, raw }: { pick: TmdbHit; raw: string }) {
           {year} · {pick.type}
           {rating ? <span className="ml-1">· ★ {rating}</span> : null}
         </div>
-        <p className="mt-3 line-clamp-6 text-[12.5px] leading-snug text-[var(--paper-dim)]">
+        <p className="mt-3 line-clamp-5 text-[12.5px] leading-snug text-[var(--paper-dim)]">
           {pick.overview || (
             <span className="italic text-[var(--paper-faint)]">
               No synopsis on file.
             </span>
           )}
         </p>
+
+        {genres.length > 0 && (
+          <div className="mt-3">
+            <div className="font-label text-[9px] text-[var(--paper-faint)]">
+              Genre
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {genres.map((g) => (
+                <span
+                  key={g}
+                  className="rounded-full border border-[var(--rule)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-dim)]"
+                >
+                  {g}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {providers.length > 0 && (
+          <div className="mt-3">
+            <div className="font-label text-[9px] text-[var(--paper-faint)]">
+              Stream on
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {providers.map((p) => (
+                <span
+                  key={p.name}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--paper-dim)]"
+                  title={p.name}
+                >
+                  {p.logo ? (
+                    <img
+                      src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+                      alt=""
+                      className="h-4 w-4 rounded-[3px] object-cover"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="grid h-4 w-4 place-items-center rounded-[3px] bg-[var(--paper-3)] font-mono text-[8px] text-[var(--paper-faint)]">
+                      {p.name.slice(0, 1)}
+                    </span>
+                  )}
+                  <span className="truncate">{p.name}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mt-3 border-t border-[var(--rule)] pt-3 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-faint)]">
           picked for &ldquo;{raw}&rdquo;
         </div>
