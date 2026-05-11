@@ -15,6 +15,7 @@ import {
 import { AvatarMenu } from "@/components/avatar-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RouteTitle } from "@/components/route-title";
+import { FilmstripProgress } from "@/components/filmstrip-progress";
 import { cn } from "@/lib/utils";
 
 interface TmdbHit {
@@ -121,10 +122,18 @@ export default function ImportPage({ user }: { user: User }) {
 
   async function commit() {
     if (!resolved) return;
+    // Dedupe by (tmdb_id, type) — duplicate raw lines collapse to the same
+    // pick, so the commit array should match the visible "Add X to catalog"
+    // count instead of including the same title N times.
     const items: { tmdb_id: number; type: TitleType }[] = [];
+    const seen = new Set<string>();
     for (const r of resolved) {
       const pick = picks[r.raw];
-      if (pick) items.push({ tmdb_id: pick.id, type: pick.type });
+      if (!pick) continue;
+      const key = `${pick.type}:${pick.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ tmdb_id: pick.id, type: pick.type });
     }
     if (items.length === 0) return;
     setCommitting(true);
@@ -273,22 +282,28 @@ export default function ImportPage({ user }: { user: User }) {
             )}
 
             {candidates.length > 0 && (
-              <div className="mt-6 flex items-center justify-between border-t border-[var(--rule)] pt-5">
-                <span className="text-[13px] text-[var(--paper-dim)]">
-                  Ready to resolve {candidates.length} title{candidates.length === 1 ? "" : "s"} against TMDB.
-                </span>
-                <button
-                  type="button"
-                  onClick={runResolve}
-                  disabled={loading}
-                  className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
-                >
-                  {loading
-                    ? progress
-                      ? `Resolving ${progress.done}/${progress.total}…`
-                      : "Resolving…"
-                    : "Resolve"}
-                </button>
+              <div className="mt-6 border-t border-[var(--rule)] pt-5">
+                {loading && progress ? (
+                  <FilmstripProgress
+                    label="Resolving against TMDB"
+                    done={progress.done}
+                    total={progress.total}
+                  />
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] text-[var(--paper-dim)]">
+                      Ready to resolve {candidates.length} title{candidates.length === 1 ? "" : "s"} against TMDB.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={runResolve}
+                      disabled={loading}
+                      className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
+                    >
+                      Resolve
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -333,22 +348,28 @@ export default function ImportPage({ user }: { user: User }) {
                 />
               ))}
             </ul>
-            <div className="mt-5 flex items-center justify-between border-t border-[var(--rule)] pt-5">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-                Unselected items can be re-tried by editing the input.
-              </span>
-              <button
-                type="button"
-                onClick={commit}
-                disabled={committing || selectedCount === 0}
-                className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
-              >
-                {committing
-                  ? progress
-                    ? `Adding ${progress.done}/${progress.total}…`
-                    : "Adding…"
-                  : `Add ${selectedCount} to catalog`}
-              </button>
+            <div className="mt-5 border-t border-[var(--rule)] pt-5">
+              {committing && progress ? (
+                <FilmstripProgress
+                  label="Adding to your catalog"
+                  done={progress.done}
+                  total={progress.total}
+                />
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                    Unselected items can be re-tried by editing the input.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={commit}
+                    disabled={committing || selectedCount === 0}
+                    className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {`Add ${selectedCount} to catalog`}
+                  </button>
+                </div>
+              )}
             </div>
             {error && (
               <div className="mt-4 rounded-md border border-[var(--accent)] bg-[var(--accent)]/10 px-3 py-2 text-[11.5px] text-[var(--accent)]">
