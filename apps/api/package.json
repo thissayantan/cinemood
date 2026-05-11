@@ -9,7 +9,8 @@
     "build": "wrangler deploy --dry-run --outdir dist --env=''",
     "typecheck": "tsc --noEmit",
     "deploy": "wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "reset:data": "bash scripts/reset-data.sh"
   },
   "dependencies": {
     "@cinemood/shared": "workspace:*",
