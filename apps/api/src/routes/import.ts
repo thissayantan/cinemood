@@ -20,7 +20,7 @@ const ResolveBody = z.object({
       }),
     )
     .min(1)
-    .max(200),
+    .max(500),
 });
 
 const CommitBody = z.object({
@@ -32,7 +32,7 @@ const CommitBody = z.object({
       }),
     )
     .min(1)
-    .max(200),
+    .max(500),
 });
 
 interface CommitOutcome {

@@ -49,6 +49,7 @@ export default function ImportPage({ user }: { user: User }) {
   const [committing, setCommitting] = useState(false);
   const [parseInfo, setParseInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   function reset() {
     setText("");
@@ -57,6 +58,13 @@ export default function ImportPage({ user }: { user: User }) {
     setPicks({});
     setError(null);
     setParseInfo(null);
+    setProgress(null);
+  }
+
+  function chunk<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
   }
 
   function handlePasteParse() {
@@ -82,18 +90,30 @@ export default function ImportPage({ user }: { user: User }) {
     if (candidates.length === 0) return;
     setLoading(true);
     setError(null);
-    const res = (await api<{ resolved: ResolvedHit[] }>("/api/import/resolve", {
-      method: "POST",
-      body: JSON.stringify({ items: candidates }),
-    })) as ApiResponse<{ resolved: ResolvedHit[] }>;
-    setLoading(false);
-    if (!res.ok) {
-      setError(res.error.message);
-      return;
+    setProgress({ done: 0, total: candidates.length });
+
+    // Resolve in 100-item chunks to stay well under the server cap (500)
+    // and keep each round-trip snappy on long Takeout / Letterboxd exports.
+    const all: ResolvedHit[] = [];
+    for (const batch of chunk(candidates, 100)) {
+      const res = (await api<{ resolved: ResolvedHit[] }>("/api/import/resolve", {
+        method: "POST",
+        body: JSON.stringify({ items: batch }),
+      })) as ApiResponse<{ resolved: ResolvedHit[] }>;
+      if (!res.ok) {
+        setLoading(false);
+        setProgress(null);
+        setError(res.error.message);
+        return;
+      }
+      all.push(...res.data.resolved);
+      setProgress({ done: all.length, total: candidates.length });
     }
-    setResolved(res.data.resolved);
+    setLoading(false);
+    setProgress(null);
+    setResolved(all);
     const initialPicks: Record<string, TmdbHit | null> = {};
-    for (const r of res.data.resolved) {
+    for (const r of all) {
       initialPicks[r.raw] = r.status === "unmatched" ? null : r.best ?? null;
     }
     setPicks(initialPicks);
@@ -108,18 +128,32 @@ export default function ImportPage({ user }: { user: User }) {
     }
     if (items.length === 0) return;
     setCommitting(true);
-    const res = (await api<{
-      outcomes: { tmdb_id: number; ok: boolean }[];
-    }>("/api/import/commit", {
-      method: "POST",
-      body: JSON.stringify({ items }),
-    })) as ApiResponse<{ outcomes: { tmdb_id: number; ok: boolean }[] }>;
-    setCommitting(false);
-    if (!res.ok) {
-      setError(res.error.message);
-      return;
+    setError(null);
+    setProgress({ done: 0, total: items.length });
+
+    // Commit in 50-item chunks — each commit row does TMDB detail + OMDB +
+    // upsert + index update via waitUntil, so smaller batches keep things
+    // observable.
+    let ok = 0;
+    for (const batch of chunk(items, 50)) {
+      const res = (await api<{
+        outcomes: { tmdb_id: number; ok: boolean }[];
+      }>("/api/import/commit", {
+        method: "POST",
+        body: JSON.stringify({ items: batch }),
+      })) as ApiResponse<{ outcomes: { tmdb_id: number; ok: boolean }[] }>;
+      if (!res.ok) {
+        setCommitting(false);
+        setProgress(null);
+        setError(res.error.message);
+        return;
+      }
+      ok += res.data.outcomes.filter((o) => o.ok).length;
+      setProgress({ done: ok, total: items.length });
     }
-    nav("/?imported=" + res.data.outcomes.filter((o) => o.ok).length);
+    setCommitting(false);
+    setProgress(null);
+    nav("/?imported=" + ok);
   }
 
   const selectedCount = Object.values(picks).filter(Boolean).length;
@@ -249,7 +283,11 @@ export default function ImportPage({ user }: { user: User }) {
                   disabled={loading}
                   className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
                 >
-                  {loading ? "Resolving…" : "Resolve"}
+                  {loading
+                    ? progress
+                      ? `Resolving ${progress.done}/${progress.total}…`
+                      : "Resolving…"
+                    : "Resolve"}
                 </button>
               </div>
             )}
@@ -305,7 +343,11 @@ export default function ImportPage({ user }: { user: User }) {
                 disabled={committing || selectedCount === 0}
                 className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
               >
-                {committing ? "Adding…" : `Add ${selectedCount} to catalog`}
+                {committing
+                  ? progress
+                    ? `Adding ${progress.done}/${progress.total}…`
+                    : "Adding…"
+                  : `Add ${selectedCount} to catalog`}
               </button>
             </div>
             {error && (
