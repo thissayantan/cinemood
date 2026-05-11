@@ -2,7 +2,6 @@ import type { User } from "@cinemood/shared";
 import { Link } from "react-router-dom";
 import { AvatarMenu } from "./avatar-menu";
 import { ThemeToggle } from "./theme-toggle";
-import { cn } from "@/lib/utils";
 
 interface Props {
   user: User;
@@ -77,11 +76,7 @@ export function TopBar({
           >
             <FilterIcon />
             {filtersBadge > 0 && (
-              <span
-                className={cn(
-                  "absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent)] px-1 font-mono text-[9px] font-semibold text-[var(--paper)]",
-                )}
-              >
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent)] px-1 font-mono text-[9px] font-semibold text-[var(--paper)]">
                 {filtersBadge}
               </span>
             )}

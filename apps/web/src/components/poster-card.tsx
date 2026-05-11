@@ -6,6 +6,13 @@ import { useMotionConfig, staggerDelay } from "@/lib/motion";
 import { posterUrl } from "@/lib/tmdb";
 import { selectProviders } from "@/lib/providers";
 
+// Subtle ring + drop-shadow rather than a flat border so the OTT badge has
+// edge separation on both pale and dark posters (a white border vanishes on
+// cream in light mode, a black border vanishes on dark posters). The three
+// stacked layers — dark hairline, white halo, soft drop — are load-bearing.
+const PROVIDER_BADGE_SHADOW =
+  "0 0 0 1px rgba(0,0,0,0.35), 0 0 0 2px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.35)";
+
 interface Props {
   item: WatchlistItem;
   index: number;
@@ -31,16 +38,26 @@ export function PosterCard({
   const year = t.release_date ? t.release_date.slice(0, 4) : "—";
   const rating = typeof t.vote_average === "number" ? t.vote_average : null;
   const isWatched = item.status === "watched";
+  const providers = selectProviders(t.providers, 3);
+
+  // Motion: when reduced, every entrance collapses to instant; otherwise
+  // use the shared spring + a small fade-up offset.
+  const articleInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const articleTransition = m.reduced
+    ? { duration: 0 }
+    : { ...m.springEntry, delay: staggerDelay(index, m) };
+  const fadeTransition = m.reduced
+    ? { duration: 0 }
+    : { duration: m.durBase, ease: m.easeOutQuint };
+  const drawTransition = m.reduced
+    ? { duration: 0 }
+    : { duration: m.durSlow, ease: m.easeOutQuint };
 
   return (
     <motion.article
-      initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+      initial={articleInitial}
       animate={{ opacity: 1, y: 0 }}
-      transition={
-        m.reduced
-          ? { duration: 0 }
-          : { ...m.springEntry, delay: staggerDelay(index, m) }
-      }
+      transition={articleTransition}
       className="group relative"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -78,64 +95,46 @@ export function PosterCard({
         {/* Top-left: OTT providers — informational, always visible (no
             hover needed). Caps at 3 logos to keep the corner uncluttered;
             the detail dialog shows the full list. */}
-        {(() => {
-          const providers = selectProviders(t.providers, 3);
-          if (providers.length === 0) return null;
-          return (
-            <div
-              className={cn(
-                "absolute left-2 top-2 flex items-center gap-1",
-                isWatched && "opacity-55",
-              )}
-              aria-label={`Available on ${providers.map((p) => p.name).join(", ")}`}
-            >
-              {providers.map((p) =>
-                p.logo ? (
-                  <img
-                    key={p.name}
-                    src={`https://image.tmdb.org/t/p/w45${p.logo}`}
-                    alt={p.name}
-                    title={p.name}
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    // Subtle ring + drop-shadow rather than a flat border so
-                    // the badge has edge separation on both pale and dark
-                    // posters (a white border vanishes on cream in light
-                    // mode, a black border vanishes on dark posters).
-                    style={{
-                      boxShadow:
-                        "0 0 0 1px rgba(0,0,0,0.35), 0 0 0 2px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.35)",
-                    }}
-                    className="h-[18px] w-[18px] rounded-[4px] object-cover"
-                  />
-                ) : (
-                  <span
-                    key={p.name}
-                    title={p.name}
-                    style={{
-                      boxShadow:
-                        "0 0 0 1px rgba(0,0,0,0.35), 0 0 0 2px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.35)",
-                    }}
-                    className="grid h-[18px] w-[18px] place-items-center rounded-[4px] bg-black/65 font-mono text-[9px] text-white"
-                  >
-                    {p.name.slice(0, 1)}
-                  </span>
-                ),
-              )}
-            </div>
-          );
-        })()}
+        {providers.length > 0 && (
+          <div
+            className={cn(
+              "absolute left-2 top-2 flex items-center gap-1",
+              isWatched && "opacity-55",
+            )}
+            aria-label={`Available on ${providers.map((p) => p.name).join(", ")}`}
+          >
+            {providers.map((p) =>
+              p.logo ? (
+                <img
+                  key={p.name}
+                  src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+                  alt={p.name}
+                  title={p.name}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  style={{ boxShadow: PROVIDER_BADGE_SHADOW }}
+                  className="h-[18px] w-[18px] rounded-[4px] object-cover"
+                />
+              ) : (
+                <span
+                  key={p.name}
+                  title={p.name}
+                  style={{ boxShadow: PROVIDER_BADGE_SHADOW }}
+                  className="grid h-[18px] w-[18px] place-items-center rounded-[4px] bg-black/65 font-mono text-[9px] text-white"
+                >
+                  {p.name.slice(0, 1)}
+                </span>
+              ),
+            )}
+          </div>
+        )}
 
         {/* Watched checkmark draw-in */}
         {isWatched && (
           <motion.span
             initial={m.reduced ? { opacity: 1 } : { pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
-            transition={
-              m.reduced
-                ? { duration: 0 }
-                : { duration: m.durSlow, ease: m.easeOutQuint }
-            }
+            transition={drawTransition}
             className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-[var(--paper)]"
             aria-label="Watched"
           >
@@ -149,11 +148,7 @@ export function PosterCard({
                 strokeLinejoin="round"
                 initial={m.reduced ? false : { pathLength: 0 }}
                 animate={{ pathLength: 1 }}
-                transition={
-                  m.reduced
-                    ? { duration: 0 }
-                    : { duration: m.durSlow, ease: m.easeOutQuint }
-                }
+                transition={drawTransition}
               />
             </svg>
           </motion.span>
@@ -167,7 +162,7 @@ export function PosterCard({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: m.durBase, ease: m.easeOutQuint }}
+            transition={fadeTransition}
             className="absolute inset-0 flex flex-col justify-end p-4 text-white"
             style={{
               background:
@@ -201,7 +196,7 @@ export function PosterCard({
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: m.durBase, ease: m.easeOutQuint }}
+          transition={fadeTransition}
           className="absolute right-2 top-2 z-10 flex gap-1.5"
         >
           <QuickAction

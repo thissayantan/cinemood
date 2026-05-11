@@ -13,6 +13,10 @@ import { posterUrl } from "@/lib/tmdb";
 import { cn } from "@/lib/utils";
 import { selectProviders } from "@/lib/providers";
 
+/** Shared mono-caption class used by hint strings throughout the palette. */
+const MONO_FAINT =
+  "font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]";
+
 interface TmdbHit {
   id: number;
   type: TitleType;
@@ -125,25 +129,17 @@ export function CommandPalette({
   // so the preview pane can show genres / providers / cast in both modes.
   // Find-mode results already carry a full Title from /api/search; only
   // Add-mode (TMDB search) hits need the lazy /api/title fetch.
-  const findHighlightItem =
-    mode === "find" && findResp
-      ? findResp.results.find((it) => String(it.title.id) === highlightValue) ??
-        null
-      : null;
-  const previewHit: TmdbHit | null =
-    mode === "add"
-      ? tmdbHits.find((h) => String(h.id) === highlightValue) ?? null
-      : findHighlightItem
-        ? asHit(findHighlightItem)
-        : null;
-  const previewKey = previewHit
-    ? `${previewHit.type}:${previewHit.id}`
-    : null;
+  const findHighlightItem = resolveFindHighlight(mode, findResp, highlightValue);
+  const previewHit = resolvePreviewHit(
+    mode,
+    tmdbHits,
+    findHighlightItem,
+    highlightValue,
+  );
+  const previewKey = previewHit ? `${previewHit.type}:${previewHit.id}` : null;
   const previewDetail =
     findHighlightItem?.title ??
-    (previewKey && titleCache.has(previewKey)
-      ? titleCache.get(previewKey)!
-      : null);
+    (previewKey ? titleCache.get(previewKey) ?? null : null);
 
   // Lazy-fetch full Title detail for the Add-mode preview only. Find-mode
   // results carry a full Title already, so we skip the round-trip there.
@@ -240,7 +236,7 @@ export function CommandPalette({
           <div className="flex flex-1 overflow-hidden">
           <Command.List className="max-h-[62vh] min-w-0 flex-1 overflow-y-auto px-2 py-2">
             {loading && (
-              <div className="flex items-center gap-3 px-4 py-5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+              <div className={cn("flex items-center gap-3 px-4 py-5", MONO_FAINT)}>
                 <span className="relative inline-block h-[2px] w-12 overflow-hidden rounded bg-[var(--paper-3)]">
                   <span className="absolute inset-y-0 left-0 w-1/3 animate-pulse bg-[var(--accent)]" />
                 </span>
@@ -302,7 +298,7 @@ export function CommandPalette({
                       <TmdbThumb hit={hit} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[var(--ink)]">{hit.title}</div>
-                        <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                        <div className={MONO_FAINT}>
                           {hit.release_date?.slice(0, 4) ?? "—"} ·{" "}
                           {hit.type === "series" ? "series" : "movie"}
                           {typeof hit.vote_average === "number" && hit.vote_average > 0
@@ -310,8 +306,8 @@ export function CommandPalette({
                             : ""}
                         </div>
                       </div>
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-                        {saved ? "saved" : adding === hit.id ? "adding…" : "↵ add"}
+                      <span className={MONO_FAINT}>
+                        {addRowStatus({ saved, adding, hitId: hit.id })}
                       </span>
                     </Command.Item>
                   );
@@ -346,7 +342,7 @@ export function CommandPalette({
                           <div className="truncate text-[var(--ink)]">
                             {it.title.title}
                           </div>
-                          <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                          <div className={MONO_FAINT}>
                             {it.title.type} ·{" "}
                             {it.title.release_date?.slice(0, 4) ?? "—"}
                             {typeof it.title.vote_average === "number" &&
@@ -355,9 +351,7 @@ export function CommandPalette({
                               : ""}
                           </div>
                         </div>
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-                          ↵ open
-                        </span>
+                        <span className={MONO_FAINT}>↵ open</span>
                       </Command.Item>
                     ))}
                   </Command.Group>
@@ -413,7 +407,7 @@ export function CommandPalette({
           )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-[var(--rule)] px-5 py-2 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+          <div className={cn("flex items-center justify-between border-t border-[var(--rule)] px-5 py-2", MONO_FAINT)}>
             <span>{mode === "add" ? "Add a title" : "Find in your watchlist"}</span>
             <span className="flex items-center gap-1.5">
               <Kbd>Esc</Kbd>
@@ -596,11 +590,7 @@ function PalettePreview({
       ? hit.vote_average.toFixed(1)
       : null;
   const imdb = detail?.imdb_rating ? detail.imdb_rating.toFixed(1) : null;
-  const runtime = detail?.runtime
-    ? detail.runtime >= 60
-      ? `${Math.floor(detail.runtime / 60)}h ${detail.runtime % 60}m`
-      : `${detail.runtime}m`
-    : null;
+  const runtime = formatRuntime(detail?.runtime);
   const genres = detail?.genres ?? [];
   const providers = selectProviders(detail?.providers ?? null, 5);
 
@@ -722,7 +712,27 @@ function TmdbThumb({ hit }: { hit: { poster_path: string | null } }) {
   );
 }
 
-function asHit(it: WatchlistItem) {
+function addRowStatus({
+  saved,
+  adding,
+  hitId,
+}: {
+  saved: boolean;
+  adding: number | null;
+  hitId: number;
+}): string {
+  if (saved) return "saved";
+  if (adding === hitId) return "adding…";
+  return "↵ add";
+}
+
+function formatRuntime(minutes: number | null | undefined): string | null {
+  if (!minutes) return null;
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function asHit(it: WatchlistItem): TmdbHit {
   return {
     id: it.title.id,
     type: it.title.type,
@@ -732,4 +742,28 @@ function asHit(it: WatchlistItem) {
     overview: it.title.overview,
     vote_average: it.title.vote_average,
   };
+}
+
+function resolveFindHighlight(
+  mode: Mode,
+  findResp: NlSearchResponse | null,
+  highlightValue: string,
+): WatchlistItem | null {
+  if (mode !== "find" || !findResp) return null;
+  return (
+    findResp.results.find((it) => String(it.title.id) === highlightValue) ??
+    null
+  );
+}
+
+function resolvePreviewHit(
+  mode: Mode,
+  tmdbHits: TmdbHit[],
+  findHighlightItem: WatchlistItem | null,
+  highlightValue: string,
+): TmdbHit | null {
+  if (mode === "add") {
+    return tmdbHits.find((h) => String(h.id) === highlightValue) ?? null;
+  }
+  return findHighlightItem ? asHit(findHighlightItem) : null;
 }

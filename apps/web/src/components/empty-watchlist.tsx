@@ -15,11 +15,13 @@ interface Props {
 
 export function EmptyWatchlist({ onAddClick }: Props) {
   const m = useMotionConfig();
+  const initial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const transition = m.reduced ? { duration: 0 } : m.springEntry;
   return (
     <motion.div
-      initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+      initial={initial}
       animate={{ opacity: 1, y: 0 }}
-      transition={m.reduced ? { duration: 0 } : m.springEntry}
+      transition={transition}
       className="mx-auto flex max-w-md flex-col items-center px-6 py-14 text-center"
     >
       <LottieLoop source={filmReel} size={220} speed={0.45} loop />

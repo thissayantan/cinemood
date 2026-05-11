@@ -240,16 +240,15 @@ function Badge({
 
 function pickProvidersUS(providers: Record<string, unknown> | null): string[] {
   if (!providers) return [];
-  const us = (providers as Record<string, unknown>)["US"];
+  const us = providers["US"];
   if (!us || typeof us !== "object") return [];
   const out = new Set<string>();
   for (const bucket of Object.values(us as Record<string, unknown>)) {
     if (!Array.isArray(bucket)) continue;
-    for (const entry of bucket as unknown[]) {
-      if (entry && typeof entry === "object" && "provider_name" in entry) {
-        const name = (entry as { provider_name?: string }).provider_name;
-        if (typeof name === "string") out.add(name);
-      }
+    for (const entry of bucket) {
+      if (!entry || typeof entry !== "object") continue;
+      const name = (entry as { provider_name?: unknown }).provider_name;
+      if (typeof name === "string") out.add(name);
     }
   }
   return [...out];

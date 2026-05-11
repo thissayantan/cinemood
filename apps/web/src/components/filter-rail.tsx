@@ -21,6 +21,8 @@ interface Props {
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_YEAR = 1920;
+const RUNTIME_MIN = 0;
+const RUNTIME_MAX = 240;
 const DECADES: { label: string; from: number; to: number }[] = [
   { label: "'70s", from: 1970, to: 1979 },
   { label: "'80s", from: 1980, to: 1989 },
@@ -29,6 +31,18 @@ const DECADES: { label: string; from: number; to: number }[] = [
   { label: "'10s", from: 2010, to: 2019 },
   { label: "'20s", from: 2020, to: 2029 },
 ];
+
+/** Active / inactive class for any pill in the rail (decade pills, genre
+ *  chips, streaming chips, and the type/status PillGroup all share this). */
+function pillClass(active: boolean, mono = false): string {
+  const base = mono
+    ? "rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition"
+    : "rounded-full border px-2.5 py-0.5 text-[11.5px] transition";
+  if (active) {
+    return cn(base, "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]");
+  }
+  return cn(base, "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]");
+}
 
 export function FilterRail({ items, filters, onPatch, onReset }: Props) {
   const facets = useMemo(() => deriveFacets(items), [items]);
@@ -87,12 +101,7 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
                   type="button"
                   onClick={() => onPatch("genre", active ? undefined : g)}
                   aria-pressed={active}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[11.5px] transition",
-                    active
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
-                      : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
-                  )}
+                  className={pillClass(active)}
                 >
                   {g}
                 </button>
@@ -139,12 +148,7 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
                       onPatch("year_max", d.to);
                     }
                   }}
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition",
-                    active
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
-                      : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
-                  )}
+                  className={pillClass(active, true)}
                 >
                   {d.label}
                 </button>
@@ -176,18 +180,21 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
       <Section label="Runtime">
         <div className="space-y-2">
           <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-            <span>{filters.runtime_min ?? 0}m</span>
-            <span>{filters.runtime_max ?? 240}m</span>
+            <span>{filters.runtime_min ?? RUNTIME_MIN}m</span>
+            <span>{filters.runtime_max ?? RUNTIME_MAX}m</span>
           </div>
           <Slider
-            min={0}
-            max={240}
+            min={RUNTIME_MIN}
+            max={RUNTIME_MAX}
             step={15}
-            value={[filters.runtime_min ?? 0, filters.runtime_max ?? 240]}
+            value={[
+              filters.runtime_min ?? RUNTIME_MIN,
+              filters.runtime_max ?? RUNTIME_MAX,
+            ]}
             onValueChange={(v: number[]) => {
               const [lo, hi] = v;
-              onPatch("runtime_min", lo === 0 ? undefined : lo);
-              onPatch("runtime_max", hi === 240 ? undefined : hi);
+              onPatch("runtime_min", lo === RUNTIME_MIN ? undefined : lo);
+              onPatch("runtime_max", hi === RUNTIME_MAX ? undefined : hi);
             }}
           />
         </div>
@@ -198,28 +205,23 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
           {/* Multi-select chip cloud — same shape as genres but the
               behaviour adds/removes from a set. */}
           <div className="flex flex-wrap gap-1.5">
-            {facets.providers.slice(0, 12).map((p) => {
+            {facets.providers.slice(0, 12).map((provider) => {
               const set = new Set(filters.providers ?? []);
-              const active = set.has(p);
+              const active = set.has(provider);
               return (
                 <button
-                  key={p}
+                  key={provider}
                   type="button"
                   onClick={() => {
-                    if (active) set.delete(p);
-                    else set.add(p);
+                    if (active) set.delete(provider);
+                    else set.add(provider);
                     const arr = [...set];
                     onPatch("providers", arr.length > 0 ? arr : undefined);
                   }}
                   aria-pressed={active}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[11.5px] transition",
-                    active
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
-                      : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
-                  )}
+                  className={pillClass(active)}
                 >
-                  {p}
+                  {provider}
                 </button>
               );
             })}

@@ -1,5 +1,10 @@
 import { Dialog, AnimatedDialogContent } from "./dialog";
 
+// Deliberately matched to the palette's empty-state kbd treatment so the
+// two surfaces feel like one keyboard-vocabulary lexicon.
+const KBD_CLASS =
+  "rounded border border-[var(--rule)] bg-[var(--paper-3)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]";
+
 const ROWS: { keys: string[]; label: string }[] = [
   { keys: ["⌘ K", "Ctrl K"], label: "Open the command palette" },
   { keys: ["Tab"], label: "Switch between Add ↔ Find inside the palette" },
@@ -45,10 +50,7 @@ export function ShortcutsSheet({ open, onOpenChange }: Props) {
                 </span>
                 <span className="flex shrink-0 items-center gap-1">
                   {row.keys.map((k, j) => (
-                    <kbd
-                      key={j}
-                      className="rounded border border-[var(--rule)] bg-[var(--paper-3)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]"
-                    >
+                    <kbd key={j} className={KBD_CLASS}>
                       {k}
                     </kbd>
                   ))}

@@ -21,6 +21,12 @@ export function WelcomeOverlay({ name }: Props) {
   const m = useMotionConfig();
   const [open, setOpen] = useState(false);
 
+  const overlayTransition = m.reduced
+    ? { duration: 0 }
+    : { duration: m.durSlow, ease: m.easeOutQuint };
+  const innerInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const innerTransition = m.reduced ? { duration: 0 } : m.springEntry;
+
   useEffect(() => {
     try {
       const seen = localStorage.getItem(FLAG);
@@ -54,21 +60,17 @@ export function WelcomeOverlay({ name }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={
-            m.reduced
-              ? { duration: 0 }
-              : { duration: m.durSlow, ease: m.easeOutQuint }
-          }
+          transition={overlayTransition}
           className="fixed inset-0 z-[60] grid place-items-center bg-[var(--paper)]/96"
           onClick={dismiss}
           aria-modal="true"
           role="dialog"
         >
           <motion.div
-            initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+            initial={innerInitial}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -m.fadeY }}
-            transition={m.reduced ? { duration: 0 } : m.springEntry}
+            transition={innerTransition}
             className="flex flex-col items-center px-8 text-center"
           >
             <LottieLoop source={filmReel} loop={false} size={180} speed={0.7} />

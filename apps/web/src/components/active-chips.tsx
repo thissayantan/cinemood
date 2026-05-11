@@ -75,12 +75,12 @@ export function ActiveChips({ filters, total, onPatch, onReset }: Props) {
     });
   }
   if (filters.providers && filters.providers.length > 0) {
-    for (const p of filters.providers) {
+    for (const provider of filters.providers) {
       chips.push({
-        key: `provider-${p}`,
-        label: p,
+        key: `provider-${provider}`,
+        label: provider,
         clear: () => {
-          const next = (filters.providers ?? []).filter((x) => x !== p);
+          const next = (filters.providers ?? []).filter((x) => x !== provider);
           onPatch("providers", next.length > 0 ? next : undefined);
         },
       });

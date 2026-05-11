@@ -4,6 +4,9 @@ import type { User } from "@cinemood/shared";
 import { logout } from "@/lib/use-user";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 
+const MENU_ITEM_CLASS =
+  "block px-3 py-2 text-[13px] transition hover:bg-[var(--paper-3)]";
+
 function initials(user: User): string {
   const source = user.name?.trim() || user.email;
   const parts = source.split(/\s+/).filter(Boolean);
@@ -69,7 +72,7 @@ export function AvatarMenu({ user }: { user: User }) {
           </div>
           <Link
             to="/import"
-            className="block px-3 py-2 text-[13px] transition hover:bg-[var(--paper-3)]"
+            className={MENU_ITEM_CLASS}
             role="menuitem"
             onClick={() => setOpen(false)}
           >
@@ -77,7 +80,7 @@ export function AvatarMenu({ user }: { user: User }) {
           </Link>
           <Link
             to="/settings/account"
-            className="block px-3 py-2 text-[13px] transition hover:bg-[var(--paper-3)]"
+            className={MENU_ITEM_CLASS}
             role="menuitem"
             onClick={() => setOpen(false)}
           >
@@ -85,7 +88,7 @@ export function AvatarMenu({ user }: { user: User }) {
           </Link>
           <Link
             to="/settings/search"
-            className="block px-3 py-2 text-[13px] transition hover:bg-[var(--paper-3)]"
+            className={MENU_ITEM_CLASS}
             role="menuitem"
             onClick={() => setOpen(false)}
           >
