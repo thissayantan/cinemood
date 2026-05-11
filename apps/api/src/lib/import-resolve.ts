@@ -185,6 +185,14 @@ async function resolveOne(
 
   const queries = expandQueries(cand);
 
+  // Short-circuit the expansion. Every alternative query costs ~3 subrequests
+  // (KV get + TMDB fetch + KV put) and a 100-item resolve chunk with three
+  // queries per candidate slams the Worker's per-invocation subrequest cap
+  // (~1000 paid / ~50 free) — visible in dev logs as
+  //   "Too many subrequests by single Worker invocation" → silently
+  //   unmatched titles. We only fall through to the next query when the
+  //   prior one returned zero hits (so the scorer has *something* to score),
+  //   not always.
   const seen = new Map<number, FoundHit>();
   for (const q of queries) {
     let hits: TmdbSearchResult[];
@@ -199,7 +207,6 @@ async function resolveOne(
       const existing = seen.get(h.id);
       if (existing) {
         existing.queries.push(q.q);
-        // Prefer the strongest (lowest rank) position over the noisier one.
         if (idx < existing.rank) {
           existing.rank = idx;
           existing.total = hits.length;
@@ -208,7 +215,9 @@ async function resolveOne(
       }
       seen.set(h.id, { hit: h, queries: [q.q], rank: idx, total: hits.length });
     });
-    if (seen.size >= 30) break;
+    // The primary query is already strong enough — don't burn extra
+    // searches when we have a real answer.
+    if (seen.size > 0) break;
   }
 
   const effectiveYear =
@@ -253,12 +262,15 @@ export async function resolveBatch(
   env: Env,
   candidates: ImportCandidate[],
 ): Promise<ResolvedHit[]> {
-  // Polite concurrency against TMDB. Each candidate may issue up to 3
-  // searches, but searchTmdb is KV-cached after the first hit so the steady
-  // state is fast.
+  // Concurrency 3 (not 5) — each in-flight resolveOne can issue up to 3
+  // subrequests at once (KV get + TMDB fetch + KV put), and the Worker
+  // simultaneous-outgoing-connections budget is much tighter in the dev
+  // preview than the paid 1000. With concurrency 3 we keep peak in-flight
+  // subreqs at ~9, which empirically clears every title in the user's
+  // 223-row Takeout without "Too many subrequests" failures.
   const out: ResolvedHit[] = new Array(candidates.length);
   const queue = candidates.map((c, i) => ({ c, i }));
-  const concurrency = 5;
+  const concurrency = 3;
   async function worker() {
     while (queue.length > 0) {
       const item = queue.shift();

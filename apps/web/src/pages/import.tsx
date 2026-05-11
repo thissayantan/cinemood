@@ -93,10 +93,13 @@ export default function ImportPage({ user }: { user: User }) {
     setError(null);
     setProgress({ done: 0, total: candidates.length });
 
-    // Resolve in 100-item chunks to stay well under the server cap (500)
-    // and keep each round-trip snappy on long Takeout / Letterboxd exports.
+    // Resolve in 25-item chunks. The server-side resolver issues 1–3 TMDB
+    // searches per candidate (× ~3 subreqs each: KV get + fetch + KV put);
+    // 25 items × ~3 subreqs = ~75 worst case, safely under the Worker
+    // per-invocation subrequest cap on both production AND the wrangler-dev
+    // preview environment (where the cap is much lower).
     const all: ResolvedHit[] = [];
-    for (const batch of chunk(candidates, 100)) {
+    for (const batch of chunk(candidates, 25)) {
       const res = (await api<{ resolved: ResolvedHit[] }>("/api/import/resolve", {
         method: "POST",
         body: JSON.stringify({ items: batch }),
