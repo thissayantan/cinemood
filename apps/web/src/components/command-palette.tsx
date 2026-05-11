@@ -3,6 +3,7 @@ import { Command } from "cmdk";
 import type {
   ApiResponse,
   ParsedQuery,
+  Title,
   TitleType,
   WatchlistItem,
 } from "@cinemood/shared";
@@ -10,6 +11,7 @@ import { Dialog, AnimatedDialogContent } from "./dialog";
 import { api } from "@/lib/api";
 import { posterUrl } from "@/lib/tmdb";
 import { cn } from "@/lib/utils";
+import { selectProviders } from "@/lib/providers";
 
 interface TmdbHit {
   id: number;
@@ -57,6 +59,15 @@ export function CommandPalette({
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // cmdk-controlled highlighted value. Drives the preview pane so the
+  // user can see full details before pressing Enter to add.
+  const [highlightValue, setHighlightValue] = useState<string>("");
+  // Lazy cache of /api/title/:type/:id results (genres + providers +
+  // runtime + imdb rating) keyed by "type:id" — re-hovering an item is
+  // instant after the first fetch.
+  const [titleCache, setTitleCache] = useState<Map<string, Title>>(
+    new Map(),
+  );
 
   useEffect(() => {
     localStorage.setItem("cm_palette_mode", mode);
@@ -114,6 +125,42 @@ export function CommandPalette({
     else setFindResp(null);
   }
 
+  // Resolve the highlighted hit (or null when nothing applicable).
+  const previewHit: TmdbHit | null =
+    mode === "add"
+      ? tmdbHits.find((h) => String(h.id) === highlightValue) ?? null
+      : null;
+  const previewKey = previewHit
+    ? `${previewHit.type}:${previewHit.id}`
+    : null;
+  const previewDetail =
+    previewKey && titleCache.has(previewKey)
+      ? titleCache.get(previewKey)!
+      : null;
+
+  // Lazy-fetch full Title detail for the previewed row. Cached so
+  // navigating the list with arrow keys doesn't re-fetch already-seen
+  // items.
+  useEffect(() => {
+    if (!previewHit || !previewKey) return;
+    if (titleCache.has(previewKey)) return;
+    let cancelled = false;
+    (async () => {
+      const res = (await api<Title>(
+        `/api/title/${previewHit.type}/${previewHit.id}`,
+      )) as ApiResponse<Title>;
+      if (cancelled || !res.ok) return;
+      setTitleCache((prev) => {
+        const next = new Map(prev);
+        next.set(previewKey, res.data);
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [previewHit, previewKey, titleCache]);
+
   async function add(hit: TmdbHit) {
     if (adding) return;
     setAdding(hit.id);
@@ -151,13 +198,15 @@ export function CommandPalette({
       <AnimatedDialogContent
         open={open}
         side="center"
-        className="!top-[26%] !translate-y-0 max-h-[min(70vh,640px)] overflow-hidden !w-[min(720px,calc(100vw-32px))]"
+        className="!top-[26%] !translate-y-0 max-h-[min(78vh,720px)] overflow-hidden !w-[min(880px,calc(100vw-32px))]"
         title="Command palette"
       >
         <Command
           shouldFilter={false}
           className="flex flex-col"
           loop
+          value={highlightValue}
+          onValueChange={setHighlightValue}
         >
           <div className="flex items-center gap-3 border-b border-[var(--rule)] px-5 py-4">
             <span className="font-mono text-[14px] text-[var(--accent)]">⌘</span>
@@ -171,7 +220,8 @@ export function CommandPalette({
             <ModeChip mode={mode} onChange={setMode} />
           </div>
 
-          <Command.List className="max-h-[60vh] flex-1 overflow-y-auto px-2 py-2">
+          <div className="flex min-h-[260px] flex-1 overflow-hidden">
+          <Command.List className="max-h-[62vh] min-w-0 flex-1 overflow-y-auto px-2 py-2">
             {loading && (
               <div className="px-3 py-6 text-center font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
                 {mode === "add" ? "Searching TMDB…" : "Parsing your query…"}
@@ -287,6 +337,16 @@ export function CommandPalette({
             )}
           </Command.List>
 
+          {/* Side preview pane — only shown in Add mode when a row is
+              highlighted. Hidden on narrow viewports where the palette
+              already wraps tightly. */}
+          {previewHit && (
+            <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l border-[var(--rule)] bg-[var(--paper-3)]/30 p-4 md:block">
+              <PalettePreview hit={previewHit} detail={previewDetail} />
+            </aside>
+          )}
+          </div>
+
           <div className="border-t border-[var(--rule)] px-5 py-2 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
             <span>{mode === "add" ? "Add" : "Find"}</span>
             <span className="mx-2">·</span>
@@ -355,6 +415,133 @@ function ParsedChipsLine({ parsed }: { parsed: ParsedQuery }) {
         <span className="rounded-full border border-[var(--accent)] bg-[var(--accent)]/8 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--accent)]">
           mood: {parsed.semantic_query}
         </span>
+      )}
+    </div>
+  );
+}
+
+function PalettePreview({
+  hit,
+  detail,
+}: {
+  hit: TmdbHit;
+  /** Full Title from /api/title/:type/:id once loaded — provides
+   *  genres, providers, runtime, imdb rating. Null while loading. */
+  detail: Title | null;
+}) {
+  const poster = posterUrl(hit.poster_path, "w342");
+  const year = hit.release_date?.slice(0, 4) ?? "—";
+  const tmdbRating =
+    typeof hit.vote_average === "number" && hit.vote_average > 0
+      ? hit.vote_average.toFixed(1)
+      : null;
+  const imdb = detail?.imdb_rating ? detail.imdb_rating.toFixed(1) : null;
+  const runtime = detail?.runtime
+    ? detail.runtime >= 60
+      ? `${Math.floor(detail.runtime / 60)}h ${detail.runtime % 60}m`
+      : `${detail.runtime}m`
+    : null;
+  const genres = detail?.genres ?? [];
+  const providers = selectProviders(detail?.providers ?? null, 5);
+
+  return (
+    <div>
+      <div
+        className="overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
+        style={{ aspectRatio: "2 / 3" }}
+      >
+        {poster ? (
+          <img
+            src={poster}
+            alt=""
+            className="h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="grid h-full place-items-center font-label text-[10px] text-[var(--paper-faint)]">
+            no poster
+          </div>
+        )}
+      </div>
+      <h3
+        className="mt-3 font-display-sm leading-tight text-[var(--ink)]"
+        style={{ fontVariationSettings: '"opsz" 22, "wght" 700, "SOFT" 30' }}
+      >
+        {hit.title}
+      </h3>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
+        <span>{year}</span>
+        <span aria-hidden>·</span>
+        <span>{hit.type}</span>
+        {runtime && (
+          <>
+            <span aria-hidden>·</span>
+            <span>{runtime}</span>
+          </>
+        )}
+        {tmdbRating && (
+          <>
+            <span aria-hidden>·</span>
+            <span>★ {tmdbRating}</span>
+          </>
+        )}
+        {imdb && (
+          <>
+            <span aria-hidden>·</span>
+            <span>★ {imdb} imdb</span>
+          </>
+        )}
+      </div>
+      <p className="mt-2 line-clamp-6 text-[12px] leading-snug text-[var(--paper-dim)]">
+        {hit.overview || (
+          <span className="italic text-[var(--paper-faint)]">
+            No synopsis on file.
+          </span>
+        )}
+      </p>
+
+      {genres.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {genres.map((g) => (
+            <span
+              key={g}
+              className="rounded-full border border-[var(--rule)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-dim)]"
+            >
+              {g}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {providers.length > 0 && (
+        <div className="mt-3">
+          <div className="font-label text-[9px] text-[var(--paper-faint)]">
+            Stream on
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            {providers.map((p) =>
+              p.logo ? (
+                <img
+                  key={p.name}
+                  src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+                  alt={p.name}
+                  title={p.name}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="h-5 w-5 rounded-[4px] border border-[var(--rule)] object-cover"
+                />
+              ) : (
+                <span
+                  key={p.name}
+                  title={p.name}
+                  className="grid h-5 w-5 place-items-center rounded-[4px] border border-[var(--rule)] bg-[var(--paper-3)] font-mono text-[9px] text-[var(--paper-dim)]"
+                >
+                  {p.name.slice(0, 1)}
+                </span>
+              ),
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
