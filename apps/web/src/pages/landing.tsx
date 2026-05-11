@@ -99,18 +99,17 @@ export default function LandingPage({ authError }: { authError: string | null })
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-      {/* Atmosphere layers, per-theme.
-          Dark: soft accent glow behind the wordmark — cinematic warmth.
-          Light: a darkening vignette toward the edges (paper aged in
-          sunlight; centre pools light) PLUS a faint warm bloom under
-          the wordmark. Without these the cream page reads as a flat
-          rectangle with text floating in it. */}
+      {/* Atmosphere layers — same composition in both themes, recoloured
+          per palette so each page has a real focal glow:
+            dark   — deep accent red on near-black (blood / curtain light)
+            light  — burnt amber/sienna on cream (marquee bulbs, theater
+                     curtain light, paper warmed by a projector lamp)
+          A subtle edge-darkening vignette in light mode adds the kind
+          of depth dark mode gets "for free" from the deep paper. */}
       <div
         className="absolute inset-0 dark:hidden"
         style={{
           background:
-            // Edge-darkening vignette — bigger than viewport so the
-            // tinted ring sits well outside the wordmark area.
             "radial-gradient(ellipse 80% 75% at 50% 50%, transparent 35%, var(--landing-vignette) 100%)",
         }}
       />
@@ -118,9 +117,10 @@ function Backdrop() {
         className="absolute inset-0 dark:hidden"
         style={{
           background:
-            // Subtle warm sepia bloom under the wordmark — adds depth
-            // without colour-spreading red on cream.
-            "radial-gradient(ellipse 42% 32% at 50% 50%, rgba(107,67,36,0.10) 0%, transparent 65%)",
+            // Burnt sienna ambient glow — the light-mode equivalent of
+            // the dark-mode accent-glow. Sized larger so it reads as a
+            // warm room, not a stain at the wordmark.
+            "radial-gradient(ellipse 70% 55% at 50% 50%, rgba(196,105,30,0.22) 0%, rgba(196,105,30,0.08) 40%, transparent 75%)",
         }}
       />
       <div
