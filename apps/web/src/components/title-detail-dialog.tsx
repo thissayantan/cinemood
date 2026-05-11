@@ -11,10 +11,6 @@ interface Props {
   onRemove: (item: WatchlistItem) => void;
 }
 
-function fmtCatalog(n: number): string {
-  return `C-${String(n).padStart(4, "0")}`;
-}
-
 export function TitleDetailDialog({
   item,
   open,
@@ -90,9 +86,6 @@ function Body({
               <img src={poster} alt="" className="h-full w-full object-cover" />
             ) : null}
           </div>
-          <span className="absolute left-2 top-2 rounded-md border border-[var(--paper)]/30 bg-[var(--paper)]/12 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-[var(--paper)] backdrop-blur-sm">
-            {fmtCatalog(item.catalog_no)}
-          </span>
         </div>
         <div className="min-w-0 flex-1 pt-1">
           <div className="font-label text-[10px] text-[var(--paper-faint)]">

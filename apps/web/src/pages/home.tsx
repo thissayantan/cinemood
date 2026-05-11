@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 import type { User, WatchlistItem } from "@cinemood/shared";
@@ -92,10 +92,7 @@ export default function HomePage({ user }: { user: User }) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  const latestCatalogNo = useMemo(() => {
-    if (!wl.all) return 0;
-    return wl.all.reduce((acc, it) => Math.max(acc, it.catalog_no), 0);
-  }, [wl.all]);
+  const titleCount = wl.all?.length ?? 0;
 
   const handleAdded = useCallback(
     (id: number) => {
@@ -165,7 +162,7 @@ export default function HomePage({ user }: { user: User }) {
       <RouteTitle />
       <TopBar
         user={user}
-        latestCatalogNo={latestCatalogNo}
+        titleCount={titleCount}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenFilters={() => setFilterSheetOpen(true)}
         filtersBadge={filtersCount}

@@ -251,8 +251,31 @@ export function CommandPalette({
             )}
 
             {!loading && q.trim() && mode === "add" && tmdbHits.length === 0 && (
-              <Command.Empty className="px-3 py-6 text-center text-[13px] text-[var(--paper-faint)]">
-                Nothing matched. Try a different spelling, or a year.
+              <Command.Empty className="px-3 py-8">
+                {looksLikeFindQuery(q) ? (
+                  <div className="text-center">
+                    <div className="font-label text-[10px] text-[var(--paper-faint)]">
+                      Nothing on TMDB matched that
+                    </div>
+                    <p className="mt-2 text-[13px] leading-snug text-[var(--paper-dim)]">
+                      That looks like a description, not a title.
+                      <br />
+                      Switch to <span className="text-[var(--ink)]">Find</span>{" "}
+                      to search your watchlist by mood.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setMode("find")}
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper)] transition hover:opacity-90"
+                    >
+                      Try in Find <span aria-hidden>→</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center text-[13px] text-[var(--paper-faint)]">
+                    Nothing matched. Try a different spelling, or a year.
+                  </div>
+                )}
               </Command.Empty>
             )}
 
@@ -489,6 +512,72 @@ function ParsedChipsLine({ parsed }: { parsed: ParsedQuery }) {
       )}
     </div>
   );
+}
+
+/** Heuristic: does this query look like a natural-language Find query
+ *  rather than a TMDB title lookup?
+ *
+ *  TMDB title searches are typically: a literal title, sometimes
+ *  followed by a year. "The Bear", "Blade Runner 2049", "Severance".
+ *  Find-mode queries are descriptive: "dark thrillers with Jeremy
+ *  Strong", "feel-good comedies from the 90s", "sci-fi movie with a
+ *  high rating".
+ *
+ *  Signals we treat as "looks like Find":
+ *    - 5+ tokens (most titles are 1–4 words)
+ *    - contains a stop-word that's almost never in a title ("with",
+ *      "from", "by", "about", "starring", "rated", "rating", "than")
+ *    - contains a descriptor word that's a category not a title
+ *      ("dark", "feel-good", "high", "low", "best", "worst",
+ *      "underrated", "recent")
+ *    - contains a comparative ("more than", "less than", "≥", "≤", "+")
+ *    - starts with a verb-y prompt ("show me", "suggest", "find",
+ *      "recommend") */
+function looksLikeFindQuery(q: string): boolean {
+  const text = q.trim().toLowerCase();
+  if (!text) return false;
+  const tokens = text.split(/\s+/);
+  if (tokens.length >= 6) return true;
+  const findIndicators = [
+    "with",
+    "from",
+    "about",
+    "starring",
+    "rated",
+    "rating",
+    "than",
+    "by",
+    "show me",
+    "suggest",
+    "find me",
+    "recommend",
+    "dark",
+    "feel-good",
+    "feel good",
+    "underrated",
+    "high",
+    "low",
+    "best",
+    "worst",
+    "recent",
+    "older",
+    "newer",
+    "more than",
+    "less than",
+    "minutes",
+    "hour",
+    "hours",
+    "minute",
+    "season",
+    "seasons",
+  ];
+  for (const ind of findIndicators) {
+    if (text.includes(ind)) return true;
+  }
+  // Comparative shorthands: "8+", "≥ 8", "rating > 7"
+  if (/\b\d+\s*\+/.test(text)) return true;
+  if (/[≥≤<>]/.test(text)) return true;
+  return false;
 }
 
 function PalettePreview({

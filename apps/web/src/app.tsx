@@ -4,6 +4,7 @@ import type { User } from "@cinemood/shared";
 import HomePage from "./pages/home";
 import LandingPage from "./pages/landing";
 import SettingsSearchPage from "./pages/settings-search";
+import SettingsAccountPage from "./pages/settings-account";
 import ImportPage from "./pages/import";
 import NotFoundPage from "./pages/not-found";
 import { useUser } from "./lib/use-user";
@@ -46,6 +47,10 @@ function AuthedShell({
 export default function App() {
   return (
     <Routes>
+      <Route
+        path="/settings/account"
+        element={<AuthedShell render={(u) => <SettingsAccountPage user={u} />} />}
+      />
       <Route
         path="/settings/search"
         element={<AuthedShell render={(u) => <SettingsSearchPage user={u} />} />}

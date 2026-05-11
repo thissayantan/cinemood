@@ -6,19 +6,18 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   user: User;
-  latestCatalogNo: number;
+  /** Total titles in the user's watchlist — shown as a quiet subtitle
+   *  next to the wordmark. Replaces the old C-NNNN catalog spine number
+   *  which conveyed nothing actionable to a user. */
+  titleCount: number;
   onOpenPalette: () => void;
   onOpenFilters?: () => void;
   filtersBadge?: number;
 }
 
-function fmtCatalog(n: number): string {
-  return `C-${String(n).padStart(4, "0")}`;
-}
-
 export function TopBar({
   user,
-  latestCatalogNo,
+  titleCount,
   onOpenPalette,
   onOpenFilters,
   filtersBadge = 0,
@@ -41,9 +40,9 @@ export function TopBar({
           >
             Cinemood
           </span>
-          {latestCatalogNo > 0 && (
+          {titleCount > 0 && (
             <span className="hidden font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)] sm:inline">
-              catalog at {fmtCatalog(latestCatalogNo)}
+              {titleCount} title{titleCount === 1 ? "" : "s"}
             </span>
           )}
         </Link>
