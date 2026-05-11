@@ -18,14 +18,15 @@ export default function LandingPage({ authError }: { authError: string | null })
           <h1
             className="font-display text-[64px] leading-[0.95] tracking-tight md:text-[120px]"
             style={{
-              // Editorial-cinematic warmth: ink at the top fades into an
-              // ink + accent mix at the bottom — like light passing
-              // through a single frame of film. Subtle, not gimmicky;
-              // works in both light and dark modes because the colour-mix
-              // is computed off the theme variables.
+              // Editorial-cinematic warmth: ink at the top fades into a
+              // warm gradient endpoint at the bottom. Endpoint is set
+              // per-theme (var(--wordmark-grad-end) in globals.css):
+              //   dark  — cream + accent-tint (soft red glow)
+              //   light — warm coffee/sepia (NOT red, which on cream
+              //           reads as muddy maroon).
               fontVariationSettings: '"opsz" 144, "wght" 800, "SOFT" 20',
               backgroundImage:
-                "linear-gradient(180deg, var(--ink) 0%, var(--ink) 45%, color-mix(in srgb, var(--ink) 62%, var(--accent) 38%) 100%)",
+                "linear-gradient(180deg, var(--ink) 0%, var(--ink) 45%, var(--wordmark-grad-end) 100%)",
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               color: "transparent",
@@ -98,17 +99,28 @@ export default function LandingPage({ authError }: { authError: string | null })
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
-      {/* Radial glow centred behind the wordmark. In dark mode the
-          accent-tinted glow reads as warm cinematic light; in light
-          mode the same red gradient on cream looks like a stain, so
-          we use a neutral warm-paper glow that just lifts the centre
-          of the page off the background instead. */}
+      {/* Atmosphere layers, per-theme.
+          Dark: soft accent glow behind the wordmark — cinematic warmth.
+          Light: a darkening vignette toward the edges (paper aged in
+          sunlight; centre pools light) PLUS a faint warm bloom under
+          the wordmark. Without these the cream page reads as a flat
+          rectangle with text floating in it. */}
       <div
         className="absolute inset-0 dark:hidden"
         style={{
           background:
-            "radial-gradient(ellipse 55% 45% at 50% 48%, color-mix(in srgb, var(--paper) 70%, var(--ink) 30%) 0%, transparent 70%)",
-          opacity: 0.18,
+            // Edge-darkening vignette — bigger than viewport so the
+            // tinted ring sits well outside the wordmark area.
+            "radial-gradient(ellipse 80% 75% at 50% 50%, transparent 35%, var(--landing-vignette) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 dark:hidden"
+        style={{
+          background:
+            // Subtle warm sepia bloom under the wordmark — adds depth
+            // without colour-spreading red on cream.
+            "radial-gradient(ellipse 42% 32% at 50% 50%, rgba(107,67,36,0.10) 0%, transparent 65%)",
         }}
       />
       <div

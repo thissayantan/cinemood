@@ -28,6 +28,16 @@
   --accent-glow: rgb(168 34 28 / 0.18);
   --shadow-card: 0 12px 36px -16px rgb(26 24 20 / 0.18);
   --grain-opacity: 0.05;
+  /* Endpoint of the landing wordmark gradient. Light mode uses a warm
+   * sepia / espresso brown so the "Cinemood" mark catches light from
+   * top (ink) to bottom (warm coffee), like cinema marquee letters
+   * lit from above. Was previously a color-mix with the accent which
+   * read as muddy maroon on cream. */
+  --wordmark-grad-end: #6B4324;
+  /* Soft vignette colour used on the landing page so a flat cream
+   * background gets a centre-of-attention. Set per-theme so the same
+   * gradient stop list works for both. */
+  --landing-vignette: rgb(26 24 20 / 0.10);
 }
 
 html.dark {
@@ -43,6 +53,11 @@ html.dark {
   --accent-glow: rgb(200 48 42 / 0.22);
   --shadow-card: 0 24px 48px -22px rgb(0 0 0 / 0.6);
   --grain-opacity: 0.07;
+  /* In dark mode the wordmark gradient endpoint stays in cream-with-
+   * accent-tint territory (was the original color-mix inline); we
+   * promote it to a variable too so the landing styles are uniform. */
+  --wordmark-grad-end: color-mix(in srgb, #F2EBDD 62%, #C8302A 38%);
+  --landing-vignette: rgb(0 0 0 / 0);
 }
 
 html,
