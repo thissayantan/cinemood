@@ -399,18 +399,64 @@ Use `.dev.vars` locally, `wrangler secret put` in production. **Never** put TMDB
 
 ## 9. Design system
 
-**Vibe:** clean, minimal, glassmorphism — light & dark. Reference: https://cdn.dribbble.com/userupload/18044812/file/original-f5ab0f2cd4447c4cdc71fc8904f5cf4e.jpg
+### Authority
+**Anthropic's `frontend-design` skill is the authoritative design driver** for this project. Load it before any UI work. The skill's directive — commit to a BOLD aesthetic direction and execute it with precision — overrides any generic "minimal glassmorphism" suggestion that may appear earlier in this spec or in git history. The original spec's reference image is *one* possible direction, not a binding constraint.
 
-**Type:** Google Sans (Google Fonts).
+The aesthetic direction must be chosen and documented in `docs/design-plan.md` before implementation begins, and it must apply consistently across every screen.
 
-**Surfaces:**
-- Background: subtle gradient mesh, theme-aware.
-- Cards: `backdrop-blur-xl` + `bg-white/40 dark:bg-white/5` + `border border-white/20 dark:border-white/10`.
-- Shadows: soft, large radius, low opacity. No flat black drop shadows.
+### Typography
+Google Sans (Google Fonts) is the default body font. The `frontend-design` skill may pair it with a distinctive display font if the chosen aesthetic calls for one (a refined-cinematic direction might pair with a serif like Cormorant or Tiempos; an editorial direction with something like Reckless). Document the pairing in the design plan.
 
-**Motion:** Framer Motion. Stagger children on grid mount (≤80ms gap), spring `{type:'spring', stiffness:240, damping:24}`. Card hover: scale 1.02 + shadow lift, no bounce.
+### Components
+Lean on shadcn/ui via the MCP. Don't roll custom dropdowns / dialogs / sheets / command palettes when shadcn provides them. For novel surfaces (NL search input, model selector with API-key field, import wizard), the `@21st-dev/magic` MCP is available for component *generation* — but it is not an authority on design direction. The `frontend-design` skill leads; 21st.dev is a tool.
 
-**Components:** lean on shadcn/ui via the MCP. Don't roll custom dropdowns / dialogs / sheets. For novel surfaces (NL search input, model selector with API-key field, import wizard), check 21st.dev first via the `@21st-dev/magic` MCP.
+### Motion — subtle, purposeful, accessible
+
+Animation in Cinemood is subtle and purposeful — it confirms actions, smooths transitions, and adds personality where the moment justifies it. It never demands attention or competes with content.
+
+**Hard rules (apply everywhere, no exceptions):**
+- **`prefers-reduced-motion: reduce` is respected globally.** Use Framer Motion's `useReducedMotion` hook at app boundaries; in reduced-motion mode, transitions collapse to ≤50ms or disable entirely.
+- **Duration ceiling: 300ms** for any component-level transition. 150–250ms is the sweet spot. Longer feels sluggish.
+- **Easing default:** Framer Motion spring `{stiffness: 240, damping: 24}` for entrances, `cubic-bezier(0.16, 1, 0.3, 1)` for non-spring tweens.
+- **No decorative motion.** No pulsing CTAs at idle. No moving gradients. No floating shapes. No parallax. No scroll-triggered "wow" reveals. No typewriter text effects. No rotating elements unless the rotation represents real waiting state (e.g. a spinner).
+- **No bouncing UI elements** except where bounce is the actual affordance (drag-release).
+
+**Where motion appears:**
+| Surface | Motion |
+|---|---|
+| Page / route transitions | Cross-fade, 200ms |
+| Modal / dialog open | Spring-in + backdrop fade with blur ramp |
+| Card hover (desktop) | scale 1.02 + shadow lift, 150ms ease-out |
+| Card tap (mobile) | Brief scale 0.98 press, 100ms |
+| Filter chip add / remove | `LayoutGroup` reflow, 200ms |
+| Grid mount | Stagger 60–80ms per item, fade-up 8px |
+| Watched/unwatched toggle | Checkmark draw-in, 250ms |
+| Theme toggle | Full-surface cross-fade, 250ms |
+| Command palette open | Backdrop blur + content spring-in |
+| Toast / status feedback | Slide-in 200ms, auto-dismiss 3s |
+
+### Lottie animations
+
+Lottie is reserved for the small set of moments where a static illustration would feel dead but a heavy custom motion design would be overkill. Used sparingly — overuse cheapens it.
+
+**Library:** `@lottiefiles/react-lottie-player`
+**Source:** lottiefiles.com (filter by free + commercial-use license). Always include the source URL in a code comment next to the JSON import.
+
+**Required Lottie placements:**
+- **Empty watchlist state.** Cinematic motif consistent with the chosen aesthetic direction (film reel, projector beam, popcorn-and-couch, marquee lights — pick one that fits).
+- **404 page.**
+- **First-time sign-in welcome moment.** Plays once per user, then disabled on subsequent sessions (track in localStorage).
+
+**Optional Lottie placements (use only if the placement is otherwise dead and the file is <60KB):**
+- Success state after the first watchlist add (small inline Lottie next to the toast, ≤2s, doesn't loop).
+- NL search "thinking" state — only if the LLM parse takes >500ms; smaller models that respond in <500ms get a simple shimmer, not a Lottie.
+
+**Hard rules for every Lottie:**
+- Loops only for steady states (empty list = loop; welcome = play once; success = play once).
+- Respects `prefers-reduced-motion`: pauses on the first frame when reduced motion is set.
+- Lazy-loaded JSON. Never blocks initial paint.
+- Max file size: **80KB compressed** per Lottie. Run through lottie-optimizer; reject anything larger and replace it.
+- Document the LottieFiles source URL and license in a comment in the importing component.
 
 ---
 
@@ -431,11 +477,17 @@ Use `.dev.vars` locally, `wrangler secret put` in production. **Never** put TMDB
 
 ---
 
-## 11. External skills to consult
+## 11. External skills
 
-- https://github.com/nextlevelbuilder/ui-ux-pro-max-skill — UI/UX patterns; consult before Phase 3, 5, and 7.
-- https://github.com/ComposioHQ/awesome-claude-skills — directory; check for OAuth or Cloudflare Workers skills.
+### Required
+- **Anthropic `frontend-design` skill** — installed locally as a Claude Code plugin (`/plugin install frontend-design@anthropic`). MUST be engaged for any frontend work. See §9 — this skill is the authoritative design driver.
+
+### Optional, on demand
+- https://github.com/ComposioHQ/awesome-claude-skills — directory; check for OAuth or Cloudflare Workers skills if a specific phase needs them.
 - https://github.com/vercel-labs/agent-browser — only if needed for import-flow automation.
+
+### Removed
+The previously-listed `ui-ux-pro-max-skill` and "21st.dev as a design source" have been removed. They did not engage during the initial build and the design lacked rigor as a result. Do not re-introduce them.
 
 If a skill provides a direct, drop-in pattern, use it. If it conflicts with this spec, **this spec wins** unless flagged.
 

@@ -74,6 +74,12 @@ llm-provider.ts        ✅
 - **ALWAYS** validate LLM output with the zod schema before passing it to Orama. The LLM can hallucinate fields, miss types, or return prose around the JSON.
 - Default provider is Cloudflare. If a user has a per-user config in KV, decrypt and use it instead.
 
+### Design rules
+- **ALWAYS engage the `frontend-design` skill before any UI work.** The first Cinemood build produced generic stacked-section AI-slop because no design skill was loaded. The skill is the authority on aesthetic direction; load it before planning, not after.
+- **ALWAYS use subtle, purposeful motion** — durations 150–300ms, no decorative animation, no pulsing CTAs, no moving gradients, no parallax. See `claude-instructions.md` §9 for the full motion contract. **`prefers-reduced-motion: reduce` is respected globally**, never as an afterthought.
+- **Lottie placements are required at**: empty watchlist state, 404 page, first-time sign-in welcome. They are optional (and only used if a static fallback would feel dead) at: post-add success toast, NL-search waiting state if >500ms. Hard rules: max 80KB per Lottie, loop only for steady states, lazy-load, respect reduced-motion.
+- **NEVER use the removed skills:** `ui-ux-pro-max-skill` is gone from this project; "21st.dev as a design source" is gone too. 21st.dev MCP may still be used for *component generation* but not as design philosophy.
+
 ### Tech stack lock
 **NEVER** introduce a new top-level dependency without flagging in chat first. Specifically forbidden without explicit approval: Next.js, Prisma, Postgres, Redis, Auth.js, Express, Apollo, langchain, llama-index. Stay on the stack defined in `claude-instructions.md` §3.
 
@@ -182,37 +188,17 @@ _This section grows over time. Each entry is a lesson learned from a real mistak
 
 <!-- New rules will be appended below this line. -->
 
-### Hono context types
-**ALWAYS** declare an explicit `Context<{Bindings; Variables}>` alias for shared route helpers — never derive it via `Parameters<typeof app.get>` or similar.
-- Why: Hono overloads route methods so `Parameters<...>` collapses to `never` and your helper silently breaks every call site with `Argument of type Context is not assignable to parameter of type never`.
-- How to apply: at the top of any `apps/api/src/routes/*.ts` that needs a `requireUser`-style helper, add `type Ctx = Context<{Bindings: Env; Variables: AuthVars}>` and type helpers `(c: Ctx)`.
+### Engage the design skill before any UI work
+**ALWAYS** load the `frontend-design` skill via Skill before planning a UI; never default to "minimal glassmorphism" or the spec's reference image.
+- Why: the first Cinemood build defaulted to gradient-mesh glassmorphism with no aesthetic commitment, no motion system, and no Lottie placements, producing the generic AI-slop the user explicitly called out.
+- How to apply: at the start of any task that touches `apps/web/src`, invoke `Skill(skill="frontend-design:frontend-design")`, commit the chosen direction to `docs/design-plan.md`, and do not write a line of UI code until that plan exists.
 
-### Workers AI response shapes vary per model family
-**ALWAYS** route every `env.AI.run(...)` chat result through a shape-probing extractor — never assume `result.response` exists.
-- Why: `@cf/openai/gpt-oss-*` returns the OpenAI Responses-API shape (`output[].content[].text`) with `instructions`+`input` request keys; `@cf/meta/llama-*` and friends return `{response}` with `messages`+`max_tokens` request keys. A single hard-coded shape produces silent empty-string responses.
-- How to apply: keep `extractText(result)` in `apps/api/src/llm/cloudflare.ts` covering `response`, `result.response`, `choices[0].message.content`, `output[].content[].text`, `output_text`. If you add a model whose family differs from the existing branches, also branch the request payload (`isGptOss` pattern).
+### Google avatar needs no-referrer
+**ALWAYS** render Google profile pictures with `referrerPolicy="no-referrer"` (or shadcn `<Avatar>` whose `<AvatarImage>` carries the same attribute, with `<AvatarFallback>` for initials).
+- Why: `lh3.googleusercontent.com` rejects requests that send a Referer header to a non-Google origin; the previous `<img src={user.picture}>` rendered blank without warning.
+- How to apply: every place that renders `user.picture` (currently `avatar-menu.tsx`) must set `referrerPolicy="no-referrer"`; the menu's grey-initial fallback stays as the second line of defence when the URL itself is null.
 
-### Orama 3.x where/properties pitfalls
-**ALWAYS** keep Orama's where-clause shapes and full-text `properties` aligned with the schema types.
-- Why: (1) `properties: ['title', 'overview']` only accepts `string`/`string[]` fields — passing an `enum[]` like `keywords` throws `Invalid property name`. (2) `where` on `enum` needs `{eq}` or `{in: [...]}` — bare arrays throw `Invalid operation`. (3) Numeric ranges combine via `{between: [a,b]}`; mixing `{gte, lte}` throws `You can only use one operation per filter`.
-- How to apply: in `apps/api/src/lib/orama-index.ts`, restrict full-text `properties` to true string fields and rely on the embedding for keyword/cast recall; use `{eq}`/`{in}` for enums, `{containsAny}` for `enum[]`, and collapse `min`+`max` into `{between}`.
-
-### One-command monorepo dev
-**ALWAYS** expose a single root `bun run dev` for monorepo dev. Two-terminal flows are a tax we've decided not to pay.
-- Why: starting `apps/api` and `apps/web` separately is fiddly, easy to forget, and turns "did you start both?" into a recurring question; a single command eliminates an entire class of self-inflicted bugs.
-- How to apply: keep `concurrently -n api,web -c blue,magenta --kill-others-on-fail "bun --filter @cinemood/api dev" "bun --filter @cinemood/web dev"` as the root `dev` script and add `concurrently` to root devDependencies. Per-side `dev:api`/`dev:web` may exist as escape hatches but never as the documented default.
-
-### Per-user serialization for Orama index mutations
-**ALWAYS** funnel `addTitleToIndex` / `removeTitleFromIndex` for the same userId through a per-user `Promise` queue.
-- Why: multiple `c.executionCtx.waitUntil(addTitleToIndex(...))` from back-to-back POSTs share the module-scope cache and the Orama db reference, then interleave at every `await` boundary; in our smoke this consistently left the first item's `embedding` empty and the index unsearchable. The waitUntil tasks must be serialized per-user — the global cache is not concurrency-safe.
-- How to apply: keep `serializePerUser(userId, async () => { … })` in `apps/api/src/lib/orama-index.ts` wrapping both mutators. Reads (search) need not be locked.
-
-### Orama insert mutates the doc in place
-**ALWAYS** pass a `structuredClone(doc)` to `insert(db, doc)` whenever the doc is also stored in your own cache and later JSON-serialised.
-- Why: Orama 3.x rewrites `vector[N]` fields into a typed-array view during insert; the original reference's `embedding` then `JSON.stringify`s as `null`, which permanently corrupts the persisted R2 snapshot.
-- How to apply: in `orama-index.ts`'s `addTitleToIndex` and `buildFromDocs`, store the original IndexDoc in `cached.docs` and hand `structuredClone(doc)` to Orama. Don't share refs between "what we own" and "what Orama owns."
-
-### Avoid Orama 3.x `mode: "hybrid"` with `where` filters
-**ALWAYS** pick a single Orama search mode based on what we have, never `"hybrid"` with where-clauses.
-- Why: in Orama 3.1.18 a hybrid search collapses to zero hits whenever the where-filter narrows the candidate set, even when the vector half clearly matches and the filtered docs exist. Bare-title queries that match by token still work; everything else loses recall.
-- How to apply: in `searchIndex`, use `mode: "vector"` (with `similarity: 0`, optional `term`) when we have a query embedding, `mode: "fulltext"` (with `properties: ["title","overview"]`) when we only have a term, and the default filter-only mode when there is no term — never `"hybrid"` with a where.
+### Gate every Framer Motion transition through useReducedMotion
+**ALWAYS** wire `useReducedMotion()` at the App root and read it (directly or via a `useMotionConfig()` helper) at every motion site — never hardcode `{type:'spring', stiffness:240, damping:24}` inline.
+- Why: the previous build hardcoded the same spring on every page and ignored `prefers-reduced-motion`, which §9's hard rules explicitly forbid; users with reduced motion still got the full animation suite.
+- How to apply: export a `useMotionConfig()` from `apps/web/src/lib/motion.ts` that returns `{transition, staggerDelay, fadeY}` collapsed to instant/zero when `useReducedMotion()` is true; replace every literal Framer Motion `transition={...}` with the value from that hook.

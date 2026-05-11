@@ -1,0 +1,7 @@
+- main [ref=e4]:
+  - generic [ref=e5]:
+    - paragraph [ref=e6]: "404"
+    - heading "Lost in the credits." [level=1] [ref=e7]
+    - paragraph [ref=e8]: That page isn't on your watchlist (or anywhere else).
+    - link "Back to watchlist" [ref=e9] [cursor=pointer]:
+      - /url: /

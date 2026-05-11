@@ -99,6 +99,27 @@ app.get("/auth/google/callback", async (c) => {
   return c.redirect(webUrl(c.env, "/"));
 });
 
+// Dev-only: adopt an existing KV-resident session id as the browser cookie,
+// so manual screenshots and Playwright runs can skip the Google round-trip.
+// Hard-gated on ENVIRONMENT === "development".
+app.get("/auth/dev-adopt-session", async (c) => {
+  if (c.env.ENVIRONMENT !== "development") {
+    return c.json(
+      { ok: false, error: { code: "NOT_FOUND", message: "Route not found" } },
+      404,
+    );
+  }
+  const sid = c.req.query("sid");
+  if (!sid) {
+    return c.json(
+      { ok: false, error: { code: "VALIDATION", message: "Missing sid" } },
+      400,
+    );
+  }
+  c.header("Set-Cookie", buildSessionCookie(sid, false));
+  return c.redirect(webUrl(c.env, "/"));
+});
+
 app.post("/auth/logout", async (c) => {
   const sid = readCookie(c.req.header("cookie") ?? null, SESSION_COOKIE);
   if (sid) await destroySession(c.env.SESSIONS, sid);

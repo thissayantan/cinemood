@@ -12,9 +12,9 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={cycle}
-      title={`Theme: ${LABEL[pref]} (click to cycle)`}
+      title={`Theme: ${LABEL[pref]} — click to cycle`}
       aria-label={`Theme: ${LABEL[pref]}`}
-      className="flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-black/5 px-3 text-xs text-black/70 transition hover:bg-black/10 dark:border-white/15 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10"
+      className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-3 font-mono text-[11px] uppercase tracking-wider text-[var(--paper-dim)] transition hover:text-[var(--ink)]"
     >
       <Glyph pref={pref} />
       <span>{LABEL[pref]}</span>
@@ -25,30 +25,46 @@ export function ThemeToggle() {
 function Glyph({ pref }: { pref: ThemePref }) {
   if (pref === "light") {
     return (
-      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-        <path
-          fill="currentColor"
-          d="M12 4a1 1 0 0 1 1 1V7a1 1 0 1 1-2 0V5a1 1 0 0 1 1-1Zm0 13a5 5 0 1 1 0-10a5 5 0 0 1 0 10Zm0 1a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1ZM4 12a1 1 0 0 1 1-1H7a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm13 0a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1ZM6.34 6.34a1 1 0 0 1 1.42 0l1.41 1.41a1 1 0 1 1-1.41 1.42L6.34 7.76a1 1 0 0 1 0-1.42Zm8.49 8.49a1 1 0 0 1 1.41 0l1.42 1.41a1 1 0 1 1-1.42 1.42l-1.41-1.42a1 1 0 0 1 0-1.41Zm0-7.08l1.41-1.41a1 1 0 1 1 1.42 1.42l-1.42 1.41a1 1 0 1 1-1.41-1.42ZM6.34 17.66l1.41-1.42a1 1 0 1 1 1.42 1.42l-1.41 1.41a1 1 0 1 1-1.42-1.41Z"
+      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
+        <circle
+          cx="12"
+          cy="12"
+          r="4.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
         />
+        <g
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        >
+          <path d="M12 3v2.5" />
+          <path d="M12 18.5V21" />
+          <path d="M3 12h2.5" />
+          <path d="M18.5 12H21" />
+          <path d="M5.3 5.3l1.8 1.8" />
+          <path d="M16.9 16.9l1.8 1.8" />
+          <path d="M5.3 18.7l1.8-1.8" />
+          <path d="M16.9 7.1l1.8-1.8" />
+        </g>
       </svg>
     );
   }
   if (pref === "dark") {
     return (
-      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
         <path
           fill="currentColor"
-          d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79Z"
+          d="M20.5 14.2A8.5 8.5 0 1 1 10.4 4a.6.6 0 0 1 .7.7 6.7 6.7 0 0 0 8.7 8.7.6.6 0 0 1 .7.7Z"
         />
       </svg>
     );
   }
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-      <path
-        fill="currentColor"
-        d="M12 3a9 9 0 0 0 0 18zm0 16V5a7 7 0 0 1 0 14"
-      />
+    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" />
     </svg>
   );
 }
