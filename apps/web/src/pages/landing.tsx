@@ -7,7 +7,7 @@ export default function LandingPage({ authError }: { authError: string | null })
   return (
     <div className="relative min-h-screen overflow-hidden bg-[var(--paper)] text-[var(--ink)]">
       <RouteTitle />
-      <BackdropMarquee />
+      <Backdrop />
 
       <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
         <motion.div
@@ -15,18 +15,28 @@ export default function LandingPage({ authError }: { authError: string | null })
           animate={{ opacity: 1, y: 0 }}
           transition={m.reduced ? { duration: 0 } : m.springEntry}
         >
-          <div className="font-label text-[10px] text-[var(--paper-faint)]">
-            Est. 2026 · A Personal Catalog
-          </div>
           <h1
-            className="mt-4 font-display text-[64px] leading-[0.95] tracking-tight text-[var(--ink)] md:text-[112px]"
-            style={{ fontVariationSettings: '"opsz" 144, "wght" 800, "SOFT" 20' }}
+            className="font-display text-[64px] leading-[0.95] tracking-tight md:text-[120px]"
+            style={{
+              // Editorial-cinematic warmth: ink at the top fades into an
+              // ink + accent mix at the bottom — like light passing
+              // through a single frame of film. Subtle, not gimmicky;
+              // works in both light and dark modes because the colour-mix
+              // is computed off the theme variables.
+              fontVariationSettings: '"opsz" 144, "wght" 800, "SOFT" 20',
+              backgroundImage:
+                "linear-gradient(180deg, var(--ink) 0%, var(--ink) 45%, color-mix(in srgb, var(--ink) 62%, var(--accent) 38%) 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+            }}
           >
             Cinemood
           </h1>
-          <p className="mt-4 max-w-md mx-auto text-balance text-[15px] leading-snug text-[var(--paper-dim)] md:text-[17px]">
-            A catalog of films and series, found by mood. Save things, find them
-            back in plain English, watch them at your own pace.
+          <p className="mt-5 mx-auto max-w-[28ch] text-balance text-[16px] leading-snug text-[var(--paper-dim)] md:text-[18px]">
+            Save what you mean to watch.
+            <br />
+            Find it back by mood, not by title.
           </p>
           <motion.a
             initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
@@ -37,7 +47,7 @@ export default function LandingPage({ authError }: { authError: string | null })
                 : { ...m.springEntry, delay: 0.08 }
             }
             href="/auth/google"
-            className="mt-9 inline-flex items-center gap-3 rounded-full border border-[var(--ink)] bg-[var(--ink)] px-5 py-2.5 text-[13.5px] font-medium text-[var(--paper)] transition hover:opacity-90"
+            className="mt-10 inline-flex items-center gap-3 rounded-full border border-[var(--ink)] bg-[var(--ink)] px-5 py-2.5 text-[13.5px] font-medium text-[var(--paper)] transition hover:opacity-90"
           >
             <GoogleGlyph />
             Sign in with Google
@@ -51,34 +61,60 @@ export default function LandingPage({ authError }: { authError: string | null })
             </p>
           )}
         </motion.div>
+
+        {/* Tiny footer mark — restrained, brand-only. No fake heritage,
+            no marketing fluff. */}
+        <div className="absolute bottom-6 inset-x-0 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--paper-faint)]">
+          mood · catalog · cinema
+        </div>
       </main>
     </div>
   );
 }
 
-/** Static marquee — three rows of muted "title cards" with mono catalog
- *  numbers, mimicking a film-archive's index card wall. No motion. */
-function BackdropMarquee() {
-  const lines = [
-    ["C-0042 · BLADE RUNNER 2049", "C-0041 · MAD MEN", "C-0040 · SEVERANCE", "C-0039 · PAST LIVES"],
-    ["C-0038 · INCEPTION", "C-0037 · BREAKING BAD", "C-0036 · THE BEAR", "C-0035 · LA LA LAND"],
-    ["C-0034 · ARRIVAL", "C-0033 · FARGO", "C-0032 · ANNIHILATION", "C-0031 · DUNE"],
-  ];
+/** Background scenery for the landing page.
+ *
+ *  Two layers, both static (the page should feel still — motion belongs
+ *  inside the app, not on the door):
+ *  1. A soft radial glow centred behind the wordmark, tinted with the
+ *     accent so the page has a warm focal point instead of flat dark.
+ *  2. A pair of faint filmstrip rails (a row of small rectangles along
+ *     the top and bottom edges) — a deliberate on-brand motif that
+ *     replaces the old C-NNNN catalog-number wall (those numbers are
+ *     meaningless to users, and we already stripped them from every
+ *     other surface). */
+function Backdrop() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 50% at 50% 50%, var(--accent-glow) 0%, transparent 70%)",
+        }}
+      />
+      <FilmstripRail position="top" />
+      <FilmstripRail position="bottom" />
+    </div>
+  );
+}
+
+function FilmstripRail({ position }: { position: "top" | "bottom" }) {
+  // 28 perforation holes spaced evenly. We render them as a flex row of
+  // small dimensional rectangles inset from the screen edge — a quiet
+  // film-archive cue without screaming "filmstrip!" at the user.
+  const holes = Array.from({ length: 28 });
   return (
     <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center gap-8 opacity-[0.14]"
+      className={`absolute inset-x-0 flex justify-between px-8 ${
+        position === "top" ? "top-8" : "bottom-8"
+      }`}
     >
-      {lines.map((row, i) => (
-        <div
+      {holes.map((_, i) => (
+        <span
           key={i}
-          className="flex w-[200%] gap-8 whitespace-nowrap font-mono text-[12px] uppercase tracking-wider"
-          style={{ transform: `translateX(${(i - 1) * -40}px)` }}
-        >
-          {row.concat(row).map((s, j) => (
-            <span key={j}>{s}</span>
-          ))}
-        </div>
+          className="h-2.5 w-3 rounded-[2px] bg-[var(--ink)] opacity-[0.07]"
+        />
       ))}
     </div>
   );
