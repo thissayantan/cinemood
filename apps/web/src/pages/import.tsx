@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import type { ApiResponse, User } from "@cinemood/shared";
@@ -16,11 +16,6 @@ import { AvatarMenu } from "@/components/avatar-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RouteTitle } from "@/components/route-title";
 import { FilmstripProgress } from "@/components/filmstrip-progress";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/hover-card";
 import { cn } from "@/lib/utils";
 
 interface TmdbHit {
@@ -176,6 +171,25 @@ export default function ImportPage({ user }: { user: User }) {
 
   const selectedCount = Object.values(picks).filter(Boolean).length;
 
+  // The sticky sidebar preview shows whichever row the user last hovered (or
+  // focused via keyboard). It never auto-clears — flicker-free, persistent.
+  // Initialised to the first picked row so the sidebar isn't blank on entry.
+  const [previewItem, setPreviewItem] = useState<{
+    pick: TmdbHit;
+    raw: string;
+  } | null>(null);
+  useEffect(() => {
+    if (previewItem) return;
+    if (!resolved) return;
+    for (const r of resolved) {
+      const p = picks[r.raw];
+      if (p) {
+        setPreviewItem({ pick: p, raw: r.raw });
+        break;
+      }
+    }
+  }, [resolved, picks, previewItem]);
+
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
       <RouteTitle title="Import" />
@@ -195,7 +209,14 @@ export default function ImportPage({ user }: { user: User }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[860px] px-5 pb-24 pt-10 md:px-8">
+      <main
+        className={cn(
+          "mx-auto px-5 pb-24 pt-10 md:px-8",
+          // Widen when the review step is up so the sticky preview sidebar
+          // sits next to the list without compressing it.
+          resolved ? "max-w-[1120px]" : "max-w-[860px]",
+        )}
+      >
         <motion.div
           initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
           animate={{ opacity: 1, y: 0 }}
@@ -345,18 +366,46 @@ export default function ImportPage({ user }: { user: User }) {
                 Start over
               </button>
             </div>
-            <ul className="divide-y divide-[var(--rule)]">
-              {resolved.map((r) => (
-                <ResolvedRow
-                  key={r.raw}
-                  row={r}
-                  pick={picks[r.raw] ?? null}
-                  onPick={(hit) =>
-                    setPicks((prev) => ({ ...prev, [r.raw]: hit }))
-                  }
-                />
-              ))}
-            </ul>
+            <div
+              className="md:grid md:grid-cols-[minmax(0,1fr)_320px] md:gap-6"
+              onMouseLeave={() => setPreviewItem(null)}
+            >
+              <ul className="divide-y divide-[var(--rule)]">
+                {resolved.map((r) => (
+                  <ResolvedRow
+                    key={r.raw}
+                    row={r}
+                    pick={picks[r.raw] ?? null}
+                    onPick={(hit) => {
+                      setPicks((prev) => ({ ...prev, [r.raw]: hit }));
+                      if (hit) setPreviewItem({ pick: hit, raw: r.raw });
+                    }}
+                    onPreview={(hit) => {
+                      if (hit) setPreviewItem({ pick: hit, raw: r.raw });
+                    }}
+                  />
+                ))}
+              </ul>
+
+              {/* Sticky preview sidebar — desktop only. Always rendered while
+                  the review step is up; content swaps on each row's hover or
+                  keyboard focus. Hidden on mobile where the dropdown alone
+                  is the affordance. */}
+              <aside className="hidden md:block">
+                <div className="sticky top-4">
+                  {previewItem ? (
+                    <PickPreview
+                      pick={previewItem.pick}
+                      raw={previewItem.raw}
+                    />
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-[var(--rule)] p-6 text-center font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                      Hover a row to preview
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>
             <div className="mt-5 border-t border-[var(--rule)] pt-5">
               {committing && progress ? (
                 <FilmstripProgress
@@ -396,17 +445,26 @@ function ResolvedRow({
   row,
   pick,
   onPick,
+  onPreview,
 }: {
   row: ResolvedHit;
   pick: TmdbHit | null;
   onPick: (hit: TmdbHit | null) => void;
+  /** Notify the parent that this row was just hovered / focused so the
+   *  sticky preview sidebar can swap its content. Fires only when there's
+   *  an actual pick to show. */
+  onPreview: (hit: TmdbHit | null) => void;
 }) {
   const candidates = [row.best, ...row.alternatives].filter(
     (h): h is TmdbHit => Boolean(h),
   );
 
   return (
-    <li className="flex items-center gap-3 px-2 py-3">
+    <li
+      className="flex items-center gap-3 px-2 py-3 transition-colors hover:bg-[var(--paper-3)]/30 focus-within:bg-[var(--paper-3)]/30"
+      onMouseEnter={() => onPreview(pick)}
+      onFocus={() => onPreview(pick)}
+    >
       <input
         type="checkbox"
         checked={Boolean(pick)}
@@ -416,58 +474,37 @@ function ResolvedRow({
         className="h-4 w-4 accent-[var(--accent)]"
         aria-label={`Include ${row.raw}`}
       />
-      <HoverCard openDelay={200} closeDelay={80}>
-        <HoverCardTrigger asChild>
-          {/* The trigger covers the thumbnail + title block (NOT the select)
-              so opening the dropdown doesn't accidentally fire the hover.
-              `<button type="button">` keeps it keyboard-focusable too. */}
-          <button
-            type="button"
-            tabIndex={pick ? 0 : -1}
-            onClick={() => {}}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:bg-[var(--paper-3)]/40"
-          >
-            <span className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
-              {pick && pick.poster_path ? (
-                <img
-                  src={posterUrl(pick.poster_path, "w185") ?? ""}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">
-                  ·
-                </span>
-              )}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] text-[var(--ink)]">
-                {row.raw}
-              </span>
-              <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider">
-                {row.status === "matched" && (
-                  <span className="text-[var(--accent)]">
-                    matched · {Math.round(row.confidence * 100)}%
-                  </span>
-                )}
-                {row.status === "ambiguous" && (
-                  <span className="text-[var(--paper-dim)]">
-                    ambiguous · {Math.round(row.confidence * 100)}%
-                  </span>
-                )}
-                {row.status === "unmatched" && (
-                  <span className="text-[var(--paper-faint)]">no match</span>
-                )}
-              </span>
-            </span>
-          </button>
-        </HoverCardTrigger>
-        {pick && (
-          <HoverCardContent>
-            <PickPreview pick={pick} raw={row.raw} />
-          </HoverCardContent>
+      <div className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
+        {pick && pick.poster_path ? (
+          <img
+            src={posterUrl(pick.poster_path, "w185") ?? ""}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">
+            ·
+          </div>
         )}
-      </HoverCard>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] text-[var(--ink)]">{row.raw}</div>
+        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider">
+          {row.status === "matched" && (
+            <span className="text-[var(--accent)]">
+              matched · {Math.round(row.confidence * 100)}%
+            </span>
+          )}
+          {row.status === "ambiguous" && (
+            <span className="text-[var(--paper-dim)]">
+              ambiguous · {Math.round(row.confidence * 100)}%
+            </span>
+          )}
+          {row.status === "unmatched" && (
+            <span className="text-[var(--paper-faint)]">no match</span>
+          )}
+        </div>
+      </div>
       {candidates.length > 0 ? (
         <select
           value={pick?.id ?? ""}
@@ -476,7 +513,7 @@ function ResolvedRow({
             const hit = candidates.find((h) => h.id === id) ?? null;
             onPick(hit);
           }}
-          className="max-w-[16rem] rounded-md border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-[11.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+          className="max-w-[14rem] rounded-md border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-[11.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
         >
           <option value="" className="bg-[var(--paper-2)]">— skip —</option>
           {candidates.map((h) => (
@@ -501,10 +538,10 @@ function PickPreview({ pick, raw }: { pick: TmdbHit; raw: string }) {
       ? pick.vote_average.toFixed(1)
       : null;
   return (
-    <div className="flex w-[380px] gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-4 shadow-[var(--shadow-card)]">
+    <div className="rounded-2xl border border-[var(--rule)] bg-[var(--paper)] p-4 shadow-[var(--shadow-card)]">
       <div
-        className="shrink-0 overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
-        style={{ width: 100, aspectRatio: "2 / 3" }}
+        className="mx-auto overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
+        style={{ width: "100%", maxWidth: 200, aspectRatio: "2 / 3" }}
       >
         {poster ? (
           <img
@@ -519,25 +556,25 @@ function PickPreview({ pick, raw }: { pick: TmdbHit; raw: string }) {
           </div>
         )}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="mt-4">
         <h3
           className="font-display-sm leading-tight text-[var(--ink)]"
           style={{ fontVariationSettings: '"opsz" 28, "wght" 700, "SOFT" 30' }}
         >
           {pick.title}
         </h3>
-        <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
+        <div className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
           {year} · {pick.type}
           {rating ? <span className="ml-1">· ★ {rating}</span> : null}
         </div>
-        <p className="mt-3 line-clamp-5 text-[12.5px] leading-snug text-[var(--paper-dim)]">
+        <p className="mt-3 line-clamp-6 text-[12.5px] leading-snug text-[var(--paper-dim)]">
           {pick.overview || (
             <span className="italic text-[var(--paper-faint)]">
               No synopsis on file.
             </span>
           )}
         </p>
-        <div className="mt-3 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-faint)]">
+        <div className="mt-3 border-t border-[var(--rule)] pt-3 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-faint)]">
           picked for &ldquo;{raw}&rdquo;
         </div>
       </div>
