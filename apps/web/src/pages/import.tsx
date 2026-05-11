@@ -16,6 +16,11 @@ import { AvatarMenu } from "@/components/avatar-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RouteTitle } from "@/components/route-title";
 import { FilmstripProgress } from "@/components/filmstrip-progress";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/hover-card";
 import { cn } from "@/lib/utils";
 
 interface TmdbHit {
@@ -409,32 +414,60 @@ function ResolvedRow({
           onPick(e.target.checked ? candidates[0] ?? null : null)
         }
         className="h-4 w-4 accent-[var(--accent)]"
+        aria-label={`Include ${row.raw}`}
       />
-      <div className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
-        {pick && pick.poster_path ? (
-          <img
-            src={posterUrl(pick.poster_path, "w185") ?? ""}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">·</div>
+      <HoverCard openDelay={200} closeDelay={80}>
+        <HoverCardTrigger asChild>
+          {/* The trigger covers the thumbnail + title block (NOT the select)
+              so opening the dropdown doesn't accidentally fire the hover.
+              `<button type="button">` keeps it keyboard-focusable too. */}
+          <button
+            type="button"
+            tabIndex={pick ? 0 : -1}
+            onClick={() => {}}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:bg-[var(--paper-3)]/40"
+          >
+            <span className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
+              {pick && pick.poster_path ? (
+                <img
+                  src={posterUrl(pick.poster_path, "w185") ?? ""}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="grid h-full place-items-center text-[9px] text-[var(--paper-faint)]">
+                  ·
+                </span>
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] text-[var(--ink)]">
+                {row.raw}
+              </span>
+              <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider">
+                {row.status === "matched" && (
+                  <span className="text-[var(--accent)]">
+                    matched · {Math.round(row.confidence * 100)}%
+                  </span>
+                )}
+                {row.status === "ambiguous" && (
+                  <span className="text-[var(--paper-dim)]">
+                    ambiguous · {Math.round(row.confidence * 100)}%
+                  </span>
+                )}
+                {row.status === "unmatched" && (
+                  <span className="text-[var(--paper-faint)]">no match</span>
+                )}
+              </span>
+            </span>
+          </button>
+        </HoverCardTrigger>
+        {pick && (
+          <HoverCardContent>
+            <PickPreview pick={pick} raw={row.raw} />
+          </HoverCardContent>
         )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] text-[var(--ink)]">{row.raw}</div>
-        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider">
-          {row.status === "matched" && (
-            <span className="text-[var(--accent)]">matched · {Math.round(row.confidence * 100)}%</span>
-          )}
-          {row.status === "ambiguous" && (
-            <span className="text-[var(--paper-dim)]">ambiguous · {Math.round(row.confidence * 100)}%</span>
-          )}
-          {row.status === "unmatched" && (
-            <span className="text-[var(--paper-faint)]">no match</span>
-          )}
-        </div>
-      </div>
+      </HoverCard>
       {candidates.length > 0 ? (
         <select
           value={pick?.id ?? ""}
@@ -457,6 +490,58 @@ function ResolvedRow({
         <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">no candidates</span>
       )}
     </li>
+  );
+}
+
+function PickPreview({ pick, raw }: { pick: TmdbHit; raw: string }) {
+  const poster = posterUrl(pick.poster_path, "w342");
+  const year = pick.release_date ? pick.release_date.slice(0, 4) : "—";
+  const rating =
+    typeof pick.vote_average === "number" && pick.vote_average > 0
+      ? pick.vote_average.toFixed(1)
+      : null;
+  return (
+    <div className="flex w-[380px] gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-4 shadow-[var(--shadow-card)]">
+      <div
+        className="shrink-0 overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
+        style={{ width: 100, aspectRatio: "2 / 3" }}
+      >
+        {poster ? (
+          <img
+            src={poster}
+            alt=""
+            className="h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="grid h-full place-items-center font-label text-[10px] text-[var(--paper-faint)]">
+            no poster
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3
+          className="font-display-sm leading-tight text-[var(--ink)]"
+          style={{ fontVariationSettings: '"opsz" 28, "wght" 700, "SOFT" 30' }}
+        >
+          {pick.title}
+        </h3>
+        <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
+          {year} · {pick.type}
+          {rating ? <span className="ml-1">· ★ {rating}</span> : null}
+        </div>
+        <p className="mt-3 line-clamp-5 text-[12.5px] leading-snug text-[var(--paper-dim)]">
+          {pick.overview || (
+            <span className="italic text-[var(--paper-faint)]">
+              No synopsis on file.
+            </span>
+          )}
+        </p>
+        <div className="mt-3 font-mono text-[9px] uppercase tracking-wider text-[var(--paper-faint)]">
+          picked for &ldquo;{raw}&rdquo;
+        </div>
+      </div>
+    </div>
   );
 }
 
