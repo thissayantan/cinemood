@@ -62,10 +62,22 @@ export default function LandingPage({ authError }: { authError: string | null })
           )}
         </motion.div>
 
-        {/* Tiny footer mark — restrained, brand-only. No fake heritage,
-            no marketing fluff. */}
-        <div className="absolute bottom-6 inset-x-0 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--paper-faint)]">
-          mood · catalog · cinema
+        {/* Brand foot mark, lifted clear of the bottom filmstrip rail
+            (which sits at bottom-8). Flanked by two thin hairlines so it
+            reads as a deliberate plate cartouche rather than a stray
+            label. Restrained — no fake heritage, no marketing fluff. */}
+        <div className="absolute bottom-24 inset-x-0 flex items-center justify-center gap-4">
+          <span
+            aria-hidden
+            className="h-px w-12 bg-[var(--paper-faint)] opacity-50"
+          />
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--paper-faint)]">
+            mood · catalog · cinema
+          </span>
+          <span
+            aria-hidden
+            className="h-px w-12 bg-[var(--paper-faint)] opacity-50"
+          />
         </div>
       </main>
     </div>
