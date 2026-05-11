@@ -20,13 +20,14 @@ interface Props {
 // animation isn't cream-on-cream and effectively invisible.
 const CREAM_RGB = [0.949, 0.921, 0.866] as const;
 const INK_LIGHT = [0.102, 0.094, 0.078] as const; // #1A1814
+const CREAM_TOLERANCE = 0.05;
 
-function isCream(c: number[]): boolean {
+function isCream(channels: number[]): boolean {
   return (
-    c.length >= 3 &&
-    Math.abs(c[0]! - CREAM_RGB[0]) < 0.05 &&
-    Math.abs(c[1]! - CREAM_RGB[1]) < 0.05 &&
-    Math.abs(c[2]! - CREAM_RGB[2]) < 0.05
+    channels.length >= 3 &&
+    Math.abs(channels[0]! - CREAM_RGB[0]) < CREAM_TOLERANCE &&
+    Math.abs(channels[1]! - CREAM_RGB[1]) < CREAM_TOLERANCE &&
+    Math.abs(channels[2]! - CREAM_RGB[2]) < CREAM_TOLERANCE
   );
 }
 
@@ -51,23 +52,24 @@ function recolor(node: any): void {
   for (const key of Object.keys(node)) recolor(node[key]);
 }
 
+function isDocumentDark(): boolean {
+  if (typeof document === "undefined") return true;
+  return document.documentElement.classList.contains("dark");
+}
+
 function useEffectiveTheme(): "light" | "dark" {
-  const [isDark, setIsDark] = useState<boolean>(() =>
-    typeof document !== "undefined"
-      ? document.documentElement.classList.contains("dark")
-      : true,
-  );
+  const [isDark, setIsDark] = useState<boolean>(isDocumentDark);
+
   useEffect(() => {
     if (typeof MutationObserver === "undefined") return;
-    const obs = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    obs.observe(document.documentElement, {
+    const observer = new MutationObserver(() => setIsDark(isDocumentDark()));
+    observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
-    return () => obs.disconnect();
+    return () => observer.disconnect();
   }, []);
+
   return isDark ? "dark" : "light";
 }
 
@@ -85,12 +87,14 @@ export function LottieLoop({
 }: Props) {
   const reduced = useReducedMotion();
   const theme = useEffectiveTheme();
+
   const src = useMemo(() => {
     if (theme === "dark") return source;
     const cloned = structuredClone(source);
     recolor(cloned);
     return cloned;
   }, [source, theme]);
+
   return (
     <Player
       src={src}

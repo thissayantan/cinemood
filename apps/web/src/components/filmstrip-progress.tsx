@@ -15,11 +15,16 @@ interface Props {
 /** Determinate progress bar with a faint sprocket strip above — fits the
  *  editorial-cinematic catalog aesthetic. Reduced-motion safe: the bar still
  *  animates width but the shimmer overlay drops out. */
+// 16 perforation ticks across the strip width.
+const PERFS = 16;
+
 export function FilmstripProgress({ done, total, label, accessory }: Props) {
   const m = useMotionConfig();
   const pct = total > 0 ? Math.min(1, done / total) : 0;
-  // 16 perforation ticks across the strip width.
-  const PERFS = 16;
+  const barTransition = m.reduced
+    ? { duration: 0 }
+    : { duration: m.durSlow, ease: m.easeOutQuint };
+  const showShimmer = !m.reduced && pct < 1;
 
   return (
     <div className="w-full">
@@ -30,9 +35,9 @@ export function FilmstripProgress({ done, total, label, accessory }: Props) {
         <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
           <span className="text-[var(--accent)]">{done}</span>
           <span className="text-[var(--paper-faint)]"> / {total}</span>
-          {accessory ? (
+          {accessory && (
             <span className="ml-3 text-[var(--paper-faint)]">{accessory}</span>
-          ) : null}
+          )}
         </span>
       </div>
 
@@ -63,15 +68,11 @@ export function FilmstripProgress({ done, total, label, accessory }: Props) {
           className="absolute inset-y-0 left-0 bg-[var(--accent)]"
           initial={false}
           animate={{ width: `${pct * 100}%` }}
-          transition={
-            m.reduced
-              ? { duration: 0 }
-              : { duration: m.durSlow, ease: m.easeOutQuint }
-          }
+          transition={barTransition}
         />
         {/* Shimmer overlay on the leading edge while in-flight, dropped in
             reduced-motion mode. */}
-        {!m.reduced && pct < 1 ? (
+        {showShimmer && (
           <motion.div
             aria-hidden
             className="absolute inset-y-0 w-[18%] rounded-full opacity-65"
@@ -83,7 +84,7 @@ export function FilmstripProgress({ done, total, label, accessory }: Props) {
                 "linear-gradient(90deg, transparent 0%, var(--accent-glow) 50%, transparent 100%)",
             }}
           />
-        ) : null}
+        )}
       </div>
     </div>
   );

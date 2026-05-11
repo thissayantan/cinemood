@@ -26,6 +26,8 @@ export function Toast({ open, message, action, onDismiss, duration = 5000 }: Pro
     if (!open) return;
     const id = window.setTimeout(onDismiss, duration);
     return () => window.clearTimeout(id);
+    // `message` is intentionally a dependency: consecutive triggers with the
+    // same `open` value should reset the auto-dismiss countdown.
   }, [open, duration, onDismiss, message]);
 
   return (

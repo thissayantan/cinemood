@@ -17,6 +17,13 @@ interface Props<V extends string> {
   label: string;
 }
 
+function indexOfValue<V extends string>(
+  options: ReadonlyArray<Option<V>>,
+  value: V,
+): number {
+  return Math.max(0, options.findIndex((o) => o.value === value));
+}
+
 /** Restrained editorial-cinematic dropdown. Replaces native <select>
  *  for surfaces where the browser's default control fights the rest
  *  of the design.
@@ -36,8 +43,8 @@ export function Dropdown<V extends string>({
 }: Props<V>) {
   const m = useMotionConfig();
   const [open, setOpen] = useState(false);
-  const [focused, setFocused] = useState<number>(
-    Math.max(0, options.findIndex((o) => o.value === value)),
+  const [focused, setFocused] = useState<number>(() =>
+    indexOfValue(options, value),
   );
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -45,41 +52,47 @@ export function Dropdown<V extends string>({
 
   useEffect(() => {
     if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+
+    function handleDocClick(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setFocused((i) => (i + 1) % options.length);
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setFocused((i) => (i - 1 + options.length) % options.length);
-      }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const opt = options[focused];
-        if (opt) {
-          onChange(opt.value);
+
+    function handleKey(event: KeyboardEvent) {
+      switch (event.key) {
+        case "Escape":
           setOpen(false);
+          return;
+        case "ArrowDown":
+          event.preventDefault();
+          setFocused((i) => (i + 1) % options.length);
+          return;
+        case "ArrowUp":
+          event.preventDefault();
+          setFocused((i) => (i - 1 + options.length) % options.length);
+          return;
+        case "Enter": {
+          event.preventDefault();
+          const opt = options[focused];
+          if (opt) {
+            onChange(opt.value);
+            setOpen(false);
+          }
+          return;
         }
       }
     }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
+
+    document.addEventListener("mousedown", handleDocClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", handleDocClick);
+      document.removeEventListener("keydown", handleKey);
     };
   }, [open, options, focused, onChange]);
 
   // Reset focused row to the current value each time the panel opens.
   useEffect(() => {
-    if (open) {
-      setFocused(Math.max(0, options.findIndex((o) => o.value === value)));
-    }
+    if (open) setFocused(indexOfValue(options, value));
   }, [open, value, options]);
 
   return (

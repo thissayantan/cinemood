@@ -2,7 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { forwardRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useMotionConfig } from "@/lib/motion";
+import { useMotionConfig, type MotionConfig } from "@/lib/motion";
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -16,17 +16,12 @@ interface OverlayProps
 export const DialogOverlay = forwardRef<HTMLDivElement, OverlayProps>(
   ({ className, ...props }, ref) => {
     const m = useMotionConfig();
+    const blur = `blur(${m.blurOpen}px)`;
     return (
       <DialogPrimitive.Overlay
         ref={ref}
-        className={cn(
-          "fixed inset-0 z-40 bg-[var(--paper)]/55",
-          className,
-        )}
-        style={{
-          backdropFilter: `blur(${m.blurOpen}px)`,
-          WebkitBackdropFilter: `blur(${m.blurOpen}px)`,
-        }}
+        className={cn("fixed inset-0 z-40 bg-[var(--paper)]/55", className)}
+        style={{ backdropFilter: blur, WebkitBackdropFilter: blur }}
         {...props}
       />
     );
@@ -41,21 +36,31 @@ interface ContentProps
   side?: "center" | "right";
 }
 
+const CENTER_VARIANTS = {
+  initial: { opacity: 0, scale: 0.96, y: 8 },
+  animate: { opacity: 1, scale: 1, y: 0 },
+  exit: { opacity: 0, scale: 0.97, y: 4 },
+};
+
+function rightVariants(reduced: boolean) {
+  return {
+    initial: { opacity: 0, x: reduced ? 0 : 24 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: reduced ? 0 : 16 },
+  };
+}
+
+function pickTransition(m: MotionConfig, isCenter: boolean) {
+  if (m.reduced) return { duration: 0 };
+  if (isCenter) return m.springEntry;
+  return { duration: m.durMedium, ease: m.easeOutQuint };
+}
+
 export const DialogContent = forwardRef<HTMLDivElement, ContentProps>(
   ({ className, children, side = "center", ...props }, ref) => {
     const m = useMotionConfig();
-    const fromCenter = {
-      initial: { opacity: 0, scale: 0.96, y: 8 },
-      animate: { opacity: 1, scale: 1, y: 0 },
-      exit: { opacity: 0, scale: 0.97, y: 4 },
-    };
-    const fromRight = {
-      initial: { opacity: 0, x: m.reduced ? 0 : 24 },
-      animate: { opacity: 1, x: 0 },
-      exit: { opacity: 0, x: m.reduced ? 0 : 16 },
-    };
     const isCenter = side === "center";
-    const layout = isCenter ? fromCenter : fromRight;
+    const variants = isCenter ? CENTER_VARIANTS : rightVariants(m.reduced);
 
     return (
       <DialogPrimitive.Portal>
@@ -67,16 +72,10 @@ export const DialogContent = forwardRef<HTMLDivElement, ContentProps>(
           {...props}
         >
           <motion.div
-            initial={layout.initial}
-            animate={layout.animate}
-            exit={layout.exit}
-            transition={
-              m.reduced
-                ? { duration: 0 }
-                : isCenter
-                  ? m.springEntry
-                  : { duration: m.durMedium, ease: m.easeOutQuint }
-            }
+            initial={variants.initial}
+            animate={variants.animate}
+            exit={variants.exit}
+            transition={pickTransition(m, isCenter)}
             className={cn(
               "fixed z-50 bg-[var(--paper-2)] text-[var(--ink)] shadow-[var(--shadow-card)]",
               isCenter
@@ -129,14 +128,13 @@ export function AnimatedDialogContent({
   // after close, killing hover/click on the page until the user clicks
   // somewhere. Forcibly clear on close.
   useEffect(() => {
-    if (!open && typeof document !== "undefined") {
-      const id = window.setTimeout(() => {
-        if (document.body.style.pointerEvents === "none") {
-          document.body.style.pointerEvents = "";
-        }
-      }, 0);
-      return () => window.clearTimeout(id);
-    }
+    if (open || typeof document === "undefined") return;
+    const id = window.setTimeout(() => {
+      if (document.body.style.pointerEvents === "none") {
+        document.body.style.pointerEvents = "";
+      }
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [open]);
 
   return (
@@ -146,11 +144,11 @@ export function AnimatedDialogContent({
           <DialogPrimitive.Title className="sr-only">
             {title}
           </DialogPrimitive.Title>
-          {description ? (
+          {description && (
             <DialogPrimitive.Description className="sr-only">
               {description}
             </DialogPrimitive.Description>
-          ) : null}
+          )}
           {children}
         </DialogContent>
       )}

@@ -23,48 +23,52 @@ export function ThemeToggle() {
 }
 
 function Glyph({ pref }: { pref: ThemePref }) {
-  if (pref === "light") {
-    return (
-      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
-        <circle
-          cx="12"
-          cy="12"
-          r="4.2"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-        />
-        <g
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-        >
-          <path d="M12 3v2.5" />
-          <path d="M12 18.5V21" />
-          <path d="M3 12h2.5" />
-          <path d="M18.5 12H21" />
-          <path d="M5.3 5.3l1.8 1.8" />
-          <path d="M16.9 16.9l1.8 1.8" />
-          <path d="M5.3 18.7l1.8-1.8" />
-          <path d="M16.9 7.1l1.8-1.8" />
-        </g>
-      </svg>
-    );
+  switch (pref) {
+    case "light":
+      return (
+        <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
+          <circle
+            cx="12"
+            cy="12"
+            r="4.2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+          <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M12 3v2.5" />
+            <path d="M12 18.5V21" />
+            <path d="M3 12h2.5" />
+            <path d="M18.5 12H21" />
+            <path d="M5.3 5.3l1.8 1.8" />
+            <path d="M16.9 16.9l1.8 1.8" />
+            <path d="M5.3 18.7l1.8-1.8" />
+            <path d="M16.9 7.1l1.8-1.8" />
+          </g>
+        </svg>
+      );
+    case "dark":
+      return (
+        <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
+          <path
+            fill="currentColor"
+            d="M20.5 14.2A8.5 8.5 0 1 1 10.4 4a.6.6 0 0 1 .7.7 6.7 6.7 0 0 0 8.7 8.7.6.6 0 0 1 .7.7Z"
+          />
+        </svg>
+      );
+    case "system":
+      return (
+        <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
+          <path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" />
+        </svg>
+      );
   }
-  if (pref === "dark") {
-    return (
-      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
-        <path
-          fill="currentColor"
-          d="M20.5 14.2A8.5 8.5 0 1 1 10.4 4a.6.6 0 0 1 .7.7 6.7 6.7 0 0 0 8.7 8.7.6.6 0 0 1 .7.7Z"
-        />
-      </svg>
-    );
-  }
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" />
-    </svg>
-  );
 }

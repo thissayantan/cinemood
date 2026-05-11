@@ -11,8 +11,16 @@ interface ContentProps
   extends React.ComponentPropsWithoutRef<typeof HoverCardPrimitive.Content> {}
 
 export const HoverCardContent = forwardRef<HTMLDivElement, ContentProps>(
-  ({ className, align = "start", side = "right", sideOffset = 12, ...props }, ref) => {
+  (
+    { className, align = "start", side = "right", sideOffset = 12, ...props },
+    ref,
+  ) => {
     const m = useMotionConfig();
+    const initial = m.reduced ? false : { opacity: 0, scale: 0.97, y: 4 };
+    const transition = m.reduced
+      ? { duration: 0 }
+      : { duration: m.durBase, ease: m.easeOutQuint };
+
     return (
       <HoverCardPrimitive.Portal>
         <HoverCardPrimitive.Content
@@ -31,15 +39,9 @@ export const HoverCardContent = forwardRef<HTMLDivElement, ContentProps>(
           {...props}
         >
           <motion.div
-            initial={
-              m.reduced ? false : { opacity: 0, scale: 0.97, y: 4 }
-            }
+            initial={initial}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={
-              m.reduced
-                ? { duration: 0 }
-                : { duration: m.durBase, ease: m.easeOutQuint }
-            }
+            transition={transition}
           >
             {props.children}
           </motion.div>
