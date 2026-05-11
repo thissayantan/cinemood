@@ -128,24 +128,30 @@ function score(
   const bT = tokens(hit.title);
   const j = jaccard(aT, bT);
 
-  if (aN && aN === bN) s += 0.6;
-  else if (j >= 0.85) s += 0.5;
-  else if (j >= 0.6) s += 0.35;
-  else if (j >= 0.4) s += 0.18;
-  else if (aN && bN && (aN.startsWith(bN) || bN.startsWith(aN))) s += 0.18;
-  else if (aN && bN && (aN.includes(bN) || bN.includes(aN))) s += 0.12;
+  // Title similarity — caps at 0.85, the floor for a "title-only matched"
+  // signal. Previously this capped at 0.6, which meant every exact-title
+  // Takeout row (no year, no type) settled on 0.6 + 0.06 position = 0.66
+  // and the UI showed every match at 66% — useless as a confidence signal.
+  if (aN && aN === bN) s += 0.85;
+  else if (j >= 0.85) s += 0.7;
+  else if (j >= 0.6) s += 0.5;
+  else if (j >= 0.4) s += 0.3;
+  else if (aN && bN && (aN.startsWith(bN) || bN.startsWith(aN))) s += 0.3;
+  else if (aN && bN && (aN.includes(bN) || bN.includes(aN))) s += 0.2;
 
+  // Year hint confirmation — caps at 0.10 on top of the title slice.
   if (cand.year && hit.release_date) {
     const hy = Number(hit.release_date.slice(0, 4));
-    if (hy === cand.year) s += 0.3;
-    else if (Math.abs(hy - cand.year) <= 1) s += 0.18;
-    else if (Math.abs(hy - cand.year) <= 3) s += 0.05;
+    if (hy === cand.year) s += 0.1;
+    else if (Math.abs(hy - cand.year) <= 1) s += 0.05;
+    else if (Math.abs(hy - cand.year) <= 3) s += 0.02;
   }
 
-  if (cand.type && hit.type === cand.type) s += 0.15;
+  // Type hint confirmation — caps at 0.05.
+  if (cand.type && hit.type === cand.type) s += 0.05;
 
-  // Position bonus (cheap tie-break, doesn't dominate similarity).
-  s += Math.max(0, 0.06 * (1 - rank / Math.max(total, 1)));
+  // Position bonus — cheap tie-break only, never dominates the real signals.
+  s += Math.max(0, 0.05 * (1 - rank / Math.max(total, 1)));
 
   return Math.min(1, s);
 }
@@ -155,9 +161,12 @@ function pickStatus(
 ): ResolveStatus {
   if (scored.length === 0) return "unmatched";
   const top = scored[0]!;
-  if (top.score >= 0.65) return "matched";
-  if (scored.length === 1 && top.score >= 0.4) return "matched";
-  if (top.score >= 0.5) return "matched";
+  // Exact-title floor (0.85 + position) → matched.
+  if (top.score >= 0.85) return "matched";
+  // Strong fuzzy (Jaccard ≥ 0.85, ≈0.75 with position) → matched.
+  if (top.score >= 0.7) return "matched";
+  // Sole candidate, reasonable similarity → matched.
+  if (scored.length === 1 && top.score >= 0.55) return "matched";
   return "ambiguous";
 }
 
