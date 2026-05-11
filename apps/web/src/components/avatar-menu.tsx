@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { User } from "@cinemood/shared";
-import { logout } from "@/lib/use-user";
+import { logout, logoutEverywhere } from "@/lib/use-user";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 
 function initials(user: User): string {
@@ -15,6 +15,9 @@ function initials(user: User): string {
 
 export function AvatarMenu({ user }: { user: User }) {
   const [open, setOpen] = useState(false);
+  // Two-step confirm for "sign out everywhere" — it's destructive
+  // (every other device gets kicked) and easy to misclick.
+  const [armEverywhere, setArmEverywhere] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +34,12 @@ export function AvatarMenu({ user }: { user: User }) {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
+  }, [open]);
+
+  // Reset the destructive-action arming when the menu closes, so the
+  // user always sees the safe label first on re-open.
+  useEffect(() => {
+    if (!open) setArmEverywhere(false);
   }, [open]);
 
   return (
@@ -90,6 +99,33 @@ export function AvatarMenu({ user }: { user: User }) {
             role="menuitem"
           >
             Sign out
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!armEverywhere) {
+                setArmEverywhere(true);
+                return;
+              }
+              void logoutEverywhere();
+            }}
+            className={`block w-full border-t border-[var(--rule)] px-3 py-2 text-left text-[12.5px] transition hover:bg-[var(--paper-3)] ${
+              armEverywhere
+                ? "text-[var(--accent)]"
+                : "text-[var(--paper-dim)]"
+            }`}
+            role="menuitem"
+          >
+            {armEverywhere ? (
+              <>
+                Click again to sign out every device
+                <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-wider text-[var(--paper-faint)]">
+                  invalidates every previous session
+                </div>
+              </>
+            ) : (
+              "Sign out everywhere"
+            )}
           </button>
         </div>
       )}

@@ -1,0 +1,11 @@
+-- 0003_session_revocation.sql — per-user session revocation watermark.
+--
+-- Cinemood sessions are stateless signed cookies. To support a
+-- "sign me out everywhere" flow without putting auth back on KV, the
+-- user row carries `min_issued_at` — a unix timestamp such that any
+-- session token whose payload's `issuedAt` is *strictly less than*
+-- this value is rejected by the auth middleware.
+--
+-- Default 0 = no revocation in effect (every previously-issued token
+-- is still valid up to its 30-day expiry).
+ALTER TABLE users ADD COLUMN min_issued_at INTEGER NOT NULL DEFAULT 0;

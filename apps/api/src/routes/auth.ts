@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../env";
+import type { AuthVars } from "../middleware/auth";
 import {
   buildAuthUrl,
   exchangeCode,
@@ -12,7 +13,7 @@ import {
   newSessionId,
   readCookie,
 } from "../lib/session";
-import { upsertUser } from "../db/queries";
+import { revokeAllSessions, upsertUser } from "../db/queries";
 
 const STATE_COOKIE = "cm_oauth_state";
 const STATE_TTL_SECONDS = 600;
@@ -22,7 +23,7 @@ function webUrl(env: Env, path: string): string {
   return origin + path;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 app.get("/auth/google", async (c) => {
   const state = newSessionId();
@@ -148,6 +149,35 @@ app.get("/auth/dev-adopt-session", async (c) => {
 app.post("/auth/logout", async (c) => {
   // Stateless signed-cookie sessions have no server-side record to
   // destroy; clearing the cookie is sufficient.
+  const isProd = c.env.ENVIRONMENT === "production";
+  c.header("Set-Cookie", clearSessionCookie(isProd));
+  return c.json({ ok: true, data: { logged_out: true } });
+});
+
+/** Sign the user out on every device.
+ *
+ *  Stateless sessions don't have a server-side record to delete, so
+ *  "global logout" is implemented by bumping the user's
+ *  `min_issued_at` watermark to now. Every signed token minted before
+ *  this instant (anywhere — other browsers, other devices, stolen
+ *  cookies) becomes invalid on its next request.
+ *
+ *  Requires an authenticated request — the caller proves ownership
+ *  of the account by presenting a currently-valid token. After the
+ *  watermark update the current cookie is *also* invalidated, so the
+ *  response clears it so the browser stops sending it. */
+app.post("/auth/logout-everywhere", async (c) => {
+  const user = c.get("user");
+  if (!user) {
+    return c.json(
+      {
+        ok: false,
+        error: { code: "AUTH_REQUIRED", message: "Sign in required" },
+      },
+      401,
+    );
+  }
+  await revokeAllSessions(c.env.DB, user.id);
   const isProd = c.env.ENVIRONMENT === "production";
   c.header("Set-Cookie", clearSessionCookie(isProd));
   return c.json({ ok: true, data: { logged_out: true } });

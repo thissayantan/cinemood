@@ -2,7 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import type { Env } from "../env";
 import type { User } from "@cinemood/shared";
 import { readCookie, readSession, SESSION_COOKIE } from "../lib/session";
-import { getUser } from "../db/queries";
+import { getUserForAuth } from "../db/queries";
 
 export type AuthVars = {
   user: User | null;
@@ -24,8 +24,17 @@ export const authMiddleware: MiddlewareHandler<{
     await next();
     return;
   }
-  const user = await getUser(c.env.DB, session.userId);
-  c.set("user", user);
+  const auth = await getUserForAuth(c.env.DB, session.userId);
+  // Session-revocation watermark — see migration 0003 and
+  // /auth/logout-everywhere. Any token minted strictly before this
+  // user's most recent "sign me out everywhere" event is invalid even
+  // with a valid signature.
+  if (!auth || session.issuedAt < auth.minIssuedAt) {
+    c.set("user", null);
+    await next();
+    return;
+  }
+  c.set("user", auth.user);
   await next();
 };
 

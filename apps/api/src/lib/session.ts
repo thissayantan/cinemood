@@ -17,8 +17,14 @@
  *  app; a future "sign me out everywhere" feature can add a small
  *  revocation set in KV that's checked alongside signature verification. */
 
-interface SessionData {
+export interface SessionData {
   userId: string;
+  /** Unix seconds when this token was minted. Compared against the
+   *  user row's `min_issued_at` watermark on every request, so a
+   *  "sign me out everywhere" action can invalidate every prior token
+   *  without server-side per-session bookkeeping. */
+  issuedAt: number;
+  /** Unix seconds at which this token's signature stops being honoured. */
   expiresAt: number;
 }
 
@@ -96,8 +102,9 @@ export async function createSession(
   signingKey: string,
   userId: string,
 ): Promise<{ value: string; expiresAt: number }> {
-  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
-  const data: SessionData = { userId, expiresAt };
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + SESSION_TTL_SECONDS;
+  const data: SessionData = { userId, issuedAt: now, expiresAt };
   const payload = base64Url(utf8(JSON.stringify(data)));
   const signature = await sign(payload, signingKey);
   return { value: `${payload}.${signature}`, expiresAt };
@@ -126,6 +133,10 @@ export async function readSession(
   ) {
     return null;
   }
+  // Tokens minted before this column existed (or before any "sign me
+  // out everywhere" event) carry no issuedAt — treat as 0 so the
+  // middleware's `>= minIssuedAt` check still works.
+  if (typeof data.issuedAt !== "number") data.issuedAt = 0;
   return data;
 }
 
