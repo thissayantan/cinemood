@@ -72,14 +72,46 @@ app.get("/auth/google/callback", async (c) => {
     return c.redirect(webUrl(c.env, "/?auth_error=email_unverified"));
   }
 
-  await upsertUser(c.env.DB, {
-    id: profile.sub,
-    email: profile.email,
-    name: profile.name ?? null,
-    picture: profile.picture ?? null,
-  });
+  // Granular error reporting — the global onError swallows everything as
+  // INTERNAL which makes "Sign-in failed" undebuggable. Each side-effect
+  // gets its own labelled error so the user (and the logs) see which
+  // step actually broke.
+  try {
+    await upsertUser(c.env.DB, {
+      id: profile.sub,
+      email: profile.email,
+      name: profile.name ?? null,
+      picture: profile.picture ?? null,
+    });
+  } catch (err) {
+    console.error("oauth callback: upsertUser failed", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.redirect(
+      webUrl(
+        c.env,
+        `/?auth_error=db_write_failed&detail=${encodeURIComponent(msg.slice(0, 120))}`,
+      ),
+    );
+  }
 
-  const session = await createSession(c.env.SESSIONS, profile.sub);
+  let session;
+  try {
+    session = await createSession(c.env.SESSIONS, profile.sub);
+  } catch (err) {
+    console.error("oauth callback: createSession failed", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    // The most common production failure here is Cloudflare's free-tier
+    // KV write cap (1000/day). Surface that explicitly so users / devs
+    // know to wait for UTC midnight or upgrade.
+    const isQuota = /limit exceeded|quota/i.test(msg);
+    const code = isQuota ? "kv_quota_exceeded" : "session_create_failed";
+    return c.redirect(
+      webUrl(
+        c.env,
+        `/?auth_error=${code}&detail=${encodeURIComponent(msg.slice(0, 120))}`,
+      ),
+    );
+  }
   const isProd = c.env.ENVIRONMENT === "production";
   c.header("Set-Cookie", buildSessionCookie(session.id, isProd), {
     append: true,
