@@ -128,6 +128,11 @@ function score(
   const bT = tokens(hit.title);
   const j = jaccard(aT, bT);
 
+  // Uncontested exact match — TMDB returned a single candidate and the
+  // normalized title is identical. There is no alternative to weigh against,
+  // so any ambiguity discount would be misleading. Return 1.0.
+  if (total === 1 && aN && aN === bN) return 1;
+
   // Title similarity — caps at 0.85, the floor for a "title-only matched"
   // signal. Previously this capped at 0.6, which meant every exact-title
   // Takeout row (no year, no type) settled on 0.6 + 0.06 position = 0.66
