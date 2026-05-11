@@ -43,6 +43,46 @@ interface ResolvedHit {
 
 type Mode = "paste" | "csv" | "takeout";
 
+// LocalStorage persistence for the review state. Lets the user survive
+// failed commits (network blip, validation error, server hiccup) without
+// having to re-resolve and re-pick every row. Cleared once a commit
+// fully succeeds.
+type Pick = { hit: TmdbHit; included: boolean };
+interface PersistedState {
+  resolved: ResolvedHit[];
+  picks: Record<string, Pick | null>;
+  // Last failure surface from a commit attempt — restored so the user can
+  // see what went wrong on the previous try.
+  lastError?: string;
+  // Per-tmdb_id failure reasons from the most recent commit, so the user
+  // can see exactly which rows fell through.
+  failedOutcomes?: { tmdb_id: number; type: TitleType; reason: string }[];
+  savedAt: number;
+}
+const STORAGE_KEY = "cinemood:import:v2";
+function loadPersisted(): PersistedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedState;
+    if (!parsed.resolved || !Array.isArray(parsed.resolved)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function savePersisted(state: PersistedState | null) {
+  try {
+    if (!state) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // quota / privacy mode — non-fatal
+  }
+}
+
 export default function ImportPage({ user }: { user: User }) {
   const m = useMotionConfig();
   const nav = useNavigate();
@@ -55,19 +95,62 @@ export default function ImportPage({ user }: { user: User }) {
   // (`included`). The checkbox controls `included`; the dropdown controls
   // `hit`. Unchecking no longer loses the candidate selection, and the
   // "— skip —" pseudo-option that used to confuse the dropdown is gone.
-  type Pick = { hit: TmdbHit; included: boolean };
   const [picks, setPicks] = useState<Record<string, Pick | null>>({});
+  // Per-tmdb_id failures from the previous commit attempt — surfaced as
+  // a row badge so the user can see which items the server rejected.
+  const [failedOutcomes, setFailedOutcomes] = useState<
+    { tmdb_id: number; type: TitleType; reason: string }[]
+  >([]);
   // The user's existing watchlist ids — drives the "already in catalog"
   // badge so re-imports of the same Takeout file don't surprise-add
   // duplicates. Switching candidates via the dropdown to a different year /
   // movie vs series re-evaluates against this set, so a same-name-different
   // -year title can still be imported.
-  const { ids: existingIds } = useWatchlistIds();
+  const { ids: existingIds, reload: reloadWatchlistIds } = useWatchlistIds();
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [parseInfo, setParseInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  // Banner offering to restore an unfinished prior import. We only mount
+  // the banner once on first render; the user opts in to restore or
+  // discard.
+  const [restoreOffer, setRestoreOffer] = useState<PersistedState | null>(null);
+
+  // On mount: if there's an unfinished review state in localStorage, offer
+  // to restore it instead of making the user re-parse + re-resolve.
+  useEffect(() => {
+    const persisted = loadPersisted();
+    if (persisted && persisted.resolved.length > 0) {
+      setRestoreOffer(persisted);
+    }
+  }, []);
+
+  function restorePersisted(p: PersistedState) {
+    setResolved(p.resolved);
+    setPicks(p.picks);
+    setFailedOutcomes(p.failedOutcomes ?? []);
+    setError(p.lastError ?? null);
+    setRestoreOffer(null);
+  }
+
+  function discardPersisted() {
+    savePersisted(null);
+    setRestoreOffer(null);
+  }
+
+  // Persist whenever the review state changes. Debounce-free is fine —
+  // localStorage writes for ~200 rows are < 1ms.
+  useEffect(() => {
+    if (!resolved || resolved.length === 0) return;
+    savePersisted({
+      resolved,
+      picks,
+      lastError: error ?? undefined,
+      failedOutcomes,
+      savedAt: Date.now(),
+    });
+  }, [resolved, picks, error, failedOutcomes]);
 
   function reset() {
     setText("");
@@ -77,6 +160,8 @@ export default function ImportPage({ user }: { user: User }) {
     setError(null);
     setParseInfo(null);
     setProgress(null);
+    setFailedOutcomes([]);
+    savePersisted(null);
   }
 
   function chunk<T>(arr: T[], size: number): T[][] {
@@ -168,8 +253,16 @@ export default function ImportPage({ user }: { user: User }) {
       items.push({ tmdb_id: pick.hit.id, type: pick.hit.type });
     }
     if (items.length === 0) return;
+    // Loud diagnostic for the DevTools console — the user reported repeated
+    // "imports vanish" and asked for more visibility into what we actually
+    // send vs receive.
+    console.info("[import] commit start", {
+      sending: items.length,
+      sample: items.slice(0, 3),
+    });
     setCommitting(true);
     setError(null);
+    setFailedOutcomes([]);
     setProgress({ done: 0, total: items.length });
 
     // Commit in 25-item chunks — each chunk fans out TMDB+OMDB at
@@ -178,6 +271,7 @@ export default function ImportPage({ user }: { user: User }) {
     // Worker subrequest cap even when every title needs a fresh fetch.
     type Outcome = {
       tmdb_id: number;
+      type: TitleType;
       ok: boolean;
       inserted?: boolean;
       error?: string;
@@ -185,34 +279,66 @@ export default function ImportPage({ user }: { user: User }) {
     let inserted = 0;
     let alreadyExisted = 0;
     let progressedTotal = 0;
+    const failed: { tmdb_id: number; type: TitleType; reason: string }[] = [];
     for (const batch of chunk(items, 25)) {
       const res = (await api<{ outcomes: Outcome[] }>("/api/import/commit", {
         method: "POST",
         body: JSON.stringify({ items: batch }),
       })) as ApiResponse<{ outcomes: Outcome[] }>;
       if (!res.ok) {
+        console.error("[import] commit chunk failed", res.error);
         setCommitting(false);
         setProgress(null);
         setError(res.error.message);
+        // Keep state in localStorage so the user can retry without
+        // re-resolving everything.
         return;
       }
       for (const o of res.data.outcomes) {
-        if (!o.ok) continue;
+        if (!o.ok) {
+          failed.push({
+            tmdb_id: o.tmdb_id,
+            type: o.type,
+            reason: o.error ?? "unknown",
+          });
+          continue;
+        }
         if (o.inserted) inserted++;
         else alreadyExisted++;
       }
       progressedTotal += res.data.outcomes.length;
       setProgress({ done: progressedTotal, total: items.length });
     }
+    console.info("[import] commit done", {
+      sent: items.length,
+      inserted,
+      alreadyExisted,
+      failed: failed.length,
+      failureSample: failed.slice(0, 5),
+    });
     setCommitting(false);
     setProgress(null);
-    // Land on home with the honest insert count. If everything we tried
-    // to add was already in the catalog, say so explicitly rather than
-    // pretending we added nothing for no reason.
-    const params = new URLSearchParams();
-    params.set("imported", String(inserted));
-    if (alreadyExisted > 0) params.set("skipped", String(alreadyExisted));
-    nav(`/?${params.toString()}`);
+    setFailedOutcomes(failed);
+    // Refresh the watchlist-ids cache so a subsequent re-import sees the
+    // freshly-added rows. We don't strictly need this for the navigate
+    // below, but the existingIds set is also used while reviewing.
+    await reloadWatchlistIds();
+
+    // Only clear persisted state on a fully clean run. If any rows failed,
+    // keep the review state so the user can retry just the failures
+    // without redoing the whole flow.
+    if (failed.length === 0) {
+      savePersisted(null);
+      const params = new URLSearchParams();
+      params.set("imported", String(inserted));
+      if (alreadyExisted > 0) params.set("skipped", String(alreadyExisted));
+      nav(`/?${params.toString()}`);
+      return;
+    }
+    // Partial success: surface what happened, stay on this page.
+    setError(
+      `${inserted} added · ${alreadyExisted} already in your catalog · ${failed.length} failed. Failed rows are flagged below — fix or uncheck them and retry.`,
+    );
   }
 
   // Honest count: dedupe by (type, tmdb_id) so the "Add N to catalog"
@@ -386,6 +512,37 @@ export default function ImportPage({ user }: { user: User }) {
           </p>
         </motion.div>
 
+        {restoreOffer && !resolved && (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent)]/8 px-4 py-3">
+            <div>
+              <div className="font-label text-[10px] text-[var(--paper-faint)]">
+                Unfinished import
+              </div>
+              <p className="mt-1 text-[13px] text-[var(--ink)]">
+                You have {restoreOffer.resolved.length} reviewed item{restoreOffer.resolved.length === 1 ? "" : "s"} from{" "}
+                {new Date(restoreOffer.savedAt).toLocaleString()} still pending.
+                Pick up where you left off?
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => restorePersisted(restoreOffer)}
+                className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-[12px] text-[var(--paper)] hover:opacity-90"
+              >
+                Resume
+              </button>
+              <button
+                type="button"
+                onClick={discardPersisted}
+                className="rounded-full border border-[var(--rule)] px-3 py-1.5 text-[12px] text-[var(--paper-dim)] hover:text-[var(--ink)]"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         {!resolved && (
           <motion.div
             initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
@@ -544,12 +701,19 @@ export default function ImportPage({ user }: { user: User }) {
                     ? (onOriginalHit && r.in_catalog) ||
                       existingIds.has(p.hit.id)
                     : false;
+                  const failure = p
+                    ? failedOutcomes.find(
+                        (f) =>
+                          f.tmdb_id === p.hit.id && f.type === p.hit.type,
+                      )
+                    : undefined;
                   return (
                     <ResolvedRow
                       key={r.raw}
                       row={r}
                       pick={p}
                       inCatalog={inCatalog}
+                      failureReason={failure?.reason ?? null}
                       onChange={(next) => {
                         setPicks((prev) => ({ ...prev, [r.raw]: next }));
                         if (next?.hit) {
@@ -686,6 +850,7 @@ function ResolvedRow({
   row,
   pick,
   inCatalog,
+  failureReason,
   onChange,
   onPreview,
   onOpenDialog,
@@ -697,6 +862,10 @@ function ResolvedRow({
    *  so picking a different-year movie with the same title can flip this
    *  back to false. */
   inCatalog: boolean;
+  /** Non-null when the previous commit reported a failure for this row's
+   *  current pick. Surfaces a "failed" badge so the user can see exactly
+   *  which rows didn't make it. */
+  failureReason: string | null;
   /** Update both candidate selection and inclusion in one call. Passing
    *  null means "the row has no candidates" (only relevant for unmatched
    *  rows that started life as null and can't be recovered). */
@@ -760,7 +929,14 @@ function ResolvedRow({
             {row.raw}
           </span>
           <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider">
-            {inCatalog ? (
+            {failureReason ? (
+              <span
+                className="text-[var(--accent)]"
+                title={`Last commit failed: ${failureReason}`}
+              >
+                failed · {failureReason}
+              </span>
+            ) : inCatalog ? (
               <span className="text-[var(--paper-dim)]">
                 in your catalog
               </span>

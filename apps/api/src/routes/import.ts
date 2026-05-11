@@ -131,6 +131,11 @@ app.post("/api/import/commit", async (c) => {
 
   const now = Math.floor(Date.now() / 1000);
   const items = parsed.data.items;
+  console.log("[import.commit]", {
+    user: user.id,
+    chunkSize: items.length,
+    ids: items.map((i) => i.tmdb_id),
+  });
   const outcomes: CommitOutcome[] = items.map((it) => ({
     tmdb_id: it.tmdb_id,
     type: it.type,
@@ -231,6 +236,13 @@ app.post("/api/import/commit", async (c) => {
       successfulIds,
     );
     const insertedSet = new Set(insertedIds);
+    console.log("[import.commit] inserts", {
+      user: user.id,
+      requested: successfulIds.length,
+      inserted: insertedIds.length,
+      skipped: successfulIds.length - insertedIds.length,
+      failed: items.length - successfulIds.length,
+    });
     // Annotate per-item `inserted` so the UI can distinguish "added" from
     // "already in catalog" (the latter still returns ok:true because the
     // title row itself was upserted successfully, just no new watchlist
