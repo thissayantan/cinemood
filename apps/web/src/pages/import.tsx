@@ -46,7 +46,13 @@ export default function ImportPage({ user }: { user: User }) {
   const [text, setText] = useState("");
   const [candidates, setCandidates] = useState<ImportCandidate[]>([]);
   const [resolved, setResolved] = useState<ResolvedHit[] | null>(null);
-  const [picks, setPicks] = useState<Record<string, TmdbHit | null>>({});
+  // Per-row state has two independent dimensions: which TMDB candidate the
+  // user has chosen (`hit`) and whether to include this row in the commit
+  // (`included`). The checkbox controls `included`; the dropdown controls
+  // `hit`. Unchecking no longer loses the candidate selection, and the
+  // "— skip —" pseudo-option that used to confuse the dropdown is gone.
+  type Pick = { hit: TmdbHit; included: boolean };
+  const [picks, setPicks] = useState<Record<string, Pick | null>>({});
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [parseInfo, setParseInfo] = useState<string | null>(null);
@@ -117,9 +123,12 @@ export default function ImportPage({ user }: { user: User }) {
     setLoading(false);
     setProgress(null);
     setResolved(all);
-    const initialPicks: Record<string, TmdbHit | null> = {};
+    const initialPicks: Record<string, Pick | null> = {};
     for (const r of all) {
-      initialPicks[r.raw] = r.status === "unmatched" ? null : r.best ?? null;
+      initialPicks[r.raw] =
+        r.status === "unmatched" || !r.best
+          ? null
+          : { hit: r.best, included: true };
     }
     setPicks(initialPicks);
   }
@@ -133,11 +142,11 @@ export default function ImportPage({ user }: { user: User }) {
     const seen = new Set<string>();
     for (const r of resolved) {
       const pick = picks[r.raw];
-      if (!pick) continue;
-      const key = `${pick.type}:${pick.id}`;
+      if (!pick || !pick.included) continue;
+      const key = `${pick.hit.type}:${pick.hit.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      items.push({ tmdb_id: pick.id, type: pick.type });
+      items.push({ tmdb_id: pick.hit.id, type: pick.hit.type });
     }
     if (items.length === 0) return;
     setCommitting(true);
@@ -170,7 +179,9 @@ export default function ImportPage({ user }: { user: User }) {
     nav("/?imported=" + ok);
   }
 
-  const selectedCount = Object.values(picks).filter(Boolean).length;
+  const selectedCount = Object.values(picks).filter(
+    (p): p is Pick => Boolean(p?.included),
+  ).length;
 
   // The sticky sidebar preview shows whichever row the user last hovered (or
   // focused via keyboard). Initialised to the first picked row so the sidebar
@@ -202,7 +213,7 @@ export default function ImportPage({ user }: { user: User }) {
     for (const r of resolved) {
       const p = picks[r.raw];
       if (p) {
-        setPreviewItem({ pick: p, raw: r.raw });
+        setPreviewItem({ pick: p.hit, raw: r.raw });
         break;
       }
     }
@@ -433,9 +444,11 @@ export default function ImportPage({ user }: { user: User }) {
                     key={r.raw}
                     row={r}
                     pick={picks[r.raw] ?? null}
-                    onPick={(hit) => {
-                      setPicks((prev) => ({ ...prev, [r.raw]: hit }));
-                      if (hit) setPreviewItem({ pick: hit, raw: r.raw });
+                    onChange={(next) => {
+                      setPicks((prev) => ({ ...prev, [r.raw]: next }));
+                      if (next?.hit) {
+                        setPreviewItem({ pick: next.hit, raw: r.raw });
+                      }
                     }}
                     onPreview={(hit) => {
                       cancelClear();
@@ -564,51 +577,61 @@ export default function ImportPage({ user }: { user: User }) {
 function ResolvedRow({
   row,
   pick,
-  onPick,
+  onChange,
   onPreview,
   onOpenDialog,
 }: {
   row: ResolvedHit;
-  pick: TmdbHit | null;
-  onPick: (hit: TmdbHit | null) => void;
-  /** Notify the parent that this row was just hovered / focused so the
-   *  sticky preview sidebar can swap its content. */
+  pick: { hit: TmdbHit; included: boolean } | null;
+  /** Update both candidate selection and inclusion in one call. Passing
+   *  null means "the row has no candidates" (only relevant for unmatched
+   *  rows that started life as null and can't be recovered). */
+  onChange: (next: { hit: TmdbHit; included: boolean } | null) => void;
   onPreview: (hit: TmdbHit | null) => void;
-  /** Tap on the thumbnail/title block opens a centered dialog with the
-   *  same preview content — the only way to preview on mobile and a quick
-   *  big-format view on desktop. */
   onOpenDialog: (hit: TmdbHit | null) => void;
 }) {
   const candidates = [row.best, ...row.alternatives].filter(
     (h): h is TmdbHit => Boolean(h),
   );
+  // Display state: the candidate the user is looking at (the one in the
+  // dropdown / thumbnail) is independent of whether the row is included.
+  // Default to the first candidate so the row has something to show even
+  // when the checkbox is unchecked.
+  const hit = pick?.hit ?? candidates[0] ?? null;
+  const included = pick?.included ?? false;
 
   return (
     <li
       className="flex items-center gap-3 px-2 py-3 transition-colors hover:bg-[var(--paper-3)]/30 focus-within:bg-[var(--paper-3)]/30"
-      onMouseEnter={() => onPreview(pick)}
+      onMouseEnter={() => onPreview(hit)}
     >
       <input
         type="checkbox"
-        checked={Boolean(pick)}
+        checked={included}
+        disabled={!hit}
         onChange={(e) =>
-          onPick(e.target.checked ? candidates[0] ?? null : null)
+          onChange(hit ? { hit, included: e.target.checked } : null)
         }
         className="h-4 w-4 accent-[var(--accent)]"
         aria-label={`Include ${row.raw}`}
       />
       <button
         type="button"
-        disabled={!pick}
-        onClick={() => onOpenDialog(pick)}
-        onFocus={() => onPreview(pick)}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none disabled:cursor-default"
-        aria-label={pick ? `Preview ${pick.title}` : undefined}
+        disabled={!hit}
+        onClick={() => onOpenDialog(hit)}
+        onFocus={() => onPreview(hit)}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none disabled:cursor-default",
+          // Faded look when not included so the eye reads "this won't be
+          // added" without the row disappearing.
+          !included && hit && "opacity-55",
+        )}
+        aria-label={hit ? `Preview ${hit.title}` : undefined}
       >
         <span className="grid h-12 w-8 shrink-0 overflow-hidden rounded bg-[var(--paper-3)]">
-          {pick && pick.poster_path ? (
+          {hit && hit.poster_path ? (
             <img
-              src={posterUrl(pick.poster_path, "w185") ?? ""}
+              src={posterUrl(hit.poster_path, "w185") ?? ""}
               alt=""
               className="h-full w-full object-cover"
             />
@@ -639,17 +662,19 @@ function ResolvedRow({
           </span>
         </span>
       </button>
-      {candidates.length > 0 ? (
+      {candidates.length > 1 ? (
+        // Multiple TMDB hits — the user might want to switch (different
+        // year, same title; movie vs series). The dropdown is purely for
+        // candidate choice; the checkbox handles include/skip.
         <select
-          value={pick?.id ?? ""}
+          value={hit?.id ?? ""}
           onChange={(e) => {
             const id = Number(e.target.value);
-            const hit = candidates.find((h) => h.id === id) ?? null;
-            onPick(hit);
+            const next = candidates.find((h) => h.id === id);
+            if (next) onChange({ hit: next, included });
           }}
           className="max-w-[14rem] rounded-md border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-[11.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
         >
-          <option value="" className="bg-[var(--paper-2)]">— skip —</option>
           {candidates.map((h) => (
             <option key={h.id} value={h.id} className="bg-[var(--paper-2)]">
               {h.title}
@@ -657,6 +682,14 @@ function ResolvedRow({
             </option>
           ))}
         </select>
+      ) : candidates.length === 1 && hit ? (
+        // Single uncontested candidate — a dropdown with one option is
+        // pure UI noise. Show the matched candidate as a static label so
+        // the year / type info is still visible.
+        <span className="max-w-[14rem] truncate font-mono text-[10.5px] text-[var(--paper-dim)]">
+          {hit.title}
+          {hit.release_date ? ` (${hit.release_date.slice(0, 4)})` : ""} · {hit.type}
+        </span>
       ) : (
         <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">no candidates</span>
       )}
