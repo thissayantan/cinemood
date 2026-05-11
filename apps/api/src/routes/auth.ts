@@ -19,6 +19,11 @@ import { upsertUser } from "../db/queries";
 const STATE_COOKIE = "cm_oauth_state";
 const STATE_TTL_SECONDS = 600;
 
+function webUrl(env: Env, path: string): string {
+  const origin = env.WEB_ORIGIN?.replace(/\/$/, "") ?? "";
+  return origin + path;
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.get("/auth/google", async (c) => {
@@ -43,15 +48,15 @@ app.get("/auth/google/callback", async (c) => {
   const error = url.searchParams.get("error");
 
   if (error) {
-    return c.redirect(`/?auth_error=${encodeURIComponent(error)}`);
+    return c.redirect(webUrl(c.env, `/?auth_error=${encodeURIComponent(error)}`));
   }
   if (!code || !state) {
-    return c.redirect("/?auth_error=missing_params");
+    return c.redirect(webUrl(c.env, "/?auth_error=missing_params"));
   }
 
   const cookieState = readCookie(c.req.header("cookie") ?? null, STATE_COOKIE);
   if (!cookieState || cookieState !== state) {
-    return c.redirect("/?auth_error=state_mismatch");
+    return c.redirect(webUrl(c.env, "/?auth_error=state_mismatch"));
   }
 
   let profile;
@@ -60,11 +65,11 @@ app.get("/auth/google/callback", async (c) => {
     profile = await fetchProfile(tokens.access_token);
   } catch (err) {
     console.error("oauth callback failed", err);
-    return c.redirect("/?auth_error=oauth_failed");
+    return c.redirect(webUrl(c.env, "/?auth_error=oauth_failed"));
   }
 
   if (!profile.email_verified) {
-    return c.redirect("/?auth_error=email_unverified");
+    return c.redirect(webUrl(c.env, "/?auth_error=email_unverified"));
   }
 
   await upsertUser(c.env.DB, {
@@ -91,7 +96,7 @@ app.get("/auth/google/callback", async (c) => {
   if (isProd) stateClearParts.push("Secure");
   c.header("Set-Cookie", stateClearParts.join("; "), { append: true });
 
-  return c.redirect("/");
+  return c.redirect(webUrl(c.env, "/"));
 });
 
 app.post("/auth/logout", async (c) => {

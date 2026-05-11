@@ -8,6 +8,11 @@ export interface Env {
 
   // Vars / secrets
   ENVIRONMENT: "development" | "production";
+  // Optional origin to redirect OAuth callbacks back to. In dev this is the
+  // Vite server (http://localhost:5173) because the Worker doesn't serve "/".
+  // In prod the Worker and Pages share an origin, so it can stay empty and
+  // the worker emits relative redirects.
+  WEB_ORIGIN?: string;
   TMDB_API_KEY: string;
   OMDB_API_KEY: string;
   GOOGLE_CLIENT_ID: string;

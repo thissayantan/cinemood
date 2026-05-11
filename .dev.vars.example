@@ -19,6 +19,11 @@ GOOGLE_CLIENT_SECRET=
 # Local-dev redirect. Production uses https://cinemood.sayantan.cloud/auth/google/callback
 GOOGLE_REDIRECT_URI=http://localhost:8787/auth/google/callback
 
+# Origin to return the user to after OAuth. In dev this is the Vite server
+# (the Worker has no `/` route). In prod, leave unset — Pages and the Worker
+# share an origin so the Worker emits relative redirects.
+WEB_ORIGIN=http://localhost:5173
+
 # --- App secrets --------------------------------------------------------
 # Generate each with: openssl rand -base64 32
 SESSION_SIGNING_KEY=
