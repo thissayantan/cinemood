@@ -114,24 +114,6 @@ export function PosterCard({
           );
         })()}
 
-        {/* Top-right: type glyph */}
-        <span
-          aria-hidden
-          className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full border border-[var(--paper)]/30 bg-[var(--paper)]/10 text-[var(--paper)] backdrop-blur-sm"
-        >
-          {t.type === "series" ? (
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-              <rect x="1.5" y="3" width="13" height="8.5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M5 13.5h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6.4" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M8 1.6v12.8M1.6 8h12.8" stroke="currentColor" strokeWidth="1" strokeDasharray="0.5 1.3" />
-            </svg>
-          )}
-        </span>
-
         {/* Watched checkmark draw-in */}
         {isWatched && (
           <motion.span
@@ -209,7 +191,6 @@ export function PosterCard({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: m.durBase, ease: m.easeOutQuint }}
           className="absolute right-2 top-2 z-10 flex gap-1.5"
-          style={{ transform: "translateY(36px)" }}
         >
           <QuickAction
             label={isWatched ? "Unmark watched" : "Mark watched"}
