@@ -9,10 +9,8 @@ import {
   buildSessionCookie,
   clearSessionCookie,
   createSession,
-  destroySession,
   newSessionId,
   readCookie,
-  SESSION_COOKIE,
 } from "../lib/session";
 import { upsertUser } from "../db/queries";
 
@@ -96,24 +94,19 @@ app.get("/auth/google/callback", async (c) => {
 
   let session;
   try {
-    session = await createSession(c.env.SESSIONS, profile.sub);
+    session = await createSession(c.env.SESSION_SIGNING_KEY, profile.sub);
   } catch (err) {
     console.error("oauth callback: createSession failed", err);
     const msg = err instanceof Error ? err.message : String(err);
-    // The most common production failure here is Cloudflare's free-tier
-    // KV write cap (1000/day). Surface that explicitly so users / devs
-    // know to wait for UTC midnight or upgrade.
-    const isQuota = /limit exceeded|quota/i.test(msg);
-    const code = isQuota ? "kv_quota_exceeded" : "session_create_failed";
     return c.redirect(
       webUrl(
         c.env,
-        `/?auth_error=${code}&detail=${encodeURIComponent(msg.slice(0, 120))}`,
+        `/?auth_error=session_create_failed&detail=${encodeURIComponent(msg.slice(0, 120))}`,
       ),
     );
   }
   const isProd = c.env.ENVIRONMENT === "production";
-  c.header("Set-Cookie", buildSessionCookie(session.id, isProd), {
+  c.header("Set-Cookie", buildSessionCookie(session.value, isProd), {
     append: true,
   });
 
@@ -153,8 +146,8 @@ app.get("/auth/dev-adopt-session", async (c) => {
 });
 
 app.post("/auth/logout", async (c) => {
-  const sid = readCookie(c.req.header("cookie") ?? null, SESSION_COOKIE);
-  if (sid) await destroySession(c.env.SESSIONS, sid);
+  // Stateless signed-cookie sessions have no server-side record to
+  // destroy; clearing the cookie is sufficient.
   const isProd = c.env.ENVIRONMENT === "production";
   c.header("Set-Cookie", clearSessionCookie(isProd));
   return c.json({ ok: true, data: { logged_out: true } });

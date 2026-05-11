@@ -1,10 +1,28 @@
+/** Stateless, signed-cookie session implementation.
+ *
+ *  Previously sessions were persisted as a row in the SESSIONS KV
+ *  namespace: createSession did a `kv.put`, readSession a `kv.get`.
+ *  Cloudflare's free-tier KV caps writes at 1,000/day. Every sign-in
+ *  spent one of those writes; once exhausted, *no one* could sign in
+ *  until the daily counter reset at UTC midnight.
+ *
+ *  The session payload here is tiny — `{userId, expiresAt}` — and the
+ *  Worker already has a strong server-side secret (`SESSION_SIGNING_KEY`)
+ *  available for HMAC. So we sign the payload, put it in the cookie, and
+ *  carry it round on every request. No I/O on the auth hot path; no
+ *  daily cap exposure; no infra dependency on KV for login.
+ *
+ *  Trade-off: there's no server-side revocation list, so a stolen cookie
+ *  remains valid until it expires. Acceptable for a personal-catalog
+ *  app; a future "sign me out everywhere" feature can add a small
+ *  revocation set in KV that's checked alongside signature verification. */
+
 interface SessionData {
   userId: string;
   expiresAt: number;
 }
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
-const SESSION_KEY_PREFIX = "session:";
 
 export const SESSION_COOKIE = "cm_session";
 
@@ -20,44 +38,108 @@ function base64Url(bytes: Uint8Array): string {
   return btoa(bin).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-export async function createSession(
-  kv: KVNamespace,
-  userId: string,
-): Promise<{ id: string; expiresAt: number }> {
-  const id = newSessionId();
-  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
-  const data: SessionData = { userId, expiresAt };
-  await kv.put(SESSION_KEY_PREFIX + id, JSON.stringify(data), {
-    expirationTtl: SESSION_TTL_SECONDS,
-  });
-  return { id, expiresAt };
+function base64UrlDecode(s: string): Uint8Array {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  const bin = atob(s.replaceAll("-", "+").replaceAll("_", "/") + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
-export async function readSession(
-  kv: KVNamespace,
-  id: string,
-): Promise<SessionData | null> {
-  const raw = await kv.get(SESSION_KEY_PREFIX + id);
-  if (!raw) return null;
+function utf8(s: string): Uint8Array {
+  return new TextEncoder().encode(s);
+}
+
+let cachedKey: { material: string; key: CryptoKey } | null = null;
+async function importSigningKey(material: string): Promise<CryptoKey> {
+  if (cachedKey && cachedKey.material === material) return cachedKey.key;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    utf8(material),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+  cachedKey = { material, key };
+  return key;
+}
+
+async function sign(payload: string, signingKey: string): Promise<string> {
+  const key = await importSigningKey(signingKey);
+  const sig = new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, utf8(payload)),
+  );
+  return base64Url(sig);
+}
+
+async function verifySig(
+  payload: string,
+  signature: string,
+  signingKey: string,
+): Promise<boolean> {
+  const key = await importSigningKey(signingKey);
   try {
-    const parsed = JSON.parse(raw) as SessionData;
-    if (parsed.expiresAt < Math.floor(Date.now() / 1000)) return null;
-    return parsed;
+    return await crypto.subtle.verify(
+      "HMAC",
+      key,
+      base64UrlDecode(signature),
+      utf8(payload),
+    );
   } catch {
-    return null;
+    return false;
   }
 }
 
-export async function destroySession(
-  kv: KVNamespace,
-  id: string,
-): Promise<void> {
-  await kv.delete(SESSION_KEY_PREFIX + id);
+/** Create a fresh signed session cookie value. The returned string is
+ *  put straight into Set-Cookie; no KV write happens. */
+export async function createSession(
+  signingKey: string,
+  userId: string,
+): Promise<{ value: string; expiresAt: number }> {
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+  const data: SessionData = { userId, expiresAt };
+  const payload = base64Url(utf8(JSON.stringify(data)));
+  const signature = await sign(payload, signingKey);
+  return { value: `${payload}.${signature}`, expiresAt };
 }
 
-export function buildSessionCookie(id: string, isProduction: boolean): string {
+/** Verify the signed cookie. Returns the embedded session data if the
+ *  signature is valid and the session hasn't expired; null otherwise. */
+export async function readSession(
+  signingKey: string,
+  cookieValue: string,
+): Promise<SessionData | null> {
+  if (!cookieValue || !cookieValue.includes(".")) return null;
+  const [payload, signature, ...rest] = cookieValue.split(".");
+  if (!payload || !signature || rest.length > 0) return null;
+  if (!(await verifySig(payload, signature, signingKey))) return null;
+  let data: SessionData;
+  try {
+    data = JSON.parse(new TextDecoder().decode(base64UrlDecode(payload))) as SessionData;
+  } catch {
+    return null;
+  }
+  if (
+    typeof data.userId !== "string" ||
+    typeof data.expiresAt !== "number" ||
+    data.expiresAt < Math.floor(Date.now() / 1000)
+  ) {
+    return null;
+  }
+  return data;
+}
+
+/** Destroy a session client-side. Stateless sessions have no
+ *  server-side record to delete, so this is a no-op — the caller
+ *  clears the cookie via `clearSessionCookie`. Kept for callsite
+ *  compatibility. */
+export async function destroySession(): Promise<void> {
+  /* no-op */
+}
+
+export function buildSessionCookie(value: string, isProduction: boolean): string {
   const parts = [
-    `${SESSION_COOKIE}=${id}`,
+    `${SESSION_COOKIE}=${value}`,
     "Path=/",
     "HttpOnly",
     "SameSite=Lax",

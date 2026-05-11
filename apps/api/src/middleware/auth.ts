@@ -18,7 +18,7 @@ export const authMiddleware: MiddlewareHandler<{
     await next();
     return;
   }
-  const session = await readSession(c.env.SESSIONS, sid);
+  const session = await readSession(c.env.SESSION_SIGNING_KEY, sid);
   if (!session) {
     c.set("user", null);
     await next();
