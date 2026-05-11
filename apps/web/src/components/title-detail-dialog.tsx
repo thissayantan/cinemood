@@ -24,7 +24,11 @@ export function TitleDetailDialog({
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AnimatedDialogContent open={open && !!item} side="center">
+      <AnimatedDialogContent
+        open={open && !!item}
+        side="center"
+        title={item ? item.title.title : "Title detail"}
+      >
         {item ? <Body item={item} onToggleWatched={onToggleWatched} onRemove={onRemove} /> : null}
       </AnimatedDialogContent>
     </Dialog>

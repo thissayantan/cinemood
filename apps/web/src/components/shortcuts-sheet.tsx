@@ -22,6 +22,7 @@ export function ShortcutsSheet({ open, onOpenChange }: Props) {
         open={open}
         side="center"
         className="!w-[min(540px,calc(100vw-32px))] !top-1/2"
+        title="Keyboard shortcuts"
       >
         <div className="p-7">
           <p className="font-label text-[10px] text-[var(--paper-faint)]">

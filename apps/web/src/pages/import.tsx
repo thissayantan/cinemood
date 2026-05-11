@@ -527,6 +527,7 @@ export default function ImportPage({ user }: { user: User }) {
                 open={!!dialogItem}
                 side="center"
                 className="!w-[min(640px,calc(100vw-32px))]"
+                title={dialogItem ? dialogItem.pick.title : "Preview"}
               >
                 {dialogItem ? (
                   <div className="p-2">

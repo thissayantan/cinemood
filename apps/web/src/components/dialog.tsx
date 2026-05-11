@@ -1,5 +1,5 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { forwardRef } from "react";
+import { forwardRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useMotionConfig } from "@/lib/motion";
@@ -95,10 +95,12 @@ export const DialogContent = forwardRef<HTMLDivElement, ContentProps>(
 DialogContent.displayName = "DialogContent";
 
 /** Wrap a Dialog.Root + presence-aware content so the close exit-transition
- *  actually plays. Use like:
+ *  actually plays. Required `title` is rendered as a visually-hidden
+ *  DialogTitle — Radix logs an accessibility warning otherwise, and
+ *  callers should label every dialog regardless. Use like:
  *
  *    <Dialog open={open} onOpenChange={setOpen}>
- *      <AnimatedDialogContent open={open} side="center">
+ *      <AnimatedDialogContent open={open} side="center" title="Settings">
  *        ...
  *      </AnimatedDialogContent>
  *    </Dialog>
@@ -107,17 +109,48 @@ export function AnimatedDialogContent({
   open,
   side,
   className,
+  title,
+  description,
   children,
 }: {
   open: boolean;
   side?: "center" | "right";
   className?: string;
+  /** Accessible name for the dialog. Rendered visually-hidden by default
+   *  (sr-only). Pass any string — even a duplicate of an h1 inside the
+   *  dialog — so screen readers announce the dialog on open. */
+  title: string;
+  /** Optional short description, also rendered visually-hidden. */
+  description?: string;
   children: React.ReactNode;
 }) {
+  // Radix Dialog + Framer Motion AnimatePresence has a known timing race:
+  // body `pointer-events: none` (set by Radix when modal opens) can stick
+  // after close, killing hover/click on the page until the user clicks
+  // somewhere. Forcibly clear on close.
+  useEffect(() => {
+    if (!open && typeof document !== "undefined") {
+      const id = window.setTimeout(() => {
+        if (document.body.style.pointerEvents === "none") {
+          document.body.style.pointerEvents = "";
+        }
+      }, 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (
         <DialogContent side={side} className={className}>
+          <DialogPrimitive.Title className="sr-only">
+            {title}
+          </DialogPrimitive.Title>
+          {description ? (
+            <DialogPrimitive.Description className="sr-only">
+              {description}
+            </DialogPrimitive.Description>
+          ) : null}
           {children}
         </DialogContent>
       )}

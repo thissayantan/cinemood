@@ -152,6 +152,7 @@ export function CommandPalette({
         open={open}
         side="center"
         className="!top-[26%] !translate-y-0 max-h-[min(70vh,640px)] overflow-hidden !w-[min(720px,calc(100vw-32px))]"
+        title="Command palette"
       >
         <Command
           shouldFilter={false}

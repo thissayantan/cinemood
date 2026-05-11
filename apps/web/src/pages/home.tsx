@@ -195,6 +195,7 @@ export default function HomePage({ user }: { user: User }) {
         open={filterSheetOpen}
         onOpenChange={setFilterSheetOpen}
         className="px-5 py-6"
+        title="Filter your watchlist"
       >
         <div className="mb-4 flex items-center justify-between">
           <span className="font-label text-[10px] text-[var(--paper-faint)]">
