@@ -1,7 +1,6 @@
 import type { WatchlistFilters } from "@cinemood/shared";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMotionConfig } from "@/lib/motion";
-import { SORT_LABELS } from "@/lib/use-watchlist";
 
 interface Chip {
   key: string;
@@ -88,15 +87,21 @@ export function ActiveChips({ filters, total, onPatch, onReset }: Props) {
     }
   }
 
-  const sortLabel = SORT_LABELS[filters.sort ?? "added_desc"];
+  // The top bar already shows the title count. Repeat it here only when
+  // filters are *narrowing* the visible set — that's the genuinely new
+  // information ("N of M titles match"). The sort label was redundant
+  // with the Sort dropdown two inches away in the rail.
+  const isFiltered = chips.length > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-[var(--rule)] px-1 py-3">
-      <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
-        {total} {total === 1 ? "title" : "titles"} · sorted by {sortLabel.toLowerCase()}
-      </span>
+      {isFiltered ? (
+        <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
+          {total} {total === 1 ? "match" : "matches"}
+        </span>
+      ) : null}
 
-      {chips.length > 0 && (
+      {chips.length > 0 && total !== undefined && (
         <span aria-hidden className="h-3 w-px bg-[var(--rule)]" />
       )}
 

@@ -174,7 +174,10 @@ export default function HomePage({ user }: { user: User }) {
         </main>
       ) : (
         <main className="mx-auto grid max-w-[1440px] grid-cols-1 gap-x-10 px-5 pt-6 md:grid-cols-[260px_minmax(0,1fr)] md:px-8 md:pt-8">
-          <div className="hidden md:block">
+          {/* Hairline separator between rail and grid — visible in both
+              themes (rule colour is theme-aware) so the rail reads as a
+              distinct surface even on the flat cream of light mode. */}
+          <div className="hidden border-r border-[var(--rule)] pr-6 md:block">
             <FilterRail
               items={wl.all}
               filters={wl.filters}

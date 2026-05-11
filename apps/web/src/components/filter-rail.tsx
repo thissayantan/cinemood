@@ -5,6 +5,7 @@ import type {
   WatchlistSort,
 } from "@cinemood/shared";
 import { Slider } from "./slider";
+import { Dropdown } from "./dropdown";
 import { SORT_LABELS, deriveFacets } from "@/lib/use-watchlist";
 import { cn } from "@/lib/utils";
 
@@ -59,24 +60,25 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
       </Section>
 
       <Section label="Sort">
-        <select
+        <Dropdown
+          label="Sort the watchlist"
           value={filters.sort ?? "added_desc"}
-          onChange={(e) =>
-            onPatch("sort", e.target.value as WatchlistSort)
-          }
-          className="h-9 w-full rounded-md border border-[var(--rule)] bg-[var(--paper-2)] px-2.5 text-[12px] text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
-        >
-          {Object.entries(SORT_LABELS).map(([v, label]) => (
-            <option key={v} value={v} className="bg-[var(--paper-2)]">
-              {label}
-            </option>
-          ))}
-        </select>
+          options={Object.entries(SORT_LABELS).map(([value, label]) => ({
+            value: value as WatchlistSort,
+            label,
+          }))}
+          onChange={(v) => onPatch("sort", v)}
+        />
       </Section>
 
       {facets.genres.length > 0 && (
         <Section label="Genre">
-          <div className="space-y-1.5">
+          {/* Chip cloud instead of a tall checkbox column. Each genre is
+              a small rounded pill; active state mirrors the decade and
+              type pills so the rail has one visual language for
+              binary-toggle facets. Single-select to match the existing
+              state shape (`filters.genre` is one string). */}
+          <div className="flex flex-wrap gap-1.5">
             {facets.genres.map((g) => {
               const active = filters.genre === g;
               return (
@@ -86,28 +88,13 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
                   onClick={() => onPatch("genre", active ? undefined : g)}
                   aria-pressed={active}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] transition",
+                    "rounded-full border px-2.5 py-0.5 text-[11.5px] transition",
                     active
-                      ? "bg-[var(--paper-3)] text-[var(--ink)]"
-                      : "hover:bg-[var(--paper-3)]/60",
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
+                      : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "grid h-3.5 w-3.5 place-items-center rounded-[3px] border",
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
-                        : "border-[var(--rule)]",
-                    )}
-                    aria-hidden
-                  >
-                    {active ? (
-                      <svg width="9" height="9" viewBox="0 0 12 12">
-                        <path d="M2 6.2l2.6 2.6L10 3.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                    ) : null}
-                  </span>
-                  <span className="truncate">{g}</span>
+                  {g}
                 </button>
               );
             })}
@@ -208,7 +195,9 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
 
       {facets.providers.length > 0 && (
         <Section label="Streaming">
-          <div className="space-y-1.5">
+          {/* Multi-select chip cloud — same shape as genres but the
+              behaviour adds/removes from a set. */}
+          <div className="flex flex-wrap gap-1.5">
             {facets.providers.slice(0, 12).map((p) => {
               const set = new Set(filters.providers ?? []);
               const active = set.has(p);
@@ -224,28 +213,13 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
                   }}
                   aria-pressed={active}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] transition",
+                    "rounded-full border px-2.5 py-0.5 text-[11.5px] transition",
                     active
-                      ? "bg-[var(--paper-3)] text-[var(--ink)]"
-                      : "hover:bg-[var(--paper-3)]/60",
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
+                      : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "grid h-3.5 w-3.5 place-items-center rounded-[3px] border",
-                      active
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
-                        : "border-[var(--rule)]",
-                    )}
-                    aria-hidden
-                  >
-                    {active ? (
-                      <svg width="9" height="9" viewBox="0 0 12 12">
-                        <path d="M2 6.2l2.6 2.6L10 3.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                    ) : null}
-                  </span>
-                  <span className="truncate">{p}</span>
+                  {p}
                 </button>
               );
             })}
