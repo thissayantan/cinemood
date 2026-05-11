@@ -54,14 +54,8 @@ export default function HomePage({ user }: { user: User }) {
     const skipped = Number(searchParams.get("skipped") ?? "0") || 0;
     if (imported === 0 && skipped === 0) return;
     const parts: string[] = [];
-    if (imported > 0) {
-      parts.push(`Added ${imported} title${imported === 1 ? "" : "s"}`);
-    }
-    if (skipped > 0) {
-      parts.push(
-        `${skipped} already in your catalog`,
-      );
-    }
+    if (imported > 0) parts.push(`Added ${imported} title${imported === 1 ? "" : "s"}`);
+    if (skipped > 0) parts.push(`${skipped} already in your catalog`);
     setImportToast(parts.join(" · "));
     // Strip the query params so a refresh doesn't replay the toast.
     setSearchParams(
@@ -203,17 +197,19 @@ export default function HomePage({ user }: { user: User }) {
                 layout
                 className="mt-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
                 transition={
-                  m.reduced ? { duration: 0 } : { duration: m.durBase, ease: m.easeOutQuint }
+                  m.reduced
+                    ? { duration: 0 }
+                    : { duration: m.durBase, ease: m.easeOutQuint }
                 }
               >
-                {items.map((it, i) => (
+                {items.map((item, index) => (
                   <PosterCard
-                    key={it.title.id}
-                    item={it}
-                    index={i}
-                    onOpen={() => setDetailItem(it)}
-                    onToggleWatched={() => handleToggleWatched(it)}
-                    onRemove={() => handleRemove(it)}
+                    key={item.title.id}
+                    item={item}
+                    index={index}
+                    onOpen={() => setDetailItem(item)}
+                    onToggleWatched={() => handleToggleWatched(item)}
+                    onRemove={() => handleRemove(item)}
                   />
                 ))}
               </motion.div>

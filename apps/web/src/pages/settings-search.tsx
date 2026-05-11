@@ -32,6 +32,11 @@ const PROVIDER_LABEL: Record<LlmProviderId, string> = {
 
 export default function SettingsSearchPage({ user }: { user: User }) {
   const m = useMotionConfig();
+  const fadeUpInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const entryTransition = m.reduced ? { duration: 0 } : m.springEntry;
+  const delayedEntry = m.reduced
+    ? { duration: 0 }
+    : { ...m.springEntry, delay: 0.05 };
   const [data, setData] = useState<SettingsResponse | null>(null);
   const [provider, setProvider] = useState<LlmProviderId>("cloudflare");
   const [model, setModel] = useState<string>("");
@@ -65,7 +70,7 @@ export default function SettingsSearchPage({ user }: { user: User }) {
   const models = useMemo(() => data?.catalog[provider] ?? [], [data, provider]);
 
   useEffect(() => {
-    if (models.length > 0 && !models.some((m) => m.id === model)) {
+    if (models.length > 0 && !models.some((option) => option.id === model)) {
       setModel(models[0]!.id);
     }
   }, [models, model]);
@@ -162,9 +167,9 @@ export default function SettingsSearchPage({ user }: { user: User }) {
 
       <main className="mx-auto max-w-[760px] px-5 pb-24 pt-10 md:px-8">
         <motion.div
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={m.reduced ? { duration: 0 } : m.springEntry}
+          transition={entryTransition}
         >
           <Link
             to="/"
@@ -184,13 +189,9 @@ export default function SettingsSearchPage({ user }: { user: User }) {
         </motion.div>
 
         <motion.div
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={
-            m.reduced
-              ? { duration: 0 }
-              : { ...m.springEntry, delay: 0.05 }
-          }
+          transition={delayedEntry}
           className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-7"
         >
           {loading ? (
@@ -202,19 +203,19 @@ export default function SettingsSearchPage({ user }: { user: User }) {
               <div>
                 <Label>Provider</Label>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {(Object.keys(PROVIDER_LABEL) as LlmProviderId[]).map((p) => (
+                  {(Object.keys(PROVIDER_LABEL) as LlmProviderId[]).map((id) => (
                     <button
-                      key={p}
+                      key={id}
                       type="button"
-                      onClick={() => { setProvider(p); setStatus(null); }}
+                      onClick={() => { setProvider(id); setStatus(null); }}
                       className={cn(
                         "rounded-xl border px-3 py-2.5 text-[13px] transition",
-                        provider === p
+                        provider === id
                           ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
                           : "border-[var(--rule)] bg-[var(--paper)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
                       )}
                     >
-                      {PROVIDER_LABEL[p]}
+                      {PROVIDER_LABEL[id]}
                     </button>
                   ))}
                 </div>
@@ -227,9 +228,9 @@ export default function SettingsSearchPage({ user }: { user: User }) {
                   onChange={(e) => setModel(e.target.value)}
                   className="mt-3 w-full rounded-xl border border-[var(--rule)] bg-[var(--paper)] px-3 py-2.5 text-[13px] text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
                 >
-                  {models.map((mm) => (
-                    <option key={mm.id} value={mm.id} className="bg-[var(--paper-2)]">
-                      {mm.label}
+                  {models.map((option) => (
+                    <option key={option.id} value={option.id} className="bg-[var(--paper-2)]">
+                      {option.label}
                     </option>
                   ))}
                 </select>

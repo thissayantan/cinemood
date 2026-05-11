@@ -21,10 +21,14 @@ function initials(user: User): string {
 export default function SettingsAccountPage({ user }: { user: User }) {
   const m = useMotionConfig();
   const [confirming, setConfirming] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const fadeUpInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const entryTransition = m.reduced ? { duration: 0 } : m.springEntry;
+  const delayedEntry = (delay: number) =>
+    m.reduced ? { duration: 0 } : { ...m.springEntry, delay };
 
   async function handleSignOutEverywhere() {
-    setRunning(true);
+    setSigningOut(true);
     await logoutEverywhere();
     // logoutEverywhere navigates away on success, but keep the flag set
     // so the button stays disabled in the brief window before the
@@ -52,9 +56,9 @@ export default function SettingsAccountPage({ user }: { user: User }) {
 
       <main className="mx-auto max-w-[760px] px-5 pb-24 pt-10 md:px-8">
         <motion.div
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={m.reduced ? { duration: 0 } : m.springEntry}
+          transition={entryTransition}
         >
           <Link
             to="/"
@@ -76,11 +80,9 @@ export default function SettingsAccountPage({ user }: { user: User }) {
 
         {/* Identity */}
         <motion.section
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={
-            m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.05 }
-          }
+          transition={delayedEntry(0.05)}
           className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-6"
         >
           <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
@@ -114,11 +116,9 @@ export default function SettingsAccountPage({ user }: { user: User }) {
 
         {/* Other settings shortcut */}
         <motion.section
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={
-            m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.08 }
-          }
+          transition={delayedEntry(0.08)}
           className="mt-5 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-6"
         >
           <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
@@ -147,11 +147,9 @@ export default function SettingsAccountPage({ user }: { user: User }) {
 
         {/* Security / danger zone */}
         <motion.section
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={
-            m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.11 }
-          }
+          transition={delayedEntry(0.11)}
           className="mt-5 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-6"
         >
           <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
@@ -181,15 +179,15 @@ export default function SettingsAccountPage({ user }: { user: User }) {
                   <button
                     type="button"
                     onClick={handleSignOutEverywhere}
-                    disabled={running}
+                    disabled={signingOut}
                     className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-[12.5px] font-medium text-[var(--paper)] transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {running ? "Signing out…" : "Yes — sign out every device"}
+                    {signingOut ? "Signing out…" : "Yes — sign out every device"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirming(false)}
-                    disabled={running}
+                    disabled={signingOut}
                     className="rounded-full border border-[var(--rule)] px-4 py-2 text-[12.5px] text-[var(--paper-dim)] transition hover:text-[var(--ink)] disabled:opacity-50"
                   >
                     Cancel

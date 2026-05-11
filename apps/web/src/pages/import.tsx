@@ -43,6 +43,14 @@ interface ResolvedHit {
 
 type Mode = "paste" | "csv" | "takeout";
 
+function modeLabel(mode: Mode): string {
+  switch (mode) {
+    case "paste": return "Paste list";
+    case "csv": return "Upload CSV";
+    case "takeout": return "Google Takeout";
+  }
+}
+
 // LocalStorage persistence for the review state. Lets the user survive
 // failed commits (network blip, validation error, server hiccup) without
 // having to re-resolve and re-pick every row. Cleared once a commit
@@ -85,6 +93,14 @@ function savePersisted(state: PersistedState | null) {
 
 export default function ImportPage({ user }: { user: User }) {
   const m = useMotionConfig();
+  const fadeUpInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const entryTransition = m.reduced ? { duration: 0 } : m.springEntry;
+  const delayedEntry = m.reduced
+    ? { duration: 0 }
+    : { ...m.springEntry, delay: 0.05 };
+  const previewTransition = m.reduced
+    ? { duration: 0 }
+    : { duration: 0.15, ease: m.easeOutQuint };
   const nav = useNavigate();
   const [mode, setMode] = useState<Mode>("paste");
   const [text, setText] = useState("");
@@ -491,9 +507,9 @@ export default function ImportPage({ user }: { user: User }) {
         )}
       >
         <motion.div
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={m.reduced ? { duration: 0 } : m.springEntry}
+          transition={entryTransition}
         >
           <Link
             to="/"
@@ -545,28 +561,26 @@ export default function ImportPage({ user }: { user: User }) {
 
         {!resolved && (
           <motion.div
-            initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+            initial={fadeUpInitial}
             animate={{ opacity: 1, y: 0 }}
-            transition={
-              m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.05 }
-            }
+            transition={delayedEntry}
             className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-7"
           >
             <div className="mb-5 flex flex-wrap gap-2">
-              {(["paste", "csv", "takeout"] as Mode[]).map((mm) => (
+              {(["paste", "csv", "takeout"] as Mode[]).map((tab) => (
                 <button
-                  key={mm}
+                  key={tab}
                   type="button"
-                  onClick={() => { setMode(mm); reset(); }}
-                  aria-pressed={mode === mm}
+                  onClick={() => { setMode(tab); reset(); }}
+                  aria-pressed={mode === tab}
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-[12px] transition",
-                    mode === mm
+                    mode === tab
                       ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)]"
                       : "border-[var(--rule)] text-[var(--paper-dim)] hover:text-[var(--ink)]",
                   )}
                 >
-                  {mm === "paste" ? "Paste list" : mm === "csv" ? "Upload CSV" : "Google Takeout"}
+                  {modeLabel(tab)}
                 </button>
               ))}
             </div>
@@ -651,11 +665,9 @@ export default function ImportPage({ user }: { user: User }) {
 
         {resolved && (
           <motion.div
-            initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+            initial={fadeUpInitial}
             animate={{ opacity: 1, y: 0 }}
-            transition={
-              m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.05 }
-            }
+            transition={delayedEntry}
             className="mt-8 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-4"
           >
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-2">
@@ -742,22 +754,10 @@ export default function ImportPage({ user }: { user: User }) {
                     {previewItem ? (
                       <motion.div
                         key={`${previewItem.pick.type}:${previewItem.pick.id}`}
-                        initial={
-                          m.reduced
-                            ? false
-                            : { opacity: 0, y: 4 }
-                        }
+                        initial={m.reduced ? false : { opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={
-                          m.reduced
-                            ? { opacity: 0 }
-                            : { opacity: 0, y: 2 }
-                        }
-                        transition={
-                          m.reduced
-                            ? { duration: 0 }
-                            : { duration: 0.15, ease: m.easeOutQuint }
-                        }
+                        exit={m.reduced ? { opacity: 0 } : { opacity: 0, y: 2 }}
+                        transition={previewTransition}
                       >
                         <PickPreview
                           pick={previewItem.pick}
@@ -771,11 +771,7 @@ export default function ImportPage({ user }: { user: User }) {
                         initial={m.reduced ? false : { opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={
-                          m.reduced
-                            ? { duration: 0 }
-                            : { duration: 0.15, ease: m.easeOutQuint }
-                        }
+                        transition={previewTransition}
                         className="rounded-2xl border border-dashed border-[var(--rule)] p-6 text-center font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]"
                       >
                         Hover a row to preview
@@ -929,63 +925,78 @@ function ResolvedRow({
             {row.raw}
           </span>
           <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider">
-            {failureReason ? (
-              <span
-                className="text-[var(--accent)]"
-                title={`Last commit failed: ${failureReason}`}
-              >
-                failed · {failureReason}
-              </span>
-            ) : inCatalog ? (
-              <span className="text-[var(--paper-dim)]">
-                in your catalog
-              </span>
-            ) : row.status === "matched" ? (
-              <span className="text-[var(--accent)]">
-                matched · {Math.round(row.confidence * 100)}%
-              </span>
-            ) : row.status === "ambiguous" ? (
-              <span className="text-[var(--paper-dim)]">
-                ambiguous · {Math.round(row.confidence * 100)}%
-              </span>
-            ) : (
-              <span className="text-[var(--paper-faint)]">no match</span>
-            )}
+            <RowStatusBadge
+              failureReason={failureReason}
+              inCatalog={inCatalog}
+              status={row.status}
+              confidence={row.confidence}
+            />
           </span>
         </span>
       </button>
-      {candidates.length > 1 ? (
-        // Multiple TMDB hits — the user might want to switch (different
-        // year, same title; movie vs series). The dropdown is purely for
-        // candidate choice; the checkbox handles include/skip.
-        <select
-          value={hit?.id ?? ""}
-          onChange={(e) => {
-            const id = Number(e.target.value);
-            const next = candidates.find((h) => h.id === id);
-            if (next) onChange({ hit: next, included });
-          }}
-          className="max-w-[14rem] rounded-md border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-[11.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
-        >
-          {candidates.map((h) => (
-            <option key={h.id} value={h.id} className="bg-[var(--paper-2)]">
-              {h.title}
-              {h.release_date ? ` (${h.release_date.slice(0, 4)})` : ""} · {h.type}
-            </option>
-          ))}
-        </select>
-      ) : candidates.length === 1 && hit ? (
-        // Single uncontested candidate — a dropdown with one option is
-        // pure UI noise. Show the matched candidate as a static label so
-        // the year / type info is still visible.
-        <span className="max-w-[14rem] truncate font-mono text-[10.5px] text-[var(--paper-dim)]">
-          {hit.title}
-          {hit.release_date ? ` (${hit.release_date.slice(0, 4)})` : ""} · {hit.type}
-        </span>
-      ) : (
-        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">no candidates</span>
-      )}
+      <CandidatePicker
+        candidates={candidates}
+        hit={hit}
+        included={included}
+        onChange={onChange}
+      />
     </li>
+  );
+}
+
+/** Right-side candidate area for a review row. Three shapes (none, one,
+ *  many) with different affordances — kept as named branches so the
+ *  intent of each shape (no UI noise on single-hit rows, dropdown only
+ *  when there's a real choice) reads clearly. */
+function CandidatePicker({
+  candidates,
+  hit,
+  included,
+  onChange,
+}: {
+  candidates: TmdbHit[];
+  hit: TmdbHit | null;
+  included: boolean;
+  onChange: (next: { hit: TmdbHit; included: boolean } | null) => void;
+}) {
+  if (candidates.length > 1) {
+    // Multiple TMDB hits — the user might want to switch (different
+    // year, same title; movie vs series). The dropdown is purely for
+    // candidate choice; the checkbox handles include/skip.
+    return (
+      <select
+        value={hit?.id ?? ""}
+        onChange={(e) => {
+          const id = Number(e.target.value);
+          const next = candidates.find((h) => h.id === id);
+          if (next) onChange({ hit: next, included });
+        }}
+        className="max-w-[14rem] rounded-md border border-[var(--rule)] bg-[var(--paper)] px-2 py-1 text-[11.5px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+      >
+        {candidates.map((h) => (
+          <option key={h.id} value={h.id} className="bg-[var(--paper-2)]">
+            {h.title}
+            {h.release_date ? ` (${h.release_date.slice(0, 4)})` : ""} · {h.type}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  if (candidates.length === 1 && hit) {
+    // Single uncontested candidate — a dropdown with one option is
+    // pure UI noise. Show the matched candidate as a static label so
+    // the year / type info is still visible.
+    return (
+      <span className="max-w-[14rem] truncate font-mono text-[10.5px] text-[var(--paper-dim)]">
+        {hit.title}
+        {hit.release_date ? ` (${hit.release_date.slice(0, 4)})` : ""} · {hit.type}
+      </span>
+    );
+  }
+  return (
+    <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+      no candidates
+    </span>
   );
 }
 
@@ -1284,6 +1295,52 @@ function PickPreviewExpanded({
       </div>
     </div>
   );
+}
+
+/** Status badge under each review row. Priority ladder, top-to-bottom:
+ *  failure (server rejected on last commit) → already-in-catalog → resolver
+ *  status (matched / ambiguous / unmatched). Kept as a switch so the order
+ *  is explicit instead of buried in a nested ternary. */
+function RowStatusBadge({
+  failureReason,
+  inCatalog,
+  status,
+  confidence,
+}: {
+  failureReason: string | null;
+  inCatalog: boolean;
+  status: ResolvedHit["status"];
+  confidence: number;
+}) {
+  if (failureReason) {
+    return (
+      <span
+        className="text-[var(--accent)]"
+        title={`Last commit failed: ${failureReason}`}
+      >
+        failed · {failureReason}
+      </span>
+    );
+  }
+  if (inCatalog) {
+    return <span className="text-[var(--paper-dim)]">in your catalog</span>;
+  }
+  switch (status) {
+    case "matched":
+      return (
+        <span className="text-[var(--accent)]">
+          matched · {Math.round(confidence * 100)}%
+        </span>
+      );
+    case "ambiguous":
+      return (
+        <span className="text-[var(--paper-dim)]">
+          ambiguous · {Math.round(confidence * 100)}%
+        </span>
+      );
+    case "unmatched":
+      return <span className="text-[var(--paper-faint)]">no match</span>;
+  }
 }
 
 function FileInput({

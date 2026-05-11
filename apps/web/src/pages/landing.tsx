@@ -4,6 +4,8 @@ import { RouteTitle } from "@/components/route-title";
 
 export default function LandingPage({ authError }: { authError: string | null }) {
   const m = useMotionConfig();
+  const fadeUpInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
+  const entryTransition = m.reduced ? { duration: 0 } : m.springEntry;
   return (
     <div className="relative min-h-screen overflow-hidden bg-[var(--paper)] text-[var(--ink)]">
       <RouteTitle />
@@ -11,9 +13,9 @@ export default function LandingPage({ authError }: { authError: string | null })
 
       <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
         <motion.div
-          initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+          initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={m.reduced ? { duration: 0 } : m.springEntry}
+          transition={entryTransition}
         >
           <h1
             className="font-display text-[64px] leading-[0.95] tracking-tight md:text-[120px]"
@@ -40,12 +42,10 @@ export default function LandingPage({ authError }: { authError: string | null })
             Find it back by mood, not by title.
           </p>
           <motion.a
-            initial={m.reduced ? false : { opacity: 0, y: m.fadeY }}
+            initial={fadeUpInitial}
             animate={{ opacity: 1, y: 0 }}
             transition={
-              m.reduced
-                ? { duration: 0 }
-                : { ...m.springEntry, delay: 0.08 }
+              m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.08 }
             }
             href="/auth/google"
             className="mt-10 inline-flex items-center gap-3 rounded-full border border-[var(--ink)] bg-[var(--ink)] px-5 py-2.5 text-[13.5px] font-medium text-[var(--paper)] transition hover:opacity-90"
