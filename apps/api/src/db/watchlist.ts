@@ -139,13 +139,18 @@ export async function addToWatchlist(
 
 /** Bulk-insert N watchlist rows in a single D1 batch round-trip. Catalog
  *  numbers are pre-allocated MAX+1, MAX+2, … so we issue exactly one read
- *  + one batch instead of N round-trips. Used by the import path. */
+ *  + one batch instead of N round-trips. Used by the import path.
+ *
+ *  Returns the subset of `titleIds` that produced an actual INSERT (a
+ *  `changes === 1` in the D1 result meta). Duplicates that hit ON CONFLICT
+ *  DO NOTHING return `changes === 0` and are omitted, so callers can
+ *  honestly report "X added · Y already in catalog" to the user. */
 export async function addManyToWatchlist(
   db: D1Database,
   userId: string,
   titleIds: number[],
-): Promise<void> {
-  if (titleIds.length === 0) return;
+): Promise<number[]> {
+  if (titleIds.length === 0) return [];
   const start = await nextCatalogNo(db, userId);
   const now = Math.floor(Date.now() / 1000);
   const stmts = titleIds.map((id, i) =>
@@ -157,7 +162,12 @@ export async function addManyToWatchlist(
       )
       .bind(userId, id, now, start + i),
   );
-  await db.batch(stmts);
+  const results = await db.batch(stmts);
+  const inserted: number[] = [];
+  results.forEach((res, i) => {
+    if ((res.meta?.changes ?? 0) > 0) inserted.push(titleIds[i]!);
+  });
+  return inserted;
 }
 
 export async function removeFromWatchlist(

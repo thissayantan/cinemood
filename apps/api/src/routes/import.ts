@@ -6,7 +6,7 @@ import { resolveBatch } from "../lib/import-resolve";
 import { fetchTmdbDetail, type TmdbDetail } from "../lib/tmdb";
 import { fetchOmdbRating } from "../lib/omdb";
 import { getTitlesById, upsertTitleStmt } from "../db/titles";
-import { addManyToWatchlist } from "../db/watchlist";
+import { addManyToWatchlist, listWatchlistTitleIds } from "../db/watchlist";
 import { addTitlesToIndex } from "../lib/orama-index";
 
 const TITLE_FRESH_SECONDS = 60 * 60 * 24 * 7; // 7 days — same as KV detail TTL
@@ -41,6 +41,11 @@ interface CommitOutcome {
   tmdb_id: number;
   type: "movie" | "series";
   ok: boolean;
+  /** True iff the row actually went into the watchlist on this call.
+   *  False when ON CONFLICT DO NOTHING fired (already in catalog) — lets
+   *  the UI honestly report "X added · Y were already there" instead of
+   *  the old behaviour where every duplicate counted as a "success". */
+  inserted?: boolean;
   error?: string;
 }
 
@@ -74,6 +79,13 @@ app.post("/api/import/resolve", async (c) => {
     );
   }
   const resolved = await resolveBatch(c.env, parsed.data.items);
+  // Server-side "already in catalog" tagging so the FE doesn't race a
+  // parallel watchlist-ids fetch against the resolve POST. Cheap query —
+  // one indexed SELECT for the whole user.
+  const existing = new Set(await listWatchlistTitleIds(c.env.DB, user.id));
+  for (const r of resolved) {
+    if (r.best && existing.has(r.best.id)) r.in_catalog = true;
+  }
   return c.json({ ok: true, data: { resolved } });
 });
 
@@ -213,17 +225,33 @@ app.post("/api/import/commit", async (c) => {
   }
 
   if (successfulIds.length > 0) {
-    await addManyToWatchlist(c.env.DB, user.id, successfulIds);
+    const insertedIds = await addManyToWatchlist(
+      c.env.DB,
+      user.id,
+      successfulIds,
+    );
+    const insertedSet = new Set(insertedIds);
+    // Annotate per-item `inserted` so the UI can distinguish "added" from
+    // "already in catalog" (the latter still returns ok:true because the
+    // title row itself was upserted successfully, just no new watchlist
+    // row was created).
+    for (let i = 0; i < outcomes.length; i++) {
+      const o = outcomes[i]!;
+      if (o.ok) o.inserted = insertedSet.has(o.tmdb_id);
+    }
 
-    // Single batched index update for the whole chunk.
-    const titlesForIndex = successfulIds
+    // Only index the freshly-inserted titles — re-indexing an already-
+    // -present title wastes the Workers AI embed budget.
+    const titlesForIndex = insertedIds
       .map((id) => titlesByTmdbId.get(id))
       .filter((t): t is import("@cinemood/shared").Title => Boolean(t));
-    c.executionCtx.waitUntil(
-      addTitlesToIndex(c.env, user.id, titlesForIndex).catch((err) => {
-        console.error("import batch index add failed", err);
-      }),
-    );
+    if (titlesForIndex.length > 0) {
+      c.executionCtx.waitUntil(
+        addTitlesToIndex(c.env, user.id, titlesForIndex).catch((err) => {
+          console.error("import batch index add failed", err);
+        }),
+      );
+    }
   }
 
   return c.json({ ok: true, data: { outcomes } });

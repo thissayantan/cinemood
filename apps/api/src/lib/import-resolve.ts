@@ -17,6 +17,12 @@ export interface ResolvedHit {
   confidence: number;
   best?: TmdbSearchResult;
   alternatives: TmdbSearchResult[];
+  /** True when `best.id` (or any alternative the user could pick) is
+   *  already in this user's watchlist. Server-side ground truth — the FE
+   *  used to rely on a parallel `useWatchlistIds` fetch which had a race
+   *  against the resolve POST and could leave the default-uncheck off
+   *  entirely. */
+  in_catalog?: boolean;
 }
 
 // ---------- normalization helpers ---------------------------------------

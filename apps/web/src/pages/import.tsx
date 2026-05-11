@@ -37,6 +37,8 @@ interface ResolvedHit {
   confidence: number;
   best?: TmdbHit;
   alternatives: TmdbHit[];
+  /** Server-tagged: best.id is already in the user's watchlist. */
+  in_catalog?: boolean;
 }
 
 type Mode = "paste" | "csv" | "takeout";
@@ -138,10 +140,12 @@ export default function ImportPage({ user }: { user: User }) {
       } else {
         // Default-uncheck items already in the user's catalog so a casual
         // "Add 200 to catalog" click doesn't silently no-op on duplicates.
-        // The user can re-check or switch candidates via the dropdown.
+        // Trust the server-tagged `in_catalog` flag (the FE's parallel
+        // useWatchlistIds fetch could race against resolve and leave this
+        // off, which made re-imports look like "everything skipped").
         initialPicks[r.raw] = {
           hit: r.best,
-          included: !existingIds.has(r.best.id),
+          included: !(r.in_catalog || existingIds.has(r.best.id)),
         };
       }
     }
@@ -172,26 +176,43 @@ export default function ImportPage({ user }: { user: User }) {
     // concurrency 8 on the server and batches D1 writes + a single index
     // update via waitUntil, so 25 items per chunk stays well under the
     // Worker subrequest cap even when every title needs a fresh fetch.
-    let ok = 0;
+    type Outcome = {
+      tmdb_id: number;
+      ok: boolean;
+      inserted?: boolean;
+      error?: string;
+    };
+    let inserted = 0;
+    let alreadyExisted = 0;
+    let progressedTotal = 0;
     for (const batch of chunk(items, 25)) {
-      const res = (await api<{
-        outcomes: { tmdb_id: number; ok: boolean }[];
-      }>("/api/import/commit", {
+      const res = (await api<{ outcomes: Outcome[] }>("/api/import/commit", {
         method: "POST",
         body: JSON.stringify({ items: batch }),
-      })) as ApiResponse<{ outcomes: { tmdb_id: number; ok: boolean }[] }>;
+      })) as ApiResponse<{ outcomes: Outcome[] }>;
       if (!res.ok) {
         setCommitting(false);
         setProgress(null);
         setError(res.error.message);
         return;
       }
-      ok += res.data.outcomes.filter((o) => o.ok).length;
-      setProgress({ done: ok, total: items.length });
+      for (const o of res.data.outcomes) {
+        if (!o.ok) continue;
+        if (o.inserted) inserted++;
+        else alreadyExisted++;
+      }
+      progressedTotal += res.data.outcomes.length;
+      setProgress({ done: progressedTotal, total: items.length });
     }
     setCommitting(false);
     setProgress(null);
-    nav("/?imported=" + ok);
+    // Land on home with the honest insert count. If everything we tried
+    // to add was already in the catalog, say so explicitly rather than
+    // pretending we added nothing for no reason.
+    const params = new URLSearchParams();
+    params.set("imported", String(inserted));
+    if (alreadyExisted > 0) params.set("skipped", String(alreadyExisted));
+    nav(`/?${params.toString()}`);
   }
 
   // Honest count: dedupe by (type, tmdb_id) so the "Add N to catalog"
@@ -514,7 +535,15 @@ export default function ImportPage({ user }: { user: User }) {
               <ul className="divide-y divide-[var(--rule)]">
                 {resolved.map((r) => {
                   const p = picks[r.raw] ?? null;
-                  const inCatalog = p ? existingIds.has(p.hit.id) : false;
+                  // Prefer server tag for the originally-resolved hit; for
+                  // anything the user switches to via the dropdown, fall
+                  // back to the client-side ids set.
+                  const onOriginalHit =
+                    p && r.best && p.hit.id === r.best.id;
+                  const inCatalog = p
+                    ? (onOriginalHit && r.in_catalog) ||
+                      existingIds.has(p.hit.id)
+                    : false;
                   return (
                     <ResolvedRow
                       key={r.raw}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import type { User, WatchlistItem } from "@cinemood/shared";
 import { api } from "@/lib/api";
 import { useMotionConfig } from "@/lib/motion";
@@ -43,6 +44,36 @@ export default function HomePage({ user }: { user: User }) {
   // Tracks the most-recently removed item so the toast can offer Undo.
   // Only the latest removal is undoable; sequential removes overwrite.
   const [removedItem, setRemovedItem] = useState<WatchlistItem | null>(null);
+  // Post-import message bubbled up from /import via ?imported=N&skipped=M.
+  // Cleared on dismiss or once the user has seen it.
+  const [importToast, setImportToast] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const imported = Number(searchParams.get("imported") ?? "0") || 0;
+    const skipped = Number(searchParams.get("skipped") ?? "0") || 0;
+    if (imported === 0 && skipped === 0) return;
+    const parts: string[] = [];
+    if (imported > 0) {
+      parts.push(`Added ${imported} title${imported === 1 ? "" : "s"}`);
+    }
+    if (skipped > 0) {
+      parts.push(
+        `${skipped} already in your catalog`,
+      );
+    }
+    setImportToast(parts.join(" · "));
+    // Strip the query params so a refresh doesn't replay the toast.
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("imported");
+        next.delete("skipped");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   useKeyboardShortcuts({
     onOpenPalette: () => setPaletteOpen((o) => !o),
@@ -247,6 +278,13 @@ export default function HomePage({ user }: { user: User }) {
         message={removedItem ? `Removed "${removedItem.title.title}"` : ""}
         action={{ label: "Undo", onClick: handleUndoRemove }}
         onDismiss={() => setRemovedItem(null)}
+      />
+
+      <Toast
+        open={!!importToast}
+        message={importToast ?? ""}
+        onDismiss={() => setImportToast(null)}
+        duration={6000}
       />
     </div>
   );
