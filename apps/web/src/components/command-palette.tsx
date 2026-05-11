@@ -208,23 +208,33 @@ export function CommandPalette({
           value={highlightValue}
           onValueChange={setHighlightValue}
         >
-          <div className="flex items-center gap-3 border-b border-[var(--rule)] px-5 py-4">
-            <span className="font-mono text-[14px] text-[var(--accent)]">⌘</span>
+          <div className="flex items-center gap-3 border-b border-[var(--rule)] px-5 py-3.5">
+            <span
+              aria-hidden
+              className="font-mono text-[13px] text-[var(--paper-faint)]"
+            >
+              ⌘
+            </span>
             <Command.Input
               value={q}
               onValueChange={setQ}
               placeholder={placeholder}
               autoFocus
-              className="min-w-0 flex-1 bg-transparent text-[16px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[15.5px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] focus:outline-none"
             />
             <ModeChip mode={mode} onChange={setMode} />
           </div>
 
-          <div className="flex min-h-[260px] flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden">
           <Command.List className="max-h-[62vh] min-w-0 flex-1 overflow-y-auto px-2 py-2">
             {loading && (
-              <div className="px-3 py-6 text-center font-mono text-[11px] uppercase tracking-wider text-[var(--paper-faint)]">
-                {mode === "add" ? "Searching TMDB…" : "Parsing your query…"}
+              <div className="flex items-center gap-3 px-4 py-5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+                <span className="relative inline-block h-[2px] w-12 overflow-hidden rounded bg-[var(--paper-3)]">
+                  <span className="absolute inset-y-0 left-0 w-1/3 animate-pulse bg-[var(--accent)]" />
+                </span>
+                <span>
+                  {mode === "add" ? "Searching TMDB…" : "Parsing your query…"}
+                </span>
               </div>
             )}
 
@@ -317,22 +327,39 @@ export function CommandPalette({
             )}
 
             {!q.trim() && (
-              <div className="px-3 py-6 text-[13px] text-[var(--paper-faint)]">
-                <div className="font-label mb-2 text-[10px]">Tips</div>
-                <ul className="space-y-1.5">
-                  <li>
-                    <kbd className="font-mono text-[10px] text-[var(--ink)]">Tab</kbd>{" "}
-                    — switch between Add ↔ Find
-                  </li>
-                  <li>
-                    <kbd className="font-mono text-[10px] text-[var(--ink)]">↵</kbd>{" "}
-                    — confirm the highlighted item
-                  </li>
-                  <li>
-                    <kbd className="font-mono text-[10px] text-[var(--ink)]">Esc</kbd>{" "}
-                    — close
-                  </li>
-                </ul>
+              <div className="grid place-items-center px-6 py-10">
+                <div className="w-full max-w-[360px] text-center">
+                  <div className="font-label text-[10px] text-[var(--paper-faint)]">
+                    {mode === "add" ? "Add a title" : "Find in your watchlist"}
+                  </div>
+                  <h3
+                    className="mt-1.5 font-display-sm text-[20px] leading-tight text-[var(--ink)]"
+                    style={{ fontVariationSettings: '"opsz" 24, "wght" 700, "SOFT" 30' }}
+                  >
+                    {mode === "add"
+                      ? "Search TMDB by title."
+                      : "Ask in plain English."}
+                  </h3>
+                  <p className="mt-2 text-[12.5px] leading-snug text-[var(--paper-dim)]">
+                    {mode === "add"
+                      ? "Type a film or series name. Press ↵ to add the highlighted result."
+                      : "Try things like “dark thrillers with Jeremy Strong” or “lighter than 90 minutes”."}
+                  </p>
+                  <ul className="mt-5 inline-flex flex-col items-start gap-2 text-[12px] text-[var(--paper-dim)]">
+                    <li className="flex items-center gap-2">
+                      <Kbd>Tab</Kbd>
+                      <span>switch between Add ↔ Find</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Kbd>↵</Kbd>
+                      <span>confirm the highlighted row</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Kbd>Esc</Kbd>
+                      <span>close the palette</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
             )}
           </Command.List>
@@ -347,10 +374,12 @@ export function CommandPalette({
           )}
           </div>
 
-          <div className="border-t border-[var(--rule)] px-5 py-2 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
-            <span>{mode === "add" ? "Add" : "Find"}</span>
-            <span className="mx-2">·</span>
-            <span>Tab to switch · Esc to close</span>
+          <div className="flex items-center justify-between border-t border-[var(--rule)] px-5 py-2 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
+            <span>{mode === "add" ? "Add a title" : "Find in your watchlist"}</span>
+            <span className="flex items-center gap-1.5">
+              <Kbd>Esc</Kbd>
+              <span>to close</span>
+            </span>
           </div>
         </Command>
       </AnimatedDialogContent>
@@ -365,25 +394,51 @@ function ModeChip({
   mode: Mode;
   onChange: (m: Mode) => void;
 }) {
+  // Segmented two-tab toggle. Single visual structure: text + accent
+  // underline for the active mode, muted text for the inactive one. Was
+  // previously two competing pill styles (solid block vs text-on-fill)
+  // that read as separate buttons rather than a unified toggle.
   return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--rule)] bg-[var(--paper-3)] p-0.5">
-      {(["add", "find"] as Mode[]).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          aria-pressed={mode === m}
-          className={cn(
-            "rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider transition",
-            mode === m
-              ? "bg-[var(--ink)] text-[var(--paper)]"
-              : "text-[var(--paper-dim)] hover:text-[var(--ink)]",
-          )}
-        >
-          {m === "add" ? "Add" : "Find"}
-        </button>
-      ))}
+    <div
+      role="tablist"
+      aria-label="Palette mode"
+      className="flex shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wider"
+    >
+      {(["add", "find"] as Mode[]).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(m)}
+            className={cn(
+              "relative px-1.5 py-1 transition",
+              active
+                ? "text-[var(--ink)]"
+                : "text-[var(--paper-faint)] hover:text-[var(--paper-dim)]",
+            )}
+          >
+            {m === "add" ? "Add" : "Find"}
+            {active && (
+              <span
+                aria-hidden
+                className="absolute inset-x-1 -bottom-0.5 h-[1.5px] bg-[var(--accent)]"
+              />
+            )}
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="rounded border border-[var(--rule)] bg-[var(--paper-3)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-dim)]">
+      {children}
+    </kbd>
   );
 }
 
