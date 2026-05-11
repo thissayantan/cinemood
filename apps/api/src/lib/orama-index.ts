@@ -1,7 +1,7 @@
 import { create, insert, remove, search } from "@orama/orama";
 import type { ParsedQuery, Title, TitleType } from "@cinemood/shared";
 import type { Env } from "../env";
-import { listWatchlist } from "../db/watchlist";
+import { listWatchlist, listWatchlistTitleIds } from "../db/watchlist";
 import {
   buildIndexText,
   embedText,
@@ -189,6 +189,7 @@ export async function loadIndex(
 
   const obj = await env.INDEX_BUCKET.get(r2Key(userId));
   if (!obj) {
+    console.log("[orama] no snapshot, backfilling from watchlist", userId);
     const built = await backfillFromWatchlist(env, userId);
     CACHE.set(userId, built);
     return built;
@@ -204,6 +205,23 @@ export async function loadIndex(
   const cached = await buildFromDocs(docs);
   CACHE.set(userId, cached);
   return cached;
+}
+
+/** Force a full rebuild of the Orama index from the user's D1 watchlist.
+ *  Used by the explicit /api/search/reindex endpoint, and as the
+ *  self-healing fallback when search detects drift between the index
+ *  and D1. */
+export async function rebuildIndex(
+  env: Env,
+  userId: string,
+): Promise<{ docs: number }> {
+  return serializePerUser(userId, async () => {
+    console.log("[orama] rebuild start", userId);
+    const built = await backfillFromWatchlist(env, userId);
+    CACHE.set(userId, built);
+    console.log("[orama] rebuild done", userId, built.docs.size);
+    return { docs: built.docs.size };
+  });
 }
 
 /** Batched index add: embed N titles in one Workers AI call, insert all,
@@ -306,7 +324,26 @@ export async function searchIndex(
   userId: string,
   parsed: ParsedQuery,
 ): Promise<IndexHit[]> {
-  const cached = await loadIndex(env, userId);
+  let cached = await loadIndex(env, userId);
+  // Self-heal: if the snapshot is empty (or stale enough to have fewer
+  // docs than the D1 watchlist), rebuild from D1 before searching. This
+  // catches the common case where `waitUntil(addTitlesToIndex)` after an
+  // import aborted silently (subrequest cap, KV cap, isolate eviction)
+  // leaving D1 ahead of the R2 snapshot, which would otherwise present
+  // as "no matches" for every query.
+  const watchlistIds = await listWatchlistTitleIds(env.DB, userId);
+  if (watchlistIds.length > 0 && cached.docs.size < watchlistIds.length) {
+    console.log(
+      "[orama] index drift detected — rebuilding",
+      userId,
+      "index_size=",
+      cached.docs.size,
+      "watchlist_size=",
+      watchlistIds.length,
+    );
+    await rebuildIndex(env, userId);
+    cached = await loadIndex(env, userId);
+  }
   if (cached.docs.size === 0) return [];
 
   const term = parsed.semantic_query.trim();

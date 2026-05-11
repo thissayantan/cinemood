@@ -4,7 +4,7 @@ import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
 import { resolveLlmConfig } from "../llm/resolve";
 import { createLlmProvider } from "../llm";
-import { searchIndex } from "../lib/orama-index";
+import { rebuildIndex, searchIndex } from "../lib/orama-index";
 import { listWatchlist } from "../db/watchlist";
 import type { ParsedQuery, WatchlistItem } from "@cinemood/shared";
 
@@ -90,6 +90,32 @@ app.post("/api/search", async (c) => {
       results: ranked,
     },
   });
+});
+
+app.post("/api/search/reindex", async (c) => {
+  const user = c.get("user");
+  if (!user) {
+    return c.json(
+      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
+      401,
+    );
+  }
+  try {
+    const result = await rebuildIndex(c.env, user.id);
+    return c.json({ ok: true, data: result });
+  } catch (err) {
+    console.error("reindex failed", err);
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "INTERNAL",
+          message: err instanceof Error ? err.message : "Reindex failed",
+        },
+      },
+      500,
+    );
+  }
 });
 
 export default app;

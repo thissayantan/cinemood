@@ -78,14 +78,54 @@ html.dark body::before {
   mix-blend-mode: screen;
 }
 
-/* Focus ring system — visible-focus only, always coloured by accent. */
-*:focus-visible {
+/* Focus ring system — visible-focus only, always coloured by accent.
+ *
+ * Scoped to interactive widgets where a halo aids discovery (buttons,
+ * links, tabs, segmented controls, summary disclosure, checkbox/radio).
+ * Text inputs and textareas are excluded — the typing caret is already a
+ * focus indicator and a halo on a long, unrounded input box reads as an
+ * error border. They get an accent caret-color and a subtle inline state
+ * instead. */
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="option"]:focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible,
+input[type="file"]:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--paper),
     0 0 0 4px var(--accent),
     0 0 0 10px var(--accent-glow);
   border-radius: inherit;
+}
+
+/* Text input focus: accent caret, no halo. The cursor is the affordance.
+ * Inline focus states (e.g. focus:border-[var(--accent)] on the import
+ * textarea) still apply where the component opts in. */
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="password"],
+input[type="url"],
+input[type="number"],
+input:not([type]),
+textarea {
+  caret-color: var(--accent);
+}
+input[type="text"]:focus-visible,
+input[type="search"]:focus-visible,
+input[type="email"]:focus-visible,
+input[type="password"]:focus-visible,
+input[type="url"]:focus-visible,
+input[type="number"]:focus-visible,
+input:not([type]):focus-visible,
+textarea:focus-visible {
+  outline: none;
 }
 
 /* When the user prefers reduced motion, kill all CSS animation/transition. */
