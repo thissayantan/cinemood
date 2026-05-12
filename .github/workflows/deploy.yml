@@ -25,6 +25,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Node 22+ is required by wrangler 4. The runner defaults to
+      # Node 20; without this step, `cloudflare/wrangler-action@v3`
+      # falls back to installing wrangler 3.90.0, which doesn't
+      # understand the `run_worker_first` field under [env.production.assets]
+      # in apps/api/wrangler.toml and silently ignores it — the deploy
+      # would succeed but the routing precedence (/api/* + /auth/*
+      # hit the Worker first, everything else served as static assets)
+      # would break.
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -57,6 +70,10 @@ jobs:
           workingDirectory: apps/api
           command: deploy --env production
           packageManager: bun
+          # Pin wrangler 4. wrangler 3 doesn't recognise the
+          # `run_worker_first` field under [env.production.assets] and
+          # silently drops it — would break /api/* + /auth/* routing.
+          wranglerVersion: "4.90.0"
 
       # Post-deploy smoke. /api/health is a free endpoint that returns
       # `{ ok: true, data: { status: "up", ts } }`. Fail the run if it's
