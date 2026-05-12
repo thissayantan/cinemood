@@ -1,4 +1,4 @@
-name = "cinemood-api"
+name = "cinemood"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
@@ -47,7 +47,7 @@ binding = "AI"
 # intercepts before origin resolution). The dead Pages project has
 # since been deleted; this comment stays for the lesson.
 [env.production]
-name = "cinemood-api"
+name = "cinemood"
 workers_dev = false
 
 [env.production.vars]
