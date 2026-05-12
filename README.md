@@ -9,6 +9,7 @@ A personal movie & series watchlist with natural-language search, built on Cloud
 **[Live demo · cinemood.sayantan.cloud](https://cinemood.sayantan.cloud)**
 
 [![Live](https://img.shields.io/badge/live_demo-cinemood.sayantan.cloud-A8221C?style=flat-square)](https://cinemood.sayantan.cloud)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/thissayantan/cinemood/deploy.yml?branch=main&style=flat-square&label=deploy)](https://github.com/thissayantan/cinemood/actions/workflows/deploy.yml)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
