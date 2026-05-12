@@ -14,9 +14,17 @@ import {
   readCookie,
 } from "../lib/session";
 import { revokeAllSessions, upsertUser } from "../db/queries";
+import { checkSetupStatus } from "../lib/setup-status";
 
 const STATE_COOKIE = "cm_oauth_state";
 const STATE_TTL_SECONDS = 600;
+
+// Hard-coded list of setup_error codes the landing page knows how to
+// render. Keep the names short, snake_case, and stable — they ship in
+// query strings and may be bookmarked by a confused fork operator.
+function googleOauthConfigured(env: Env): boolean {
+  return checkSetupStatus(env).secrets.google_oauth;
+}
 
 function webUrl(env: Env, path: string): string {
   const origin = env.WEB_ORIGIN?.replace(/\/$/, "") ?? "";
@@ -38,6 +46,15 @@ function stateCookie(value: string, maxAge: number, isProd: boolean): string {
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 app.get("/auth/google", async (c) => {
+  // If a fresh fork hits this before the operator has wired Google
+  // OAuth, bounce back to the landing page with a structured error
+  // instead of letting Google show "redirect_uri_mismatch" on its own
+  // domain — that's a much worse cold-start UX.
+  if (!googleOauthConfigured(c.env)) {
+    return c.redirect(
+      webUrl(c.env, "/?setup_error=google_oauth_not_configured"),
+    );
+  }
   const state = newSessionId();
   const isProd = c.env.ENVIRONMENT === "production";
   c.header("Set-Cookie", stateCookie(state, STATE_TTL_SECONDS, isProd));
@@ -45,6 +62,14 @@ app.get("/auth/google", async (c) => {
 });
 
 app.get("/auth/google/callback", async (c) => {
+  // Defence-in-depth: also catch the missing-secrets case here in the
+  // event Google somehow round-trips back without /auth/google having
+  // run (manual URL, bookmarked redirect, etc.).
+  if (!googleOauthConfigured(c.env)) {
+    return c.redirect(
+      webUrl(c.env, "/?setup_error=google_oauth_not_configured"),
+    );
+  }
   const url = new URL(c.req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

@@ -22,6 +22,7 @@ function Root() {
   const [params] = useSearchParams();
   const authError = params.get("auth_error");
   const authDetail = params.get("detail");
+  const setupError = params.get("setup_error");
   const fullError = authError
     ? authDetail
       ? `${authError} — ${authDetail}`
@@ -30,7 +31,7 @@ function Root() {
 
   if (state.status === "loading") return <Loading />;
   if (state.status === "ok") return <HomePage user={state.user} />;
-  return <LandingPage authError={fullError} />;
+  return <LandingPage authError={fullError} setupError={setupError} />;
 }
 
 function AuthedShell({

@@ -15,6 +15,13 @@ export async function fetchOmdbRating(
   imdbId: string,
 ): Promise<number | null> {
   if (!imdbId) return null;
+  // OMDB is an optional dependency — used only for the IMDb-rating
+  // fallback shown alongside the TMDB rating. On a fresh fork without
+  // an OMDB key, skip the upstream call entirely (returning null) so
+  // title detail fetches still succeed; the title card just shows the
+  // TMDB rating alone. Logging an upstream "Bad Request" for every
+  // detail load would be noisy and misleading.
+  if (!apiKey || !apiKey.trim()) return null;
   const cacheKey = `omdb:imdb:${imdbId}`;
   const cached = await cache.get(cacheKey);
   if (cached !== null) {

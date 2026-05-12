@@ -13,6 +13,23 @@ app.get("/api/search/tmdb", async (c) => {
       401,
     );
   }
+  // Fresh-fork guard: without a TMDB key the search would 502 with an
+  // upstream "api_key invalid" surfaced as "TMDB search failed". Return
+  // a distinct 503 so the frontend can show "Configure TMDB to enable
+  // search" instead of a generic upstream error toast.
+  if (!c.env.TMDB_API_KEY || !c.env.TMDB_API_KEY.trim()) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "UPSTREAM_NOT_CONFIGURED",
+          message:
+            "TMDB API key is not configured on this deployment. Set TMDB_API_KEY via wrangler secret put.",
+        },
+      },
+      503,
+    );
+  }
   const q = c.req.query("q") ?? "";
   if (!q.trim()) return c.json({ ok: true, data: [] });
 

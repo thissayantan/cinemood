@@ -1,11 +1,27 @@
 import { motion } from "framer-motion";
 import { useMotionConfig } from "@/lib/motion";
 import { RouteTitle } from "@/components/route-title";
+import {
+  SETUP_SECRET_LABELS,
+  useSetupStatus,
+  type SetupStatus,
+} from "@/lib/use-setup-status";
 
-export default function LandingPage({ authError }: { authError: string | null }) {
+export default function LandingPage({
+  authError,
+  setupError,
+}: {
+  authError: string | null;
+  setupError: string | null;
+}) {
   const m = useMotionConfig();
   const fadeUpInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
   const entryTransition = m.reduced ? { duration: 0 } : m.springEntry;
+  const setup = useSetupStatus();
+  const showSetupPanel =
+    (setup.status === "ok" && !setup.status_data.ready) || setupError !== null;
+  const setupData: SetupStatus | null =
+    setup.status === "ok" ? setup.status_data : null;
   return (
     <div className="relative min-h-screen overflow-hidden bg-[var(--paper)] text-[var(--ink)]">
       <RouteTitle />
@@ -41,18 +57,25 @@ export default function LandingPage({ authError }: { authError: string | null })
             <br />
             Find it back by mood, not by title.
           </p>
-          <motion.a
-            initial={fadeUpInitial}
-            animate={{ opacity: 1, y: 0 }}
-            transition={
-              m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.08 }
-            }
-            href="/auth/google"
-            className="mt-10 inline-flex items-center gap-3 rounded-full border border-[var(--ink)] bg-[var(--ink)] px-5 py-2.5 text-[13.5px] font-medium text-[var(--paper)] transition hover:opacity-90"
-          >
-            <GoogleGlyph />
-            Sign in with Google
-          </motion.a>
+          {showSetupPanel ? (
+            <SetupIncompletePanel
+              setupData={setupData}
+              setupError={setupError}
+            />
+          ) : (
+            <motion.a
+              initial={fadeUpInitial}
+              animate={{ opacity: 1, y: 0 }}
+              transition={
+                m.reduced ? { duration: 0 } : { ...m.springEntry, delay: 0.08 }
+              }
+              href="/auth/google"
+              className="mt-10 inline-flex items-center gap-3 rounded-full border border-[var(--ink)] bg-[var(--ink)] px-5 py-2.5 text-[13.5px] font-medium text-[var(--paper)] transition hover:opacity-90"
+            >
+              <GoogleGlyph />
+              Sign in with Google
+            </motion.a>
+          )}
           {authError && (
             <p
               className="mt-6 inline-block rounded-md border border-[var(--accent)] bg-[var(--accent)]/10 px-3 py-2 text-[11.5px] text-[var(--accent)]"
@@ -158,6 +181,84 @@ function FilmstripRail({ position }: { position: "top" | "bottom" }) {
           className="h-2.5 w-3 rounded-[2px] bg-[var(--ink)] opacity-[0.035] dark:opacity-[0.07]"
         />
       ))}
+    </div>
+  );
+}
+
+/** Shown when /api/setup-status reports `ready: false`, or when an
+ *  OAuth flow bounced back with `?setup_error=...`. Renders an
+ *  actionable list of missing secrets with copy-paste-ready
+ *  `wrangler secret put` commands, so an operator who just deployed
+ *  via the Deploy-to-Cloudflare button can finish the configuration
+ *  without leaving the page.
+ *
+ *  Style: editorial-cinematic, same dotted-rule + cream/ink palette
+ *  as the rest of the landing surface. Deliberately not "alert red"
+ *  full-bleed — this is an actionable to-do, not an error. */
+function SetupIncompletePanel({
+  setupData,
+  setupError,
+}: {
+  setupData: SetupStatus | null;
+  setupError: string | null;
+}) {
+  const missing = setupData?.missing ?? [];
+  return (
+    <div
+      role="status"
+      className="mt-10 mx-auto max-w-md rounded-lg border border-[var(--paper-faint)] bg-[var(--paper)]/60 p-5 text-left backdrop-blur-sm"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)]"
+        />
+        <h2 className="font-mono text-[10.5px] uppercase tracking-[0.22em] text-[var(--paper-dim)]">
+          Setup incomplete
+        </h2>
+      </div>
+      {setupError === "google_oauth_not_configured" && (
+        <p className="mt-3 text-[12.5px] leading-relaxed text-[var(--paper-dim)]">
+          Google OAuth isn't configured on this deployment yet, so sign-in
+          can't run. Finish the setup below and reload.
+        </p>
+      )}
+      {missing.length > 0 ? (
+        <>
+          <p className="mt-3 text-[12.5px] leading-relaxed text-[var(--paper-dim)]">
+            This Cinemood instance is missing {missing.length}{" "}
+            {missing.length === 1 ? "secret" : "secrets"}. Set them via
+            <code className="mx-1 rounded bg-[var(--ink)]/10 px-1 py-0.5 font-mono text-[11px]">
+              wrangler secret put
+            </code>
+            from <code className="font-mono text-[11px]">apps/api/</code>:
+          </p>
+          <ul className="mt-3 space-y-2 text-[12px] text-[var(--ink)]">
+            {missing.map((name) => {
+              const label = SETUP_SECRET_LABELS[name];
+              return (
+                <li key={name} className="leading-snug">
+                  <strong className="font-medium text-[var(--ink)]">
+                    {label.name}
+                  </strong>
+                  <span className="ml-2 text-[var(--paper-dim)]">
+                    — {label.hint}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : (
+        <p className="mt-3 text-[12.5px] leading-relaxed text-[var(--paper-dim)]">
+          See <code className="font-mono text-[11px]">README.md</code> →
+          Self-hosting setup for the full configuration list.
+        </p>
+      )}
+      <p className="mt-4 text-[11px] text-[var(--paper-faint)]">
+        Setup status is cached for a moment after deploy — reload after
+        finishing the secret writes.
+      </p>
     </div>
   );
 }

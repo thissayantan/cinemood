@@ -38,6 +38,25 @@ app.get("/api/title/:type/:id", async (c) => {
     return c.json({ ok: true, data: cached });
   }
 
+  // Fresh-fork guard: every uncached title detail hits TMDB. Without a
+  // TMDB key, raise a distinct 503 so the frontend can render "Title
+  // metadata unavailable — TMDB not configured" rather than a generic
+  // upstream failure. OMDB is a soft dependency (IMDb rating fallback),
+  // so its absence doesn't block detail fetches — just yields rating: null.
+  if (!c.env.TMDB_API_KEY || !c.env.TMDB_API_KEY.trim()) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "UPSTREAM_NOT_CONFIGURED",
+          message:
+            "TMDB API key is not configured on this deployment. Set TMDB_API_KEY via wrangler secret put.",
+        },
+      },
+      503,
+    );
+  }
+
   try {
     const detail = await fetchTmdbDetail(c.env.TMDB_API_KEY, c.env.CACHE, type, id);
     const imdbRating = detail.imdb_id
