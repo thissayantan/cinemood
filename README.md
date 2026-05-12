@@ -13,7 +13,8 @@ A personal movie & series watchlist with natural-language search, built on Cloud
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1A1814?style=flat-square)](LICENSE)
-![Last commit](https://img.shields.io/github/last-commit/sayantand/cinemood?style=flat-square&color=1A1814)
+[![GitHub stars](https://img.shields.io/github/stars/thissayantan/cinemood?style=flat-square&color=1A1814)](https://github.com/thissayantan/cinemood/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/thissayantan/cinemood?style=flat-square&color=1A1814)](https://github.com/thissayantan/cinemood/commits/main)
 
 </div>
 
