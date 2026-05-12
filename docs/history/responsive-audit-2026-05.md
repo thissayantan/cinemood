@@ -1,5 +1,13 @@
 # Responsive audit — mobile + tablet
 
+> **Archived 2026-05-12.** This is the analysis that drove the
+> mobile / iPad responsive fix; the fix itself shipped in commits
+> `24ec03d` and `9983574`. Kept for context, not as current truth —
+> consult the live code for present behaviour. The before/after
+> screenshot folder (`docs/responsive-shots/`) referenced in the
+> original text was deleted on archival; the textual analysis is the
+> load-bearing part of this doc.
+
 Captured 2026-05-12 via Playwright MCP against the live production site
 `https://cinemood.sayantan.cloud/` with the maintainer's signed-in
 session. Three viewports per surface:
@@ -7,10 +15,6 @@ session. Three viewports per surface:
 - **375×812** — iPhone (smallest mainstream)
 - **768×1024** — iPad portrait
 - **1024×1366** — iPad landscape
-
-The audit shots live in [`docs/responsive-shots/`](responsive-shots/),
-prefixed `before-…` (pre-fix) and `after-…` (post-fix). They are not
-referenced anywhere outside this doc; they're an archive of the work.
 
 ## What was broken
 
@@ -134,8 +138,9 @@ The `bun run dev` flow on a 375 viewport in Chromium reproduces the
 before/after states. With the maintainer's signed-in session, navigate
 to the live `https://cinemood.sayantan.cloud/`, then resize via
 DevTools' device toolbar (Ctrl+Shift+M, set width to 375). Toggle to
-dark theme. Before/after shots in `docs/responsive-shots/` document
-the visual delta.
+dark theme. (The original `docs/responsive-shots/` before/after
+capture folder has since been deleted — see the archive header
+above.)
 
 ## Updates to `docs/local-smoke.md`
 

@@ -1,5 +1,9 @@
 # Simplification report
 
+> **Archived 2026-05.** Record of the six Code Simplifier passes
+> against the Cinemood codebase. Kept for context — the deliberate
+> no-touch list and the per-batch reasoning informed the Learned
+> Rules in CLAUDE.md. Not a reference for current code state.
 
 Anthropic Code Simplifier plugin (`code-simplifier:code-simplifier`) was
 run against the Cinemood codebase in six batched passes, one batch = one
