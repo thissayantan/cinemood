@@ -75,12 +75,14 @@ function Body({
         />
       </div>
 
-      {/* Header row */}
-      <div className="relative -mt-24 flex gap-6 px-7 md:-mt-32 md:px-10">
+      {/* Header row. Mobile (<sm): smaller poster (96px) + smaller
+          padding so a long title doesn't collapse the meta column.
+          Tablet up: original 132px poster + generous padding. */}
+      <div className="relative -mt-16 flex gap-4 px-5 sm:-mt-24 sm:gap-6 sm:px-7 md:-mt-32 md:px-10">
         <div className="relative shrink-0">
           <div
-            className="overflow-hidden rounded-xl border border-[var(--rule)] bg-[var(--paper-3)] shadow-[var(--shadow-card)]"
-            style={{ width: 132, aspectRatio: "2 / 3" }}
+            className="overflow-hidden rounded-xl border border-[var(--rule)] bg-[var(--paper-3)] shadow-[var(--shadow-card)] w-[96px] sm:w-[132px]"
+            style={{ aspectRatio: "2 / 3" }}
           >
             {poster ? (
               <img src={poster} alt="" className="h-full w-full object-cover" />
@@ -93,7 +95,7 @@ function Body({
             {t.runtime ? ` · ${t.runtime}m` : ""}
           </div>
           <DialogTitle
-            className="mt-2 font-display-md text-[40px] leading-[1.05] text-[var(--ink)] md:text-[56px]"
+            className="mt-2 font-display-md text-[28px] leading-[1.05] text-[var(--ink)] sm:text-[40px] md:text-[56px]"
             style={{ fontVariationSettings: '"opsz" 72, "wght" 800, "SOFT" 20' }}
           >
             {t.title}
@@ -118,7 +120,7 @@ function Body({
       </div>
 
       {/* Action bar */}
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--rule)] px-7 py-4 md:px-10">
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--rule)] px-5 py-4 sm:px-7 md:px-10">
         <span className="font-label text-[10px] text-[var(--paper-faint)]">
           {isWatched ? "Watched" : "On your shelf"}
         </span>
@@ -154,7 +156,7 @@ function Body({
       </div>
 
       {/* Synopsis */}
-      <div className="px-7 pb-6 md:px-10">
+      <div className="px-5 pb-6 sm:px-7 md:px-10">
         <p className="max-w-[68ch] text-[16px] leading-[1.55] text-[var(--ink)]">
           {t.overview || (
             <span className="italic text-[var(--paper-dim)]">
@@ -166,7 +168,7 @@ function Body({
 
       {/* Genres */}
       {t.genres.length > 0 ? (
-        <div className="px-7 pb-5 md:px-10">
+        <div className="px-5 pb-5 sm:px-7 md:px-10">
           <div className="font-label text-[10px] text-[var(--paper-faint)]">
             Genre
           </div>
@@ -178,7 +180,7 @@ function Body({
 
       {/* Cast */}
       {t.cast.length > 0 ? (
-        <div className="px-7 pb-5 md:px-10">
+        <div className="px-5 pb-5 sm:px-7 md:px-10">
           <div className="font-label text-[10px] text-[var(--paper-faint)]">
             Cast
           </div>
@@ -199,7 +201,7 @@ function Body({
 
       {/* Providers */}
       {providersUS.length > 0 ? (
-        <div className="px-7 pb-8 md:px-10">
+        <div className="px-5 pb-8 sm:px-7 md:px-10">
           <div className="font-label text-[10px] text-[var(--paper-faint)]">
             Streaming · US
           </div>
