@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <!-- Dark-mode accent red glow, dead centre. -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#C8302A" stop-opacity="0.32"/>
+      <stop offset="45%" stop-color="#C8302A" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#C8302A" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Wordmark gradient: cream top, cream + accent tint at the bottom -->
+    <linearGradient id="wordmark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#F2EBDD"/>
+      <stop offset="45%"  stop-color="#F2EBDD"/>
+      <stop offset="100%" stop-color="#E5A695"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Near-black paper background -->
+  <rect width="1280" height="640" fill="#0A0908"/>
+
+  <!-- Atmospheric red glow -->
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <!-- Top filmstrip rail -->
+  <g fill="#F2EBDD" opacity="0.07">
+    <rect x="48"   y="48" width="20" height="14" rx="2"/>
+    <rect x="103"  y="48" width="20" height="14" rx="2"/>
+    <rect x="158"  y="48" width="20" height="14" rx="2"/>
+    <rect x="213"  y="48" width="20" height="14" rx="2"/>
+    <rect x="268"  y="48" width="20" height="14" rx="2"/>
+    <rect x="323"  y="48" width="20" height="14" rx="2"/>
+    <rect x="378"  y="48" width="20" height="14" rx="2"/>
+    <rect x="433"  y="48" width="20" height="14" rx="2"/>
+    <rect x="488"  y="48" width="20" height="14" rx="2"/>
+    <rect x="543"  y="48" width="20" height="14" rx="2"/>
+    <rect x="598"  y="48" width="20" height="14" rx="2"/>
+    <rect x="653"  y="48" width="20" height="14" rx="2"/>
+    <rect x="708"  y="48" width="20" height="14" rx="2"/>
+    <rect x="763"  y="48" width="20" height="14" rx="2"/>
+    <rect x="818"  y="48" width="20" height="14" rx="2"/>
+    <rect x="873"  y="48" width="20" height="14" rx="2"/>
+    <rect x="928"  y="48" width="20" height="14" rx="2"/>
+    <rect x="983"  y="48" width="20" height="14" rx="2"/>
+    <rect x="1038" y="48" width="20" height="14" rx="2"/>
+    <rect x="1093" y="48" width="20" height="14" rx="2"/>
+    <rect x="1148" y="48" width="20" height="14" rx="2"/>
+    <rect x="1212" y="48" width="20" height="14" rx="2"/>
+  </g>
+
+  <!-- Bottom filmstrip rail -->
+  <g fill="#F2EBDD" opacity="0.07">
+    <rect x="48"   y="578" width="20" height="14" rx="2"/>
+    <rect x="103"  y="578" width="20" height="14" rx="2"/>
+    <rect x="158"  y="578" width="20" height="14" rx="2"/>
+    <rect x="213"  y="578" width="20" height="14" rx="2"/>
+    <rect x="268"  y="578" width="20" height="14" rx="2"/>
+    <rect x="323"  y="578" width="20" height="14" rx="2"/>
+    <rect x="378"  y="578" width="20" height="14" rx="2"/>
+    <rect x="433"  y="578" width="20" height="14" rx="2"/>
+    <rect x="488"  y="578" width="20" height="14" rx="2"/>
+    <rect x="543"  y="578" width="20" height="14" rx="2"/>
+    <rect x="598"  y="578" width="20" height="14" rx="2"/>
+    <rect x="653"  y="578" width="20" height="14" rx="2"/>
+    <rect x="708"  y="578" width="20" height="14" rx="2"/>
+    <rect x="763"  y="578" width="20" height="14" rx="2"/>
+    <rect x="818"  y="578" width="20" height="14" rx="2"/>
+    <rect x="873"  y="578" width="20" height="14" rx="2"/>
+    <rect x="928"  y="578" width="20" height="14" rx="2"/>
+    <rect x="983"  y="578" width="20" height="14" rx="2"/>
+    <rect x="1038" y="578" width="20" height="14" rx="2"/>
+    <rect x="1093" y="578" width="20" height="14" rx="2"/>
+    <rect x="1148" y="578" width="20" height="14" rx="2"/>
+    <rect x="1212" y="578" width="20" height="14" rx="2"/>
+  </g>
+
+  <!-- Cinemood wordmark, centred -->
+  <text x="640" y="310"
+        font-family="DejaVu Serif, Georgia, 'Times New Roman', serif"
+        font-weight="800"
+        font-size="180"
+        text-anchor="middle"
+        fill="url(#wordmark)"
+        letter-spacing="-2">Cinemood</text>
+
+  <!-- Tagline -->
+  <text x="640" y="385"
+        font-family="DejaVu Serif, Georgia, 'Times New Roman', serif"
+        font-weight="400"
+        font-style="italic"
+        font-size="30"
+        text-anchor="middle"
+        fill="#F2EBDD"
+        opacity="0.75">Save what you mean to watch.</text>
+  <text x="640" y="425"
+        font-family="DejaVu Serif, Georgia, 'Times New Roman', serif"
+        font-weight="400"
+        font-style="italic"
+        font-size="30"
+        text-anchor="middle"
+        fill="#F2EBDD"
+        opacity="0.75">Find it back by mood, not by title.</text>
+
+  <!-- Brand foot mark with hairlines -->
+  <line x1="500" y1="510" x2="560" y2="510" stroke="#F2EBDD" stroke-opacity="0.40" stroke-width="1"/>
+  <text x="640" y="514"
+        font-family="JetBrains Mono, 'Courier New', monospace"
+        font-weight="400"
+        font-size="14"
+        text-anchor="middle"
+        fill="#F2EBDD"
+        opacity="0.50"
+        letter-spacing="3">MOOD · CATALOG · CINEMA</text>
+  <line x1="720" y1="510" x2="780" y2="510" stroke="#F2EBDD" stroke-opacity="0.40" stroke-width="1"/>
+</svg>
