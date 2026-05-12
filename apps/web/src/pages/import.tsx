@@ -1000,6 +1000,61 @@ function CandidatePicker({
   );
 }
 
+/** Poster (or "no poster" placeholder) shared by both preview surfaces.
+ *  Cover-fits within whatever 2:3 box the parent provides. */
+function PreviewPoster({ src }: { src: string | null }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="h-full w-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  return (
+    <div className="grid h-full place-items-center font-label text-[10px] text-[var(--paper-faint)]">
+      no poster
+    </div>
+  );
+}
+
+/** Provider chip row shared by both preview surfaces. Each chip is the
+ *  TMDB logo (or initial) plus the provider name. */
+function ProviderChips({
+  providers,
+}: {
+  providers: ReturnType<typeof selectProviders>;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {providers.map((p) => (
+        <span
+          key={p.name}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--paper-dim)]"
+          title={p.name}
+        >
+          {p.logo ? (
+            <img
+              src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+              alt=""
+              className="h-4 w-4 rounded-[3px] object-cover"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+          ) : (
+            <span className="grid h-4 w-4 place-items-center rounded-[3px] bg-[var(--paper-3)] font-mono text-[8px] text-[var(--paper-faint)]">
+              {p.name.slice(0, 1)}
+            </span>
+          )}
+          <span className="truncate">{p.name}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function PickPreview({
   pick,
   raw,
@@ -1026,18 +1081,7 @@ function PickPreview({
         className="mx-auto overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
         style={{ width: "100%", maxWidth: 200, aspectRatio: "2 / 3" }}
       >
-        {poster ? (
-          <img
-            src={poster}
-            alt=""
-            className="h-full w-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <div className="grid h-full place-items-center font-label text-[10px] text-[var(--paper-faint)]">
-            no poster
-          </div>
-        )}
+        <PreviewPoster src={poster} />
       </div>
       <div className="mt-4">
         <h3
@@ -1081,29 +1125,8 @@ function PickPreview({
             <div className="font-label text-[9px] text-[var(--paper-faint)]">
               Stream on
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {providers.map((p) => (
-                <span
-                  key={p.name}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--paper-dim)]"
-                  title={p.name}
-                >
-                  {p.logo ? (
-                    <img
-                      src={`https://image.tmdb.org/t/p/w45${p.logo}`}
-                      alt=""
-                      className="h-4 w-4 rounded-[3px] object-cover"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="grid h-4 w-4 place-items-center rounded-[3px] bg-[var(--paper-3)] font-mono text-[8px] text-[var(--paper-faint)]">
-                      {p.name.slice(0, 1)}
-                    </span>
-                  )}
-                  <span className="truncate">{p.name}</span>
-                </span>
-              ))}
+            <div className="mt-1.5">
+              <ProviderChips providers={providers} />
             </div>
           </div>
         )}
@@ -1160,18 +1183,7 @@ function PickPreviewExpanded({
           className="overflow-hidden rounded-md border border-[var(--rule)] bg-[var(--paper-3)]"
           style={{ aspectRatio: "2 / 3" }}
         >
-          {poster ? (
-            <img
-              src={poster}
-              alt=""
-              className="h-full w-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="grid h-full place-items-center font-label text-[10px] text-[var(--paper-faint)]">
-              no poster
-            </div>
-          )}
+          <PreviewPoster src={poster} />
         </div>
 
         <div className="min-w-0">
@@ -1263,29 +1275,8 @@ function PickPreviewExpanded({
           <div className="font-label text-[9px] text-[var(--paper-faint)]">
             Stream on
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {providers.map((p) => (
-              <span
-                key={p.name}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-1.5 py-0.5 text-[10.5px] text-[var(--paper-dim)]"
-                title={p.name}
-              >
-                {p.logo ? (
-                  <img
-                    src={`https://image.tmdb.org/t/p/w45${p.logo}`}
-                    alt=""
-                    className="h-4 w-4 rounded-[3px] object-cover"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                  />
-                ) : (
-                  <span className="grid h-4 w-4 place-items-center rounded-[3px] bg-[var(--paper-3)] font-mono text-[8px] text-[var(--paper-faint)]">
-                    {p.name.slice(0, 1)}
-                  </span>
-                )}
-                <span className="truncate">{p.name}</span>
-              </span>
-            ))}
+          <div className="mt-2">
+            <ProviderChips providers={providers} />
           </div>
         </div>
       )}

@@ -77,6 +77,14 @@ async function readJsonBody(c: Ctx): Promise<unknown | Response> {
   }
 }
 
+/** Parse the `:id` path param as a positive integer; return a 400 Response
+ *  when it's missing or malformed. Two call sites (DELETE/PATCH). */
+function parseIdParam(c: Ctx): number | Response {
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id <= 0) return validationError(c, "Bad id");
+  return id;
+}
+
 app.get("/api/watchlist", async (c) => {
   const user = authGuard(c);
   if (user instanceof Response) return user;
@@ -156,8 +164,8 @@ app.post("/api/watchlist", async (c) => {
 app.delete("/api/watchlist/:id", async (c) => {
   const user = authGuard(c);
   if (user instanceof Response) return user;
-  const id = Number(c.req.param("id"));
-  if (!Number.isInteger(id) || id <= 0) return validationError(c, "Bad id");
+  const id = parseIdParam(c);
+  if (id instanceof Response) return id;
   await removeFromWatchlist(c.env.DB, user.id, id);
   c.executionCtx.waitUntil(
     removeTitleFromIndex(c.env, user.id, id).catch((err) => {
@@ -170,8 +178,8 @@ app.delete("/api/watchlist/:id", async (c) => {
 app.patch("/api/watchlist/:id", async (c) => {
   const user = authGuard(c);
   if (user instanceof Response) return user;
-  const id = Number(c.req.param("id"));
-  if (!Number.isInteger(id) || id <= 0) return validationError(c, "Bad id");
+  const id = parseIdParam(c);
+  if (id instanceof Response) return id;
   const body = await readJsonBody(c);
   if (body instanceof Response) return body;
   const parsed = PatchSchema.safeParse(body);

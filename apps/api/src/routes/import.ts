@@ -180,16 +180,14 @@ app.post("/api/import/commit", async (c) => {
 
   // (3) Batched D1 writes: title upserts in one round-trip, watchlist
   //     inserts in another (catalog_no is pre-allocated in addManyToWatchlist).
+  //     Then re-read the freshly-upserted rows so the index step gets
+  //     fully hydrated Title objects (cast/keywords/providers parsed).
   if (fetched.length > 0) {
     const stmts = fetched.map((f) =>
       upsertTitleStmt(c.env.DB, f.detail, f.imdbRating),
     );
     await c.env.DB.batch(stmts);
-  }
 
-  // Re-read the freshly-upserted rows so the index step gets fully
-  // hydrated Title objects (cast/keywords/providers parsed).
-  if (fetched.length > 0) {
     const fresh = await getTitlesById(
       c.env.DB,
       fetched.map((f) => f.item.tmdb_id),

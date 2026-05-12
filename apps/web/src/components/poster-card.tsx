@@ -60,16 +60,24 @@ export function PosterCard({
     ? { duration: 0 }
     : { duration: m.durSlow, ease: m.easeOutQuint };
 
+  // Pointer/focus -> hovered binding, gated on `hasHover` so touch devices
+  // don't flash the overlay during the tap → open-dialog handoff.
+  const hoverHandlers = hasHover
+    ? {
+        onMouseEnter: () => setHovered(true),
+        onMouseLeave: () => setHovered(false),
+        onFocus: () => setHovered(true),
+        onBlur: () => setHovered(false),
+      }
+    : {};
+
   return (
     <motion.article
       initial={articleInitial}
       animate={{ opacity: 1, y: 0 }}
       transition={articleTransition}
       className="group relative"
-      onMouseEnter={hasHover ? () => setHovered(true) : undefined}
-      onMouseLeave={hasHover ? () => setHovered(false) : undefined}
-      onFocus={hasHover ? () => setHovered(true) : undefined}
-      onBlur={hasHover ? () => setHovered(false) : undefined}
+      {...hoverHandlers}
     >
       <motion.button
         type="button"

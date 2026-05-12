@@ -17,6 +17,21 @@ function authError(c: Ctx) {
   );
 }
 
+function validationError(c: Ctx, message: string) {
+  return c.json(
+    { ok: false, error: { code: "VALIDATION", message } },
+    400,
+  );
+}
+
+async function readJsonBody(c: Ctx): Promise<unknown | Response> {
+  try {
+    return await c.req.json();
+  } catch {
+    return validationError(c, "Invalid JSON");
+  }
+}
+
 const BodySchema = z.object({ query: z.string().min(1).max(500) });
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
@@ -25,25 +40,10 @@ app.post("/api/search", async (c) => {
   const user = c.get("user");
   if (!user) return authError(c);
 
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json(
-      { ok: false, error: { code: "VALIDATION", message: "Invalid JSON" } },
-      400,
-    );
-  }
+  const body = await readJsonBody(c);
+  if (body instanceof Response) return body;
   const parsedBody = BodySchema.safeParse(body);
-  if (!parsedBody.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION", message: parsedBody.error.message },
-      },
-      400,
-    );
-  }
+  if (!parsedBody.success) return validationError(c, parsedBody.error.message);
 
   let parsedQuery: ParsedQuery;
   try {

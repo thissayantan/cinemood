@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import type { LlmConfig, LlmConfigPublic } from "@cinemood/shared";
+import type { LlmConfig, LlmConfigPublic, User } from "@cinemood/shared";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
 import { isValidModel, MODEL_CATALOG } from "../llm/catalog";
@@ -14,11 +14,17 @@ import {
 
 type Ctx = Context<{ Bindings: Env; Variables: AuthVars }>;
 
-function authError(c: Ctx) {
-  return c.json(
-    { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
-    401,
-  );
+/** Returns the authed user or a 401 Response — single early-return idiom
+ *  used by every handler in this file. */
+function authGuard(c: Ctx): User | Response {
+  const user = c.get("user");
+  if (!user) {
+    return c.json(
+      { ok: false, error: { code: "AUTH_REQUIRED", message: "Sign in required" } },
+      401,
+    );
+  }
+  return user;
 }
 
 function validationError(c: Ctx, message: string) {
@@ -76,8 +82,8 @@ function publicView(cfg: LlmConfig): LlmConfigPublic {
 }
 
 app.get("/api/settings/llm", async (c) => {
-  const user = c.get("user");
-  if (!user) return authError(c);
+  const user = authGuard(c);
+  if (user instanceof Response) return user;
   const userCfg = await readUserLlmConfig(c.env, user.id);
   const effective = userCfg ?? (await resolveLlmConfig(c.env, user.id));
   return c.json({
@@ -125,8 +131,8 @@ async function buildConfigFromBody(
 }
 
 app.put("/api/settings/llm", async (c) => {
-  const user = c.get("user");
-  if (!user) return authError(c);
+  const user = authGuard(c);
+  if (user instanceof Response) return user;
   const body = await readJsonBody(c);
   if (body instanceof Response) return body;
   const parsed = PutSchema.safeParse(body);
@@ -142,8 +148,8 @@ app.put("/api/settings/llm", async (c) => {
 });
 
 app.delete("/api/settings/llm", async (c) => {
-  const user = c.get("user");
-  if (!user) return authError(c);
+  const user = authGuard(c);
+  if (user instanceof Response) return user;
   await deleteUserLlmConfig(c.env, user.id);
   const effective = await resolveLlmConfig(c.env, user.id);
   return c.json({
@@ -153,8 +159,8 @@ app.delete("/api/settings/llm", async (c) => {
 });
 
 app.post("/api/settings/llm/test", async (c) => {
-  const user = c.get("user");
-  if (!user) return authError(c);
+  const user = authGuard(c);
+  if (user instanceof Response) return user;
   const body = await readJsonBody(c);
   if (body instanceof Response) return body;
   const parsed = TestSchema.safeParse(body);
