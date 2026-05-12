@@ -1,3 +1,5 @@
+> **Archived 2026-05-12.** The critical audit of the first Cinemood build that motivated the editorial-cinematic redesign. The audit's findings have all been addressed; this document remains for context on the design pivot.
+
 # Design audit — current watchlist page
 
 Screenshots in `docs/audit-shots/` taken at 1440×900 against the running dev server (`bun run dev`) with the seeded `u_smoke` session.

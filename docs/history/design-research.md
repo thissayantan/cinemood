@@ -1,3 +1,5 @@
+> **Archived 2026-05-12.** Dribbble / Letterboxd / Criterion-Collection research that shaped the editorial-cinematic direction. Reference notes only.
+
 # Design research — what to borrow, what to skip
 
 Compiled before committing to an aesthetic direction. Each reference gets one line on what's worth lifting and one on what to avoid.

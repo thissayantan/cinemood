@@ -1,3 +1,5 @@
+> **Archived 2026-05-12.** The Code Simplifier multi-batch report from 2026-05-11. The changes themselves are in the git log under `refactor(\*): simplify ...` commits.
+
 # Simplification report
 
 Anthropic Code Simplifier plugin (`code-simplifier:code-simplifier`) was

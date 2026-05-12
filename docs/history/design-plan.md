@@ -1,3 +1,5 @@
+> **Archived 2026-05-12.** The design plan written before the redesign was implemented. Useful for understanding why specific choices were made; the implementation supersedes it for present-day reference.
+
 # Cinemood — design plan (v2)
 
 The watchlist is the page. Everything else is an icon or a modal. The aesthetic is committed to up front; the motion contract is one source of truth; the empty state is welcoming; the avatar isn't broken. This document is the contract — implementation starts only after explicit approval (per Step 4).

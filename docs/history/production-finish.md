@@ -1,3 +1,5 @@
+> **Archived 2026-05-12.** The production-deployment finish guide from the original Phase 7 close. Topology has since changed — see `README.md` deployment section for current truth (single Worker serves SPA + API, no Pages).
+
 # Production routing — final dashboard steps
 
 The Worker (`cinemood-api`) and the Pages project (`cinemood`) are deployed and configured for `cinemood.sayantan.cloud`. The remaining work has to happen in the Cloudflare dashboard because:
