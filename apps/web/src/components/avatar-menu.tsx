@@ -44,7 +44,9 @@ export function AvatarMenu({ user }: { user: User }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] py-1 pl-1 pr-3 text-sm text-[var(--ink)] transition hover:bg-[var(--paper-3)]"
+        // Mobile (<sm): avatar-only, 44×44 tap target, the name label
+        // would crowd the bar. Tablet and up: pill with the name.
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--paper-2)] text-sm text-[var(--ink)] transition hover:bg-[var(--paper-3)] sm:h-9 sm:w-auto sm:gap-2 sm:py-1 sm:pl-1 sm:pr-3"
       >
         <Avatar className="h-7 w-7">
           {user.picture ? (

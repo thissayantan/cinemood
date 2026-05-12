@@ -195,7 +195,7 @@ export default function HomePage({ user }: { user: User }) {
             ) : (
               <motion.div
                 layout
-                className="mt-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                className="mt-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
                 transition={
                   m.reduced
                     ? { duration: 0 }
@@ -288,7 +288,7 @@ export default function HomePage({ user }: { user: User }) {
 
 function SkeletonGrid() {
   return (
-    <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
       {Array.from({ length: 10 }).map((_, i) => (
         <div
           key={i}

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useMotionConfig, staggerDelay } from "@/lib/motion";
 import { posterUrl } from "@/lib/tmdb";
 import { selectProviders } from "@/lib/providers";
+import { useHasHover } from "@/lib/use-has-hover";
 
 // Subtle ring + drop-shadow rather than a flat border so the OTT badge has
 // edge separation on both pale and dark posters (a white border vanishes on
@@ -32,6 +33,12 @@ export function PosterCard({
 }: Props) {
   const t = item.title;
   const m = useMotionConfig();
+  // Suppress the synopsis-overlay hover affordance on touch devices.
+  // Without this gate, tapping a card flashes the overlay (tap → focus
+  // → onFocus → hovered=true) just before the detail dialog opens. The
+  // detail dialog is the touch user's path to synopsis/cast/actions
+  // anyway — mark-watched and remove live there too.
+  const hasHover = useHasHover();
   const [hovered, setHovered] = useState(false);
 
   const src = posterUrl(t.poster_path, "w342");
@@ -59,10 +66,10 @@ export function PosterCard({
       animate={{ opacity: 1, y: 0 }}
       transition={articleTransition}
       className="group relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
+      onMouseEnter={hasHover ? () => setHovered(true) : undefined}
+      onMouseLeave={hasHover ? () => setHovered(false) : undefined}
+      onFocus={hasHover ? () => setHovered(true) : undefined}
+      onBlur={hasHover ? () => setHovered(false) : undefined}
     >
       <motion.button
         type="button"

@@ -14,10 +14,12 @@ export function ThemeToggle() {
       onClick={cycle}
       title={`Theme: ${LABEL[pref]} — click to cycle`}
       aria-label={`Theme: ${LABEL[pref]}`}
-      className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-3 font-mono text-[11px] uppercase tracking-wider text-[var(--paper-dim)] transition hover:text-[var(--ink)]"
+      // Mobile (<sm): icon-only 44×44 tap target. Tablet and up:
+      // pill with label so the current mode is visible at a glance.
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--paper-2)] font-mono text-[11px] uppercase tracking-wider text-[var(--paper-dim)] transition hover:text-[var(--ink)] sm:h-9 sm:w-auto sm:gap-1.5 sm:px-3"
     >
       <Glyph pref={pref} />
-      <span>{LABEL[pref]}</span>
+      <span className="hidden sm:inline">{LABEL[pref]}</span>
     </button>
   );
 }

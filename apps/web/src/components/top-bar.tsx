@@ -46,7 +46,21 @@ export function TopBar({
           )}
         </Link>
 
-        <div className="ml-2 flex-1 flex justify-center">
+        {/* Mobile (<sm): icon-only search trigger so the four chrome
+            elements (wordmark / search / filter / theme / avatar) all
+            fit in 375px. Tap target stays ≥44×44. */}
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          aria-label="Search or add a film"
+          className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--rule)] bg-[var(--paper-2)] text-[var(--paper-dim)] transition hover:text-[var(--ink)] sm:hidden"
+        >
+          <SearchIcon />
+        </button>
+
+        {/* Tablet and up: the full inline search button with shortcut
+            hint. */}
+        <div className="ml-2 hidden flex-1 justify-center sm:flex">
           <button
             type="button"
             onClick={onOpenPalette}
@@ -71,7 +85,9 @@ export function TopBar({
           <button
             type="button"
             onClick={onOpenFilters}
-            className="relative grid h-9 w-9 place-items-center rounded-full border border-[var(--rule)] bg-[var(--paper-2)] text-[var(--paper-dim)] transition hover:text-[var(--ink)] md:hidden"
+            // 44×44 tap target on mobile (Apple HIG); collapses with the
+            // rest of the chrome at md where the persistent rail takes over.
+            className="relative grid h-11 w-11 place-items-center rounded-full border border-[var(--rule)] bg-[var(--paper-2)] text-[var(--paper-dim)] transition hover:text-[var(--ink)] md:hidden"
             aria-label="Open filters"
           >
             <FilterIcon />
