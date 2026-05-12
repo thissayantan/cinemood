@@ -11,11 +11,16 @@ A personal movie & series watchlist with natural-language search, built on Cloud
 [![Live](https://img.shields.io/badge/live_demo-cinemood.sayantan.cloud-A8221C?style=flat-square)](https://cinemood.sayantan.cloud)
 [![Deploy](https://img.shields.io/github/actions/workflow/status/thissayantan/cinemood/deploy.yml?branch=main&style=flat-square&label=deploy)](https://github.com/thissayantan/cinemood/actions/workflows/deploy.yml)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+[![Built with Cloudflare](https://img.shields.io/badge/built_with-Cloudflare-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1A1814?style=flat-square)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/thissayantan/cinemood?style=flat-square&color=1A1814)](https://github.com/thissayantan/cinemood/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/thissayantan/cinemood?style=flat-square&color=1A1814)](https://github.com/thissayantan/cinemood/commits/main)
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/thissayantan/cinemood)
+
+One click forks the repo to your GitHub, provisions a Cloudflare Worker + D1 + KV + R2 with fresh IDs, and points Workers Builds at `main`. You'll still need to add five Worker secrets (TMDB, OMDB, Google OAuth, two random keys) before sign-in works — see [Self-hosting setup](#self-hosting-setup) below.
 
 </div>
 
@@ -90,6 +95,78 @@ The query parser is the **only LLM call site** — every NL search funnels throu
 | AI | Workers AI · Orama hybrid search · pluggable LLM (Anthropic / OpenAI / Google) |
 | Upstream | TMDB · OMDB |
 | Tooling | Bun · Wrangler |
+
+## Self-hosting setup
+
+The Deploy to Cloudflare button takes you from "I want to run this" to a working Worker on your own Cloudflare account in about three minutes. Here's exactly what it does and what you need to do after.
+
+### What the button does
+
+1. **Forks `thissayantan/cinemood` to your GitHub account.** The fork stays connected to upstream so you can pull updates.
+2. **Provisions fresh Cloudflare resources** with auto-generated IDs:
+   - A Worker named `cinemood`.
+   - A D1 database (binding `DB`).
+   - Two KV namespaces (`SESSIONS`, `CACHE`).
+   - An R2 bucket (`INDEX_BUCKET`).
+   - Workers AI binding (`AI`).
+3. **Sets up a Workers Builds connection** so every push to `main` on your fork triggers a fresh deploy.
+4. **Runs the first deploy.** This includes applying the D1 migrations (`0001_init`, `0002_catalog_no`, `0003_session_revocation`) — the schema is provisioned automatically; you do **not** need to run any SQL yourself.
+
+After the button finishes, the Worker is up at `<worker-name>.<your-subdomain>.workers.dev` — but it can't do anything useful yet because none of the secrets are configured. The landing page will tell you exactly what's missing (it polls `/api/setup-status` and renders a "Setup incomplete" panel listing each missing secret with the env-var name).
+
+### Post-deploy configuration
+
+You need to set **five Worker secrets**. From your fork's `apps/api/` directory after running `bun install`:
+
+| Secret | What it is | Where to get it |
+|---|---|---|
+| `TMDB_API_KEY` | TMDB v3 API key | https://www.themoviedb.org/settings/api (free, ~5 min) |
+| `OMDB_API_KEY` | OMDB key (IMDb rating fallback) | http://www.omdbapi.com/apikey.aspx (free) |
+| `GOOGLE_CLIENT_ID` | OAuth client id | Google Cloud Console → APIs & Services → Credentials → Create OAuth 2.0 Client ID |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret | Same screen — copy the secret when you create the client |
+| `GOOGLE_REDIRECT_URI` | OAuth callback URL | `https://<your-domain>/auth/google/callback` (use `*.workers.dev` if no custom domain) |
+| `SESSION_SIGNING_KEY` | Cookie HMAC key | `openssl rand -hex 32` — any 32-byte random hex string |
+| `LLM_CONFIG_KEY` | AES-GCM key for user-supplied LLM keys at rest | `openssl rand -hex 32` — different from the session key |
+
+Set each one:
+
+```bash
+bunx wrangler --cwd apps/api secret put TMDB_API_KEY --env production
+# paste value when prompted; repeat for every secret
+```
+
+Set the two random keys with:
+
+```bash
+openssl rand -hex 32 | bunx wrangler --cwd apps/api secret put SESSION_SIGNING_KEY --env production
+openssl rand -hex 32 | bunx wrangler --cwd apps/api secret put LLM_CONFIG_KEY --env production
+```
+
+For the **Google OAuth client**: in Google Cloud Console, set "Authorized JavaScript origins" to your deployed origin (e.g. `https://cinemood.example.com`) and "Authorized redirect URI" to exactly the same value as `GOOGLE_REDIRECT_URI`.
+
+### Custom domain (optional)
+
+The button-provisioned Worker is reachable at `*.workers.dev`. To put it on your own domain (the canonical deploy uses `cinemood.sayantan.cloud`), edit `apps/api/wrangler.toml`:
+
+```toml
+[[env.production.routes]]
+pattern = "yourdomain.com/*"
+zone_name = "yourdomain.com"
+```
+
+…then in the Cloudflare dashboard add any proxied DNS record on that zone (the Worker route intercepts before origin resolution, so the target doesn't matter). Commit and push — the workflow redeploys with the new route.
+
+### Verifying setup
+
+After the secrets are in place, reload the landing page:
+
+- The "Setup incomplete" panel should disappear and the **Sign in with Google** button appears.
+- `GET /api/setup-status` returns `{ ok: true, data: { ready: true, missing: [], secrets: { ...all true } } }`.
+- `GET /api/health` returns `{ ok: true, data: { status: "up", ts: ... } }`.
+
+### Cost
+
+Cinemood is built to fit Cloudflare's free tier for personal use: Workers (100k requests/day), D1 (5M reads/day, 100k writes/day), KV (100k reads/day), R2 (10M class A ops/month, 10 GB egress free), Workers AI (10k Neurons/day free). Realistic watchlist size (≤ 5k titles, single-user) stays well inside these limits. Only the per-user LLM API key path costs anything, and that's paid directly to Anthropic / OpenAI / Google by you — your Anthropic key, your bill.
 
 ## Local development
 
