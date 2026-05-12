@@ -6,7 +6,7 @@ A test session is minted directly into KV before the run; the browser adopts it 
 
 ## Recently shipped
 
-- **Editorial-cinematic redesign** of every authenticated surface (watchlist, detail dialog, command palette, filter rail, empty state, 404, welcome, settings, import) around the Criterion-style `C-NNNN` spine number. Screenshots in `docs/audit-shots/` (`10-…` onward = post-redesign).
+- **Editorial-cinematic redesign** of every authenticated surface (watchlist, detail dialog, command palette, filter rail, empty state, 404, welcome, settings, import) around the Criterion-style `C-NNNN` spine number. Screenshots in `docs/history/audit-shots/` (`10-…` onward = post-redesign).
 - **Backend filter expansion:** `GET /api/watchlist` now accepts `year_min`, `year_max`, `min_rating`, `runtime_min`, `runtime_max`, `provider` (repeatable), `sort` (added_desc/added_asc/title_asc/year_desc/year_asc/rating_desc/catalog_desc). Each watchlist row carries `catalog_no INTEGER` auto-assigned at insert time as `MAX(catalog_no)+1` per user (D1 migration `0002_catalog_no.sql`).
 - **One-command dev:** `bun run dev` from the repo root starts api + web with prefixed colour-coded output via `concurrently`; Ctrl+C tears both down through SIGINT propagation.
 - **Single Lottie source-of-truth** at `apps/web/src/lottie/film-reel.json` (placeholder, in-repo, <5KB). Shared by the empty state, the 404 page, and the welcome overlay. Swap with a richer LottieFiles asset (Free + Commercial use, ≤80KB) when picked — URL goes in the importing component's header comment.
@@ -98,7 +98,7 @@ Set-Cookie: cm_oauth_state=…; Path=/; HttpOnly; SameSite=Lax
 
 ### UI smoke (visual)
 
-- **Watchlist (dark)** — `docs/audit-shots/10-home-redesign-dark.png`. Cinemood wordmark + `catalog at C-0010` caption, filter rail with checkboxes / sliders / decade chips, poster grid with spine numbers and the red watched-checkmark on Breaking Bad.
+- **Watchlist (dark)** — `docs/history/audit-shots/10-home-redesign-dark.png`. Cinemood wordmark + `catalog at C-0010` caption, filter rail with checkboxes / sliders / decade chips, poster grid with spine numbers and the red watched-checkmark on Breaking Bad.
 - **Watchlist (light)** — `11-home-redesign-light.png`. Cream paper background, ink type, identical structure — light mode is no longer broken.
 - **Command palette · empty** — `12-palette-empty.png`. ⌘K opens; mode chip Add/Find top-right; tips show in the body.
 - **Command palette · Add mode typing "severance"** — `13-palette-add.png`. Live TMDB results with poster thumbs, mono year + type, the saved entry labelled `SAVED`.
@@ -121,4 +121,4 @@ The same flows run on the mobile viewport. Set DevTools device toolbar to 375 ×
 - **Poster card hover.** On touch, the synopsis overlay does not flash (suppressed via `@media (hover: hover)` gate in `apps/web/src/lib/use-has-hover.ts`). Mark-watched / remove move to the detail dialog.
 - **Settings / account / import.** All use a `max-w-[760px] px-5` container which renders cleanly at 375 — no overflow, no horizontal scroll.
 
-Audit shots before/after the fixes live in `docs/responsive-shots/`; full breakdown in `docs/responsive-audit.md`.
+Full breakdown of the fixes (with viewport-by-viewport analysis) in [`docs/history/responsive-audit-2026-05.md`](history/responsive-audit-2026-05.md). The before/after screenshot folder that originally backed it was removed on archival — the analysis text is the load-bearing record.
