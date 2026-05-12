@@ -80,6 +80,8 @@ A **single Cloudflare Worker** serves both the API and the frontend SPA. No Page
 
 The query parser is the **only LLM call site** — every NL search funnels through one provider abstraction (`apps/api/src/llm/`). Default is Cloudflare Workers AI; per-user keys for Anthropic / OpenAI / Google override at the seam.
 
+> **Naming note.** In the Cloudflare dashboard the Worker shows up as **`cinemood-api`**. The name is a leftover from when the SPA had its own Cloudflare Pages project; the SPA was consolidated onto the same Worker afterwards. Renaming a deployed Worker drops its version-history rollback chain and forces a route re-bind, so the label stayed. The Worker now hosts both the SPA and the API — see [`docs/deploy.md`](docs/deploy.md#why-the-worker-is-called-cinemood-api) for the full reasoning.
+
 ## Tech stack
 
 | Layer | Choice |

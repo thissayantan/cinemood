@@ -92,3 +92,15 @@ Three options, fastest to most-involved:
 ## Notes on the route + DNS
 
 The production Worker is bound to `cinemood.sayantan.cloud/*` via `[env.production.routes]` in `wrangler.toml`. There is **no Cloudflare Pages project** — the Worker serves both `/api/*` (Hono routes) and everything else (SPA assets from `apps/web/dist` with SPA fallback to `/index.html`). DNS just needs any proxied placeholder record on the zone; the route intercepts before origin resolution. See the README's deployment section for the rationale.
+
+## Why the Worker is called `cinemood-api`
+
+In the Cloudflare dashboard, the production Worker shows up as **`cinemood-api`**. The name is a leftover from the original topology, when the Worker was only the API tier and a separate Cloudflare Pages project served the SPA. After the Pages-CNAME-Cross-User-Banned wall (see [the wrangler.toml comment](../apps/api/wrangler.toml#L33-L46) for the full story), the SPA was consolidated onto the same Worker via `[env.production.assets]`. The Pages project is gone; the Worker now serves both halves.
+
+The name was left as-is rather than renamed to plain `cinemood`. Renaming a Worker is a non-trivial operation — it creates a new Worker script in a new deployment slot, requires re-binding the production route to the new script, drops the version-history rollback chain, and introduces a brief window where the route binding has to be re-established. None of that pain pays for a more accurate dashboard label that no end-user ever sees. The route is `cinemood.sayantan.cloud/*`; that's the only name that matters externally.
+
+If you fork the project and want a different Worker name, change `name = "cinemood-api"` in `apps/api/wrangler.toml` (twice — top-level and inside `[env.production]`) before your first deploy. Renaming after the first deploy is the painful path described above.
+
+## Pre-deploy cleanup (no action needed for forks, kept here as context)
+
+The original development cycle created a Cloudflare Pages project called `cinemood` (whose default URL was `cinemood-789.pages.dev`). That project was deleted on 2026-05-12 after the single-Worker topology landed; it was serving a stale, never-updated build under the suffixed pages.dev URL and confused anyone who landed there. Deletion via `bunx wrangler --cwd apps/api pages project delete cinemood --yes`. No fork action needed.

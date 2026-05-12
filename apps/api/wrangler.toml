@@ -36,14 +36,16 @@ binding = "AI"
 #   anything else       — served from assets, with SPA fallback to
 #                         /index.html so client-side routes work.
 #
-# This sidesteps the Pages "CNAME Cross-User Banned" (error 1014)
-# situation: the Pages project lives on a different Cloudflare
-# account than the `sayantan.cloud` zone, so a plain CNAME to
-# `cinemood.pages.dev` is blocked by Cloudflare policy. Serving the
-# frontend through this Worker means the only DNS we need is a
-# proxied placeholder record on the zone (any orange-clouded record
-# is fine — the Worker route intercepts the request before origin
-# resolution).
+# This consolidates SPA + API onto one Worker. The previous topology
+# had a separate Cloudflare Pages project for the SPA, but that hit
+# the "CNAME Cross-User Banned" (error 1014) wall when the Pages
+# project lived on a different Cloudflare account from the
+# `sayantan.cloud` zone — a CNAME from the zone to a `*.pages.dev`
+# target is blocked by Cloudflare policy in that arrangement. Single
+# Worker means the only DNS we need is a proxied placeholder record
+# on the zone (any orange-clouded record will do — the Worker route
+# intercepts before origin resolution). The dead Pages project has
+# since been deleted; this comment stays for the lesson.
 [env.production]
 name = "cinemood-api"
 workers_dev = false
