@@ -56,6 +56,27 @@ jobs:
       - name: Build web SPA bundle
         run: bun run --filter '@cinemood/web' build
 
+      # Apply D1 migrations before the Worker deploy. On the canonical
+      # production database (the one this repo deploys to from main)
+      # this is a no-op — wrangler tracks applied migrations in the
+      # `d1_migrations` table and skips ones already at the latest
+      # revision. On a freshly-provisioned D1 (e.g. after a fork via
+      # the Deploy to Cloudflare button), the migrations run in order
+      # and bring the schema up.
+      #
+      # We pass `DB` (the binding name), not the database name. The
+      # binding is the stable identifier; a forked deploy will have a
+      # different database name + id but the same binding.
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          command: d1 migrations apply DB --remote --env production
+          packageManager: bun
+          wranglerVersion: "4.90.0"
+
       # Deploy. Worker SECRETS (GOOGLE_CLIENT_SECRET, SESSION_SIGNING_KEY,
       # LLM_CONFIG_KEY, TMDB_API_KEY, OMDB_API_KEY, GOOGLE_CLIENT_ID,
       # GOOGLE_REDIRECT_URI) are set ONCE on the production Worker via
