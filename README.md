@@ -19,7 +19,11 @@ A personal movie & series watchlist with natural-language search, built on Cloud
 
 ---
 
+![The Cinemood landing — sign in with Google to start your watchlist.](docs/screenshots/00-landing-dark.png)
+*The landing page — sign in with Google to start your watchlist.*
+
 ![Cinemood watchlist — dark mode](docs/screenshots/01-watchlist-dark.png)
+*Your collection, after a sign-in.*
 
 ## What it does
 
