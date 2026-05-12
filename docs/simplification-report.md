@@ -1,6 +1,5 @@
-> **Archived 2026-05-12.** The Code Simplifier multi-batch report from 2026-05-11. The changes themselves are in the git log under `refactor(\*): simplify ...` commits.
-
 # Simplification report
+
 
 Anthropic Code Simplifier plugin (`code-simplifier:code-simplifier`) was
 run against the Cinemood codebase in six batched passes, one batch = one
@@ -230,3 +229,87 @@ transforms but is **net-negative** when the collection step depends on
 the call-site index (D1 batch result `meta.changes`, server-side
 `outcomes[i]` index alignment in the import commit path). A Learned Rule
 captures this.
+
+---
+
+## Second pass — 2026-05-12
+
+A targeted re-run of the Code Simplifier against only the densest
+files (the ones most likely to still have remaining structural fruit
+after the broad first pass): `import.tsx`, `home.tsx`,
+`command-palette.tsx`, `poster-card.tsx`, `filter-rail.tsx`,
+`title-detail-dialog.tsx`, and the five route handlers (`auth.ts`,
+`import.ts`, `watchlist.ts`, `settings.ts`, `nl-search.ts`).
+
+Same no-touch list (LLM provider abstraction, orama-index, kv-safe,
+session, import-resolve), same reject rules (no exported-symbol
+renames, no inlining multi-call-site helpers, no removing "why"
+comments, no touching forEach-and-collect index-aligned loops, etc.).
+Hard ceiling: +500 lines added.
+
+### Result: +125 / −114 = 239 touched lines, +11 net (commit `a175722`)
+
+### Changes that landed
+
+- **`apps/web/src/pages/import.tsx`** — extracted `PreviewPoster` and
+  `ProviderChips` sub-components. The "no poster" placeholder block
+  was duplicated near-verbatim in three places, the "Stream on"
+  provider-chip row in two. Both now read as named branches.
+- **`apps/web/src/components/poster-card.tsx`** — folded four
+  `hasHover ? handler : undefined` ternary props into a single
+  `hoverHandlers` object spread.
+- **`apps/api/src/routes/import.ts`** — fused two adjacent
+  `if (fetched.length > 0) { … }` guards into one. The `outcomes[i]`
+  index-aligned mutation pattern (Learned Rule) preserved verbatim.
+- **`apps/api/src/routes/watchlist.ts`** — `parseIdParam(c)` helper
+  folds the `Number / isInteger / <=0` check from DELETE and PATCH.
+- **`apps/api/src/routes/settings.ts`** — four handlers swap their
+  inline `c.get("user")` + `authError` block for the `authGuard(c)`
+  sentinel pattern already used in `watchlist.ts`.
+- **`apps/api/src/routes/nl-search.ts`** — adopted `validationError` +
+  `readJsonBody` helpers from sibling routes.
+
+### Files reviewed and left unchanged
+
+`home.tsx`, `command-palette.tsx`, `filter-rail.tsx`,
+`title-detail-dialog.tsx`, `auth.ts`. Each was already heavily
+refactored in the first pass; remaining structure is intentional or
+pinned by a hard rule. **Zero useful changes is a valid outcome** —
+the second pass is over.
+
+### Rejected (with reasons)
+
+- Inlining helpers with >1 call site (rule 2: `pickProvidersUS`,
+  `formatRuntime`, `addRowStatus`, `chunk`, etc.).
+- Folding the `selectedCount` and `breakdown` IIFEs in `import.tsx`
+  into `useMemo` (pinned in the prompt — the IIFE shape is intentional).
+- Replacing `localStorage` persistence with a custom hook (pinned —
+  hook lifecycle would change the reset semantics).
+- Removing any `console.info("[import] commit start|done", …)` or
+  `console.log("[import.commit]", …)` diagnostics (rule 4).
+- Replacing the positional `forEach((x, i) => …)` walk on the
+  `outcomes[i]` index-aligned mutation in `routes/import.ts` (rule 7,
+  Learned Rule on index-aligned loops).
+- Collapsing the three-layer `PROVIDER_BADGE_SHADOW` stack on
+  `poster-card.tsx` (rule 11).
+- Touching the `looksLikeFindQuery` heuristic in `command-palette.tsx`
+  (rule 10).
+- Extracting a `RangeSection` for the two slider sections in
+  `filter-rail.tsx` — typed `onPatch<K>` keys make a four-key
+  abstraction lose more clarity than it gains.
+
+### Verification
+
+`bun run typecheck` and `bun run --filter '@cinemood/web' build` both
+green.
+
+### Pattern that emerged
+
+The first pass extracted helpers within single files. The second pass
+caught helpers that were duplicated across **sibling** files in the
+same module (e.g. `PreviewPoster` shared between two preview components
+in the same `import.tsx`; the `authGuard` / `validationError` /
+`readJsonBody` trio standardised across all route handlers). A
+worthwhile rule for a third pass — should one ever be needed —
+would be to look for cross-file duplication within each module's
+sibling set first, before diving into within-file refactoring.
