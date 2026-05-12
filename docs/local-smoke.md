@@ -109,3 +109,16 @@ Set-Cookie: cm_oauth_state=…; Path=/; HttpOnly; SameSite=Lax
 ## Process control
 
 `bun run dev` starts both `apps/api` (wrangler dev --remote) and `apps/web` (vite) concurrently with `concurrently -n api,web -c blue,magenta --kill-others-on-fail`. SIGINT to the parent tears both children down — verified that ports `:5173` and `:8787` are released afterwards and no `wrangler`/`workerd`/`vite` processes linger.
+
+## Mobile lane (375 × 812, iPhone target)
+
+The same flows run on the mobile viewport. Set DevTools device toolbar to 375 × 812 (iPhone) before each step.
+
+- **Auth + watchlist load.** `/api/me` redirects to landing when anonymous, watchlist render when signed in. At 375 px the top bar is wordmark + search-icon + filter-icon + theme-icon + avatar — all 44×44, all on-screen.
+- **Filter rail.** Tap the filter icon; the Sheet slides in from the right with the same Type / Status / Sort / Genre / Year / Rating / Runtime / Streaming controls as desktop. Active filters render as removable chips above the grid.
+- **Command palette.** ⌘ K (or tap the magnifier in the top bar) opens the palette at 343 px wide (`min(880, vw-32)`). Mode toggle Add ↔ Find sits at the right of the input. Side preview pane is `hidden md:block` — collapsed on phone; tap a result to drop into the detail dialog.
+- **Detail dialog.** Tap any poster. Header collapses to 96 px poster + 28 px title (vs 132 / 40 desktop); padding is `px-5` (vs `px-7+`). Action bar reflows to wrap mark-watched / remove / view-on-TMDB.
+- **Poster card hover.** On touch, the synopsis overlay does not flash (suppressed via `@media (hover: hover)` gate in `apps/web/src/lib/use-has-hover.ts`). Mark-watched / remove move to the detail dialog.
+- **Settings / account / import.** All use a `max-w-[760px] px-5` container which renders cleanly at 375 — no overflow, no horizontal scroll.
+
+Audit shots before/after the fixes live in `docs/responsive-shots/`; full breakdown in `docs/responsive-audit.md`.
