@@ -9,6 +9,15 @@ interface UserRow {
   min_issued_at?: number;
 }
 
+function rowToUser(row: UserRow): User {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    picture: row.picture,
+  };
+}
+
 export async function upsertUser(
   db: D1Database,
   user: { id: string; email: string; name: string | null; picture: string | null },
@@ -41,13 +50,7 @@ export async function getUser(
     .prepare(`SELECT id, email, name, picture, created_at FROM users WHERE id = ?1`)
     .bind(id)
     .first<UserRow>();
-  if (!row) return null;
-  return {
-    id: row.id,
-    email: row.email,
-    name: row.name,
-    picture: row.picture,
-  };
+  return row ? rowToUser(row) : null;
 }
 
 /** Same as getUser, but also returns the session revocation watermark
@@ -69,12 +72,7 @@ export async function getUserForAuth(
     .first<UserRow>();
   if (!row) return null;
   return {
-    user: {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      picture: row.picture,
-    },
+    user: rowToUser(row),
     minIssuedAt: row.min_issued_at ?? 0,
   };
 }

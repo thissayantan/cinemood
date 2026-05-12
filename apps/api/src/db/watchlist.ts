@@ -50,42 +50,40 @@ export async function listWatchlist(
 ): Promise<WatchlistItem[]> {
   const clauses: string[] = [];
   const binds: unknown[] = [userId];
-  const bind = (v: unknown) => {
-    binds.push(v);
-    return binds.length;
+  // Adds `AND <clause>` with `?N` placeholders for each value bound; N is
+  // the 1-based index of the just-pushed bind.
+  const where = (clause: (...placeholders: string[]) => string, ...values: unknown[]) => {
+    const placeholders = values.map((v) => {
+      binds.push(v);
+      return `?${binds.length}`;
+    });
+    clauses.push(`AND ${clause(...placeholders)}`);
   };
 
-  if (filters.status) clauses.push(`AND w.status = ?${bind(filters.status)}`);
-  if (filters.type) clauses.push(`AND t.type = ?${bind(filters.type)}`);
-  if (filters.year)
-    clauses.push(`AND substr(t.release_date,1,4) = ?${bind(filters.year)}`);
+  if (filters.status) where((p) => `w.status = ${p}`, filters.status);
+  if (filters.type) where((p) => `t.type = ${p}`, filters.type);
+  if (filters.year) where((p) => `substr(t.release_date,1,4) = ${p}`, filters.year);
   if (typeof filters.year_min === "number")
-    clauses.push(
-      `AND CAST(substr(t.release_date,1,4) AS INTEGER) >= ?${bind(filters.year_min)}`,
-    );
+    where((p) => `CAST(substr(t.release_date,1,4) AS INTEGER) >= ${p}`, filters.year_min);
   if (typeof filters.year_max === "number")
-    clauses.push(
-      `AND CAST(substr(t.release_date,1,4) AS INTEGER) <= ?${bind(filters.year_max)}`,
-    );
-  if (filters.genre)
-    clauses.push(`AND t.genres LIKE ?${bind(`%"${filters.genre}"%`)}`);
+    where((p) => `CAST(substr(t.release_date,1,4) AS INTEGER) <= ${p}`, filters.year_max);
+  if (filters.genre) where((p) => `t.genres LIKE ${p}`, `%"${filters.genre}"%`);
   if (typeof filters.min_rating === "number")
-    clauses.push(`AND t.vote_average >= ?${bind(filters.min_rating)}`);
+    where((p) => `t.vote_average >= ${p}`, filters.min_rating);
   if (typeof filters.runtime_min === "number")
-    clauses.push(`AND t.runtime >= ?${bind(filters.runtime_min)}`);
+    where((p) => `t.runtime >= ${p}`, filters.runtime_min);
   if (typeof filters.runtime_max === "number")
-    clauses.push(`AND t.runtime <= ?${bind(filters.runtime_max)}`);
+    where((p) => `t.runtime <= ${p}`, filters.runtime_max);
   if (filters.providers && filters.providers.length > 0) {
     // Providers is a JSON blob; do a LIKE-OR on provider names (region-agnostic).
-    const ors = filters.providers
-      .map((p) => `t.providers LIKE ?${bind(`%"${p}"%`)}`)
-      .join(" OR ");
-    clauses.push(`AND (${ors})`);
+    const likeValues = filters.providers.map((p) => `%"${p}"%`);
+    where(
+      (...ps) => `(${ps.map((p) => `t.providers LIKE ${p}`).join(" OR ")})`,
+      ...likeValues,
+    );
   }
 
-  const sort = filters.sort && SORT_SQL[filters.sort];
-  const orderBy = sort ?? SORT_SQL.added_desc;
-
+  const orderBy = (filters.sort && SORT_SQL[filters.sort]) ?? SORT_SQL.added_desc;
   const sql = `${SELECT_BASE} ${clauses.join(" ")} ORDER BY ${orderBy} LIMIT 500`;
   const result = await db
     .prepare(sql)
@@ -118,6 +116,10 @@ async function nextCatalogNo(
   return row?.n ?? 1;
 }
 
+const INSERT_WATCHLIST_SQL = `INSERT INTO watchlist (user_id, title_id, status, added_at, catalog_no)
+   VALUES (?1, ?2, 'pending', ?3, ?4)
+   ON CONFLICT(user_id, title_id) DO NOTHING`;
+
 export async function addToWatchlist(
   db: D1Database,
   userId: string,
@@ -128,11 +130,7 @@ export async function addToWatchlist(
   // any prior catalog_no so re-adds stay stable.
   const next = await nextCatalogNo(db, userId);
   await db
-    .prepare(
-      `INSERT INTO watchlist (user_id, title_id, status, added_at, catalog_no)
-       VALUES (?1, ?2, 'pending', ?3, ?4)
-       ON CONFLICT(user_id, title_id) DO NOTHING`,
-    )
+    .prepare(INSERT_WATCHLIST_SQL)
     .bind(userId, titleId, now, next)
     .run();
 }
@@ -154,13 +152,7 @@ export async function addManyToWatchlist(
   const start = await nextCatalogNo(db, userId);
   const now = Math.floor(Date.now() / 1000);
   const stmts = titleIds.map((id, i) =>
-    db
-      .prepare(
-        `INSERT INTO watchlist (user_id, title_id, status, added_at, catalog_no)
-         VALUES (?1, ?2, 'pending', ?3, ?4)
-         ON CONFLICT(user_id, title_id) DO NOTHING`,
-      )
-      .bind(userId, id, now, start + i),
+    db.prepare(INSERT_WATCHLIST_SQL).bind(userId, id, now, start + i),
   );
   const results = await db.batch(stmts);
   const inserted: number[] = [];

@@ -193,35 +193,42 @@ export async function fetchTmdbDetail(
     .slice(0, 10)
     .map((c) => ({ name: c.name, character: c.character }));
 
-  const keywords =
-    type === "movie"
-      ? (json.keywords?.keywords ?? []).map((k) => k.name)
-      : (json.keywords?.results ?? []).map((k) => k.name);
+  // Normalise movie/tv shape differences (title vs name, release_date vs
+  // first_air_date, runtime vs episode_run_time, keywords.keywords vs
+  // keywords.results) into a single TmdbDetail.
+  let title: string;
+  let originalTitle: string | null;
+  let releaseDate: string | null;
+  let runtime: number | null;
+  let keywords: string[];
+  if (type === "movie") {
+    const m = json as TmdbMovieDetail;
+    title = m.title;
+    originalTitle = m.original_title;
+    releaseDate = m.release_date;
+    runtime = m.runtime;
+    keywords = (m.keywords?.keywords ?? []).map((k) => k.name);
+  } else {
+    const t = json as TmdbTvDetail;
+    title = t.name;
+    originalTitle = t.original_name;
+    releaseDate = t.first_air_date;
+    runtime = t.episode_run_time?.[0] ?? null;
+    keywords = (t.keywords?.results ?? []).map((k) => k.name);
+  }
 
   const detail: TmdbDetail = {
     id: json.id,
     type,
-    title:
-      type === "movie"
-        ? (json as TmdbMovieDetail).title
-        : (json as TmdbTvDetail).name,
-    original_title:
-      type === "movie"
-        ? (json as TmdbMovieDetail).original_title
-        : (json as TmdbTvDetail).original_name,
+    title,
+    original_title: originalTitle,
     overview: json.overview,
-    release_date:
-      type === "movie"
-        ? (json as TmdbMovieDetail).release_date
-        : (json as TmdbTvDetail).first_air_date,
+    release_date: releaseDate,
     poster_path: json.poster_path,
     backdrop_path: json.backdrop_path,
     vote_average: json.vote_average,
     vote_count: json.vote_count,
-    runtime:
-      type === "movie"
-        ? (json as TmdbMovieDetail).runtime
-        : ((json as TmdbTvDetail).episode_run_time?.[0] ?? null),
+    runtime,
     genres: (json.genres ?? []).map((g) => g.name),
     cast,
     keywords,

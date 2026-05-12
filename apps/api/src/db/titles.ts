@@ -1,43 +1,43 @@
 import type { Title, TitleType } from "@cinemood/shared";
 import type { TmdbDetail } from "../lib/tmdb";
 
-export async function upsertTitle(
+const UPSERT_TITLE_SQL = `INSERT INTO titles (
+    id, type, title, original_title, overview, release_date,
+    poster_path, backdrop_path, vote_average, vote_count, runtime,
+    genres, cast_json, keywords, providers, imdb_id, imdb_rating,
+    raw_tmdb, fetched_at
+  ) VALUES (
+    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
+    ?15, ?16, ?17, ?18, ?19
+  )
+  ON CONFLICT(id) DO UPDATE SET
+    type = excluded.type,
+    title = excluded.title,
+    original_title = excluded.original_title,
+    overview = excluded.overview,
+    release_date = excluded.release_date,
+    poster_path = excluded.poster_path,
+    backdrop_path = excluded.backdrop_path,
+    vote_average = excluded.vote_average,
+    vote_count = excluded.vote_count,
+    runtime = excluded.runtime,
+    genres = excluded.genres,
+    cast_json = excluded.cast_json,
+    keywords = excluded.keywords,
+    providers = excluded.providers,
+    imdb_id = excluded.imdb_id,
+    imdb_rating = COALESCE(excluded.imdb_rating, titles.imdb_rating),
+    raw_tmdb = excluded.raw_tmdb,
+    fetched_at = excluded.fetched_at`;
+
+function bindUpsertTitle(
   db: D1Database,
   detail: TmdbDetail,
   imdbRating: number | null,
-): Promise<void> {
+): D1PreparedStatement {
   const now = Math.floor(Date.now() / 1000);
-  await db
-    .prepare(
-      `INSERT INTO titles (
-        id, type, title, original_title, overview, release_date,
-        poster_path, backdrop_path, vote_average, vote_count, runtime,
-        genres, cast_json, keywords, providers, imdb_id, imdb_rating,
-        raw_tmdb, fetched_at
-      ) VALUES (
-        ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-        ?15, ?16, ?17, ?18, ?19
-      )
-      ON CONFLICT(id) DO UPDATE SET
-        type = excluded.type,
-        title = excluded.title,
-        original_title = excluded.original_title,
-        overview = excluded.overview,
-        release_date = excluded.release_date,
-        poster_path = excluded.poster_path,
-        backdrop_path = excluded.backdrop_path,
-        vote_average = excluded.vote_average,
-        vote_count = excluded.vote_count,
-        runtime = excluded.runtime,
-        genres = excluded.genres,
-        cast_json = excluded.cast_json,
-        keywords = excluded.keywords,
-        providers = excluded.providers,
-        imdb_id = excluded.imdb_id,
-        imdb_rating = COALESCE(excluded.imdb_rating, titles.imdb_rating),
-        raw_tmdb = excluded.raw_tmdb,
-        fetched_at = excluded.fetched_at`,
-    )
+  return db
+    .prepare(UPSERT_TITLE_SQL)
     .bind(
       detail.id,
       detail.type,
@@ -58,8 +58,15 @@ export async function upsertTitle(
       imdbRating,
       JSON.stringify(detail.raw),
       now,
-    )
-    .run();
+    );
+}
+
+export async function upsertTitle(
+  db: D1Database,
+  detail: TmdbDetail,
+  imdbRating: number | null,
+): Promise<void> {
+  await bindUpsertTitle(db, detail, imdbRating).run();
 }
 
 interface TitleRow {
@@ -163,62 +170,10 @@ export async function getTitlesById(
  *  the title writes in one round-trip. */
 export function upsertTitleStmt(
   db: D1Database,
-  detail: import("../lib/tmdb").TmdbDetail,
+  detail: TmdbDetail,
   imdbRating: number | null,
 ): D1PreparedStatement {
-  const now = Math.floor(Date.now() / 1000);
-  return db
-    .prepare(
-      `INSERT INTO titles (
-        id, type, title, original_title, overview, release_date,
-        poster_path, backdrop_path, vote_average, vote_count, runtime,
-        genres, cast_json, keywords, providers, imdb_id, imdb_rating,
-        raw_tmdb, fetched_at
-      ) VALUES (
-        ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-        ?15, ?16, ?17, ?18, ?19
-      )
-      ON CONFLICT(id) DO UPDATE SET
-        type = excluded.type,
-        title = excluded.title,
-        original_title = excluded.original_title,
-        overview = excluded.overview,
-        release_date = excluded.release_date,
-        poster_path = excluded.poster_path,
-        backdrop_path = excluded.backdrop_path,
-        vote_average = excluded.vote_average,
-        vote_count = excluded.vote_count,
-        runtime = excluded.runtime,
-        genres = excluded.genres,
-        cast_json = excluded.cast_json,
-        keywords = excluded.keywords,
-        providers = excluded.providers,
-        imdb_id = excluded.imdb_id,
-        imdb_rating = COALESCE(excluded.imdb_rating, titles.imdb_rating),
-        raw_tmdb = excluded.raw_tmdb,
-        fetched_at = excluded.fetched_at`,
-    )
-    .bind(
-      detail.id,
-      detail.type,
-      detail.title,
-      detail.original_title,
-      detail.overview,
-      detail.release_date,
-      detail.poster_path,
-      detail.backdrop_path,
-      detail.vote_average,
-      detail.vote_count,
-      detail.runtime,
-      JSON.stringify(detail.genres),
-      JSON.stringify(detail.cast),
-      JSON.stringify(detail.keywords),
-      detail.providers ? JSON.stringify(detail.providers) : null,
-      detail.imdb_id,
-      imdbRating,
-      JSON.stringify(detail.raw),
-      now,
-    );
+  return bindUpsertTitle(db, detail, imdbRating);
 }
 
 export type { TitleRow };
