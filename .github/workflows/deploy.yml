@@ -1,0 +1,79 @@
+name: Deploy
+
+# Every push to main → typecheck + build → wrangler deploy → smoke /api/health.
+# Manual re-runs supported via workflow_dispatch (Actions tab → Deploy → Run workflow).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel an in-flight deploy if a newer push lands on main. Avoids racing
+# two deploys, and means a quick fix-up commit doesn't wait behind a slow
+# previous run.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build + deploy to Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Gate: API typecheck must pass before we touch production.
+      - name: Typecheck
+        run: bun run typecheck
+
+      # Gate: the SPA bundle is what the Worker serves under
+      # `[env.production.assets] directory = "../web/dist"` — wrangler
+      # picks it up during deploy. If this step fails, no deploy.
+      - name: Build web SPA bundle
+        run: bun run --filter '@cinemood/web' build
+
+      # Deploy. Worker SECRETS (GOOGLE_CLIENT_SECRET, SESSION_SIGNING_KEY,
+      # LLM_CONFIG_KEY, TMDB_API_KEY, OMDB_API_KEY, GOOGLE_CLIENT_ID,
+      # GOOGLE_REDIRECT_URI) are set ONCE on the production Worker via
+      # `wrangler secret put <NAME> --env production` and persist across
+      # deploys — they are deliberately NOT in this workflow. Only the
+      # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are needed in CI.
+      - name: Deploy Worker (+ bundled SPA assets)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          command: deploy --env production
+          packageManager: bun
+
+      # Post-deploy smoke. /api/health is a free endpoint that returns
+      # `{ ok: true, data: { status: "up", ts } }`. Fail the run if it's
+      # not 200 — a green deploy with a red app is the worst kind of
+      # silent failure.
+      - name: Smoke /api/health
+        run: |
+          set -eu
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+              https://cinemood.sayantan.cloud/api/health || echo "000")
+            echo "attempt $attempt → HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "✓ production smoke passed"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "✗ /api/health did not return 200 after 5 attempts" >&2
+          exit 1
