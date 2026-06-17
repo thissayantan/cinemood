@@ -10,6 +10,8 @@
  *      and receives the raw PAT in the response.
  *   4. The OTC is deleted from KV on first use (single-use).
  *
+ * OTC TTL is 300s to survive realistic OAuth consent + Custom Tab round-trips.
+ *
  * Rate limiting: 5 failed attempts for the same code key → delete it.
  * The OTC is 32 base64url bytes (≈256 bits) — brute-force is not practical.
  *
@@ -27,7 +29,7 @@ import { generateRawToken, hashToken, tokenPrefix } from "../lib/access-token";
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 const OTC_PREFIX = "otc:";
-const OTC_TTL_SECONDS = 60;
+const OTC_TTL_SECONDS = 300;
 
 /** Generate a cryptographically random OTC (32 bytes, base64url). */
 async function generateOtc(): Promise<string> {
