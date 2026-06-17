@@ -1,5 +1,6 @@
 package cloud.cinemood.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -77,6 +78,21 @@ private fun watchlistVmFactory(api: CinemoodApi) = object : ViewModelProvider.Fa
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var appVm: AppViewModel
+
+    // Extracts the OTC from a cinemood://auth?code=… deep-link intent.
+    // Called from both onCreate (cold start) and onNewIntent (warm return from Custom Tab).
+    private fun extractDeviceCode(intent: Intent?): String? =
+        intent?.data
+            ?.takeIf { it.scheme == "cinemood" && it.host == "auth" }
+            ?.getQueryParameter("code")
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        extractDeviceCode(intent)?.let { appVm.handleDeviceCode(it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // installSplashScreen() MUST be called before super.onCreate()
         installSplashScreen()
@@ -85,18 +101,13 @@ class MainActivity : ComponentActivity() {
 
         val app = application as CinemoodApp
 
-        val appVm = ViewModelProvider(
+        appVm = ViewModelProvider(
             this,
             AppViewModel.Factory(app.tokenStore, app.api),
         )[AppViewModel::class.java]
 
-        // Handle the cinemood://auth?code=… App Link that arrives after OAuth
-        val incomingCode = intent?.data
-            ?.takeIf { it.scheme == "cinemood" && it.host == "auth" }
-            ?.getQueryParameter("code")
-        if (incomingCode != null) {
-            appVm.handleDeviceCode(incomingCode)
-        }
+        // Handle cinemood://auth?code=… if this activity was cold-launched by the deep link
+        extractDeviceCode(intent)?.let { appVm.handleDeviceCode(it) }
 
         setContent {
             CinemoodTheme {
