@@ -1,20 +1,56 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280">
   <defs>
     <style>
-      .bg { fill: #0A0908; }
-      .ink { fill: #F2EBDD; }
-      .accent { fill: #C8302A; }
-      @media (prefers-color-scheme: light) {
-        .bg { fill: #F2EBDD; }
-        .ink { fill: #1A1814; }
-        .accent { fill: #A8221C; }
-      }
+      .tile { fill: #F5F0E8; }
+      @media (prefers-color-scheme: dark) { .tile { fill: #0E0D0B; } }
     </style>
+    <filter id="sh" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+    <clipPath id="armclip">
+      <rect x="95" y="83" width="80" height="20"/>
+    </clipPath>
   </defs>
-  <rect class="bg" width="64" height="64" rx="10"/>
-  <!-- A Fraunces-style "C" — drawn as a single arc and a spine bar -->
-  <path class="ink"
-        d="M44.5 41.8c-2.7 4.3-7.4 7-12.8 7-9.6 0-16.5-7.4-16.5-17 0-9.7 6.9-17 16.5-17 5.4 0 10.1 2.7 12.8 7l-5 3c-1.6-2.7-4.6-4.4-7.8-4.4-6 0-10.5 4.7-10.5 11.4 0 6.6 4.5 11.4 10.5 11.4 3.2 0 6.2-1.7 7.8-4.4z"/>
-  <!-- Spine-number underline, accent red -->
-  <rect class="accent" x="16" y="52" width="32" height="2.2" rx="1"/>
+
+  <!-- Tile background — cream in light mode, near-black in dark -->
+  <rect class="tile" x="4" y="4" width="272" height="272" rx="54"/>
+
+  <!-- Fanned deck with soft shadow -->
+  <g filter="url(#sh)">
+
+    <!-- Teal card (back) -->
+    <g transform="rotate(11,150,230)">
+      <rect x="92" y="70" width="118" height="158" rx="28" fill="#2BBBA6"/>
+    </g>
+
+    <!-- Amber card (mid) -->
+    <g transform="rotate(4,150,230)">
+      <rect x="84" y="64" width="118" height="158" rx="28" fill="#F4A93C"/>
+    </g>
+
+    <!-- Crimson card (front) + clapperboard -->
+    <g transform="rotate(-5,150,230)">
+      <rect x="76" y="58" width="118" height="158" rx="28" fill="#EA5043"/>
+
+      <!-- Clapperboard body -->
+      <rect x="95" y="104" width="80" height="52" rx="8" fill="#1A1410"/>
+
+      <!-- Clapperboard arm -->
+      <rect x="95" y="83" width="80" height="20" rx="4" fill="#1A1410"/>
+
+      <!-- Diagonal stripes clipped to arm -->
+      <g clip-path="url(#armclip)" fill="#FBF4E9" opacity="0.9">
+        <polygon points="109,83 122,83 114,103 101,103"/>
+        <polygon points="126,83 139,83 131,103 118,103"/>
+        <polygon points="143,83 156,83 148,103 135,103"/>
+        <polygon points="160,83 173,83 165,103 152,103"/>
+        <polygon points="177,83 190,83 182,103 169,103"/>
+      </g>
+
+      <!-- Body text lines -->
+      <rect x="107" y="119" width="54" height="6" rx="3" fill="#FBF4E9" opacity="0.85"/>
+      <rect x="107" y="133" width="38" height="6" rx="3" fill="#FBF4E9" opacity="0.85"/>
+    </g>
+
+  </g>
 </svg>
