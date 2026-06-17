@@ -19,6 +19,7 @@ import { RouteTitle } from "@/components/route-title";
 import { ShortcutsSheet } from "@/components/shortcuts-sheet";
 import { WelcomeOverlay } from "@/components/welcome-overlay";
 import { Toast } from "@/components/toast";
+import { MoodPicker } from "@/components/decide/mood-picker";
 
 function activeFilterCount(filters: ReturnType<typeof useWatchlist>["filters"]): number {
   let n = 0;
@@ -40,6 +41,7 @@ export default function HomePage({ user }: { user: User }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [decideOpen, setDecideOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<WatchlistItem | null>(null);
   // Tracks the most-recently removed item so the toast can offer Undo.
   // Only the latest removal is undoable; sequential removes overwrite.
@@ -168,6 +170,7 @@ export default function HomePage({ user }: { user: User }) {
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenFilters={() => setFilterSheetOpen(true)}
         filtersBadge={filtersCount}
+        onOpenDecide={() => setDecideOpen(true)}
       />
 
       {isEmpty ? (
@@ -269,6 +272,12 @@ export default function HomePage({ user }: { user: User }) {
       />
 
       <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+
+      <MoodPicker
+        open={decideOpen}
+        onOpenChange={setDecideOpen}
+        onOpenItem={(it) => setDetailItem(it)}
+      />
 
       <WelcomeOverlay name={user.name} />
 

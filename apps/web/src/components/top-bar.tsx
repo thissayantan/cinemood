@@ -12,6 +12,7 @@ interface Props {
   onOpenPalette: () => void;
   onOpenFilters?: () => void;
   filtersBadge?: number;
+  onOpenDecide?: () => void;
 }
 
 export function TopBar({
@@ -20,6 +21,7 @@ export function TopBar({
   onOpenPalette,
   onOpenFilters,
   filtersBadge = 0,
+  onOpenDecide,
 }: Props) {
   const shortcut = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform)
     ? "⌘K"
@@ -99,10 +101,31 @@ export function TopBar({
           </button>
         )}
 
+        {onOpenDecide && (
+          <button
+            type="button"
+            onClick={onOpenDecide}
+            aria-label="Decide what to watch"
+            title="Decide what to watch"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--rule)] bg-[var(--paper-2)] text-[var(--paper-dim)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          >
+            <DecideIcon />
+          </button>
+        )}
         <ThemeToggle />
         <AvatarMenu user={user} />
       </div>
     </header>
+  );
+}
+
+/** Sparkle / wand icon to represent the "Decide" feature. */
+function DecideIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M8 2v2M8 12v2M2 8h2M12 8h2M4.2 4.2l1.4 1.4M10.4 10.4l1.4 1.4M4.2 11.8l1.4-1.4M10.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   );
 }
 

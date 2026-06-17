@@ -10,6 +10,7 @@ import nlSearchRoutes from "./routes/nl-search";
 import settingsRoutes from "./routes/settings";
 import importRoutes from "./routes/import";
 import setupStatusRoutes from "./routes/setup-status";
+import recommendRoutes from "./routes/recommend";
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
@@ -28,6 +29,7 @@ app.route("/", nlSearchRoutes);
 app.route("/", settingsRoutes);
 app.route("/", importRoutes);
 app.route("/", setupStatusRoutes);
+app.route("/", recommendRoutes);
 
 app.notFound((c) =>
   c.json(

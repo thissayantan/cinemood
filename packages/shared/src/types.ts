@@ -98,6 +98,85 @@ export interface ParsedQuery {
   semantic_query: string;
 }
 
+// ─── Recommendation (mood picker) ───────────────────────────────────────────
+
+export interface SwipeAnswer {
+  question_id: string;
+  option_id: string;
+}
+
+export interface Recommendation {
+  title_id: number;
+  score: number;
+  reason: string;
+}
+
+export interface RecommendResponse {
+  recommendations: Recommendation[];
+  items: WatchlistItem[];
+  mood: string;
+}
+
+// ─── Compare table ───────────────────────────────────────────────────────────
+
+export interface CompareCell {
+  title_id: number;
+  // Deterministic columns (from titles table)
+  title: string;
+  year: string | null;
+  type: TitleType;
+  runtime: number | null;
+  genres: string[];
+  providers: string[];
+  vote_average: number | null;
+  imdb_rating: number | null;
+  // AI-generated columns
+  mood: string;
+  pacing: string;
+  tone: string;
+  critical_consensus: string;
+  watch_if_you_liked: string[];
+}
+
+export interface CompareResponse {
+  rows: CompareCell[];
+}
+
+// ─── Swipe Q&A decider ───────────────────────────────────────────────────────
+
+export interface SwipeOption {
+  id: string;
+  label: string;
+}
+
+export interface SwipeQuestion {
+  id: string;
+  prompt: string;
+  options: SwipeOption[];
+}
+
+export interface DecideQuestionsResponse {
+  questions: SwipeQuestion[];
+  candidate_ids: number[];
+}
+
+export interface DecidePickResponse {
+  winner: WatchlistItem;
+  reason: string;
+  runners_up: { item: WatchlistItem; reason: string }[];
+}
+
+// ─── Personal access tokens ───────────────────────────────────────────────────
+
+export interface AccessTokenPublic {
+  id: string;
+  name: string;
+  prefix: string;
+  created_at: number;
+  last_used_at: number | null;
+  expires_at: number | null;
+}
+
 export type ApiOk<T> = { ok: true; data: T };
 export type ApiError = {
   ok: false;
