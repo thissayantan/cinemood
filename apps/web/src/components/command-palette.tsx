@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 import { Command } from "cmdk";
 import type {
   ApiResponse,
@@ -59,6 +60,7 @@ export function CommandPalette({
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speech = useSpeechRecognition();
   // cmdk-controlled highlighted value. Drives the preview pane so the
   // user can see full details before pressing Enter to add.
   const [highlightValue, setHighlightValue] = useState<string>("");
@@ -80,8 +82,18 @@ export function CommandPalette({
       setTmdbHits([]);
       setFindResp(null);
       setLoading(false);
+      speech.stop();
+      speech.clearTranscript();
     }
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When a final speech transcript lands, pump it into the query input so
+  // the existing debounced search fires automatically.
+  useEffect(() => {
+    if (speech.transcript) {
+      setQ(speech.transcript);
+    }
+  }, [speech.transcript]);
 
   // Debounced effect for the input.
   useEffect(() => {
@@ -224,12 +236,27 @@ export function CommandPalette({
               ⌘
             </span>
             <Command.Input
-              value={q}
-              onValueChange={setQ}
-              placeholder={placeholder}
+              value={speech.listening && speech.interimTranscript ? speech.interimTranscript : q}
+              onValueChange={(val) => {
+                if (!speech.listening) setQ(val);
+              }}
+              placeholder={speech.listening ? "Listening…" : placeholder}
               autoFocus
               className="min-w-0 flex-1 bg-transparent text-[15.5px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] focus:outline-none"
             />
+            {speech.supported && (
+              <MicButton
+                listening={speech.listening}
+                onToggle={() => {
+                  if (speech.listening) {
+                    speech.stop();
+                  } else {
+                    speech.clearTranscript();
+                    speech.start();
+                  }
+                }}
+              />
+            )}
             <ModeChip mode={mode} onChange={setMode} />
           </div>
 
@@ -766,4 +793,48 @@ function resolvePreviewHit(
     return tmdbHits.find((h) => String(h.id) === highlightValue) ?? null;
   }
   return findHighlightItem ? asHit(findHighlightItem) : null;
+}
+
+// ── Mic button ───────────────────────────────────────────────────────────────
+
+function MicButton({
+  listening,
+  onToggle,
+}: {
+  listening: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={listening ? "Stop listening" : "Search by voice"}
+      aria-pressed={listening}
+      onClick={onToggle}
+      className={cn(
+        "grid h-7 w-7 shrink-0 place-items-center rounded-full border transition",
+        listening
+          ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+          : "border-[var(--rule)] bg-transparent text-[var(--paper-faint)] hover:border-[var(--accent)]/60 hover:text-[var(--accent)]",
+      )}
+    >
+      <MicIcon active={listening} />
+    </button>
+  );
+}
+
+function MicIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      className={active ? "animate-pulse" : undefined}
+    >
+      <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3 8a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M8 13v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
 }

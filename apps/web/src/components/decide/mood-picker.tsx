@@ -5,11 +5,12 @@
  * the AI ranks their watchlist titles by fit and shows a scrollable list
  * of picks with one-line reasons.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { RecommendResponse, WatchStatus, WatchlistItem } from "@cinemood/shared";
 import { api } from "@/lib/api";
 import { useMotionConfig } from "@/lib/motion";
+import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 import { Dialog, AnimatedDialogContent, DialogTitle } from "@/components/dialog";
 import { posterUrl } from "@/lib/tmdb";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,15 @@ function MoodPickerBody({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RecommendResponse | null>(null);
+  const speech = useSpeechRecognition();
+
+  // Pump final speech transcript into mood field
+  useEffect(() => {
+    if (speech.transcript) {
+      setMood((prev) => (prev ? `${prev} ${speech.transcript}` : speech.transcript).trim());
+      speech.clearTranscript();
+    }
+  }, [speech.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canSubmit = mood.trim().length > 0 && !loading;
 
@@ -168,15 +178,49 @@ function MoodPickerBody({
               transition={fadeTransition}
               onSubmit={handleSubmit}
             >
-              {/* Mood text area */}
-              <textarea
-                value={mood}
-                onChange={(e) => setMood(e.target.value)}
-                placeholder="e.g. something light and funny, or a slow-burn thriller, or I'm feeling nostalgic…"
-                rows={3}
-                autoFocus
-                className="w-full resize-none rounded-xl border border-[var(--rule)] bg-[var(--paper-2)] px-4 py-3 text-[14px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] focus:border-[var(--accent)] focus:outline-none"
-              />
+              {/* Mood text area + optional mic button */}
+              <div className="relative">
+                <textarea
+                  value={speech.listening && speech.interimTranscript
+                    ? (mood ? `${mood} ${speech.interimTranscript}` : speech.interimTranscript)
+                    : mood}
+                  onChange={(e) => setMood(e.target.value)}
+                  placeholder={speech.listening ? "Listening…" : "e.g. something light and funny, or a slow-burn thriller, or I'm feeling nostalgic…"}
+                  rows={3}
+                  autoFocus
+                  className="w-full resize-none rounded-xl border border-[var(--rule)] bg-[var(--paper-2)] px-4 py-3 pr-12 text-[14px] text-[var(--ink)] placeholder:text-[var(--paper-faint)] focus:border-[var(--accent)] focus:outline-none"
+                />
+                {speech.supported && (
+                  <button
+                    type="button"
+                    aria-label={speech.listening ? "Stop listening" : "Describe your mood by voice"}
+                    aria-pressed={speech.listening}
+                    onClick={() => {
+                      if (speech.listening) {
+                        speech.stop();
+                      } else {
+                        speech.clearTranscript();
+                        speech.start();
+                      }
+                    }}
+                    className={cn(
+                      "absolute bottom-3 right-3 grid h-7 w-7 place-items-center rounded-full border transition",
+                      speech.listening
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                        : "border-[var(--rule)] text-[var(--paper-faint)] hover:border-[var(--accent)]/60 hover:text-[var(--accent)]",
+                    )}
+                  >
+                    <svg
+                      width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden
+                      className={speech.listening ? "animate-pulse" : undefined}
+                    >
+                      <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" stroke="currentColor" strokeWidth="1.4" />
+                      <path d="M3 8a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                      <path d="M8 13v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+              </div>
 
               {/* Status filter pills */}
               <div className="mt-4">
