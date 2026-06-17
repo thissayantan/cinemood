@@ -1,4 +1,4 @@
-import type { WatchlistItem } from "@cinemood/shared";
+import type { WatchStatus, WatchlistItem } from "@cinemood/shared";
 import { Dialog, AnimatedDialogContent, DialogTitle } from "./dialog";
 import { posterUrl } from "@/lib/tmdb";
 import { cn } from "@/lib/utils";
@@ -7,7 +7,7 @@ interface Props {
   item: WatchlistItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onToggleWatched: (item: WatchlistItem) => void;
+  onSetStatus: (item: WatchlistItem, status: WatchStatus) => void;
   onRemove: (item: WatchlistItem) => void;
 }
 
@@ -15,7 +15,7 @@ export function TitleDetailDialog({
   item,
   open,
   onOpenChange,
-  onToggleWatched,
+  onSetStatus,
   onRemove,
 }: Props) {
   return (
@@ -25,7 +25,7 @@ export function TitleDetailDialog({
         side="center"
         title={item ? item.title.title : "Title detail"}
       >
-        {item ? <Body item={item} onToggleWatched={onToggleWatched} onRemove={onRemove} /> : null}
+        {item ? <Body item={item} onSetStatus={onSetStatus} onRemove={onRemove} /> : null}
       </AnimatedDialogContent>
     </Dialog>
   );
@@ -33,11 +33,11 @@ export function TitleDetailDialog({
 
 function Body({
   item,
-  onToggleWatched,
+  onSetStatus,
   onRemove,
 }: {
   item: WatchlistItem;
-  onToggleWatched: (item: WatchlistItem) => void;
+  onSetStatus: (item: WatchlistItem, status: WatchStatus) => void;
   onRemove: (item: WatchlistItem) => void;
 }) {
   const t = item.title;
@@ -47,6 +47,7 @@ function Body({
   const poster = posterUrl(t.poster_path, "w342");
   const year = t.release_date ? t.release_date.slice(0, 4) : "—";
   const isWatched = item.status === "watched";
+  const isWatching = item.status === "watching";
   const tmdbHref = `https://www.themoviedb.org/${t.type === "series" ? "tv" : "movie"}/${t.id}`;
 
   const providersUS = pickProvidersUS(t.providers);
@@ -122,21 +123,49 @@ function Body({
       {/* Action bar */}
       <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--rule)] px-5 py-4 sm:px-7 md:px-10">
         <span className="font-label text-[10px] text-[var(--paper-faint)]">
-          {isWatched ? "Watched" : "On your shelf"}
+          {isWatched ? "Watched" : isWatching ? "Watching now" : "On your shelf"}
         </span>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onToggleWatched(item)}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-[12px] transition",
-              isWatched
-                ? "border-[var(--rule)] bg-[var(--paper-3)] text-[var(--ink)] hover:bg-[var(--paper-3)]/70"
-                : "border-[var(--accent)] bg-[var(--accent)] text-[var(--paper)] hover:opacity-92",
-            )}
-          >
-            {isWatched ? "Unmark watched" : "Mark watched"}
-          </button>
+          {/* Three-state actions: the accent button reflects what's most useful next */}
+          {!isWatching && !isWatched && (
+            <button
+              type="button"
+              onClick={() => onSetStatus(item, "watching")}
+              className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3.5 py-1.5 text-[12px] text-[var(--paper)] transition hover:opacity-90"
+            >
+              Start watching
+            </button>
+          )}
+          {isWatching && (
+            <button
+              type="button"
+              onClick={() => onSetStatus(item, "watched")}
+              className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3.5 py-1.5 text-[12px] text-[var(--paper)] transition hover:opacity-90"
+            >
+              Mark watched
+            </button>
+          )}
+          {(isWatching || isWatched) && (
+            <button
+              type="button"
+              onClick={() => onSetStatus(item, "pending")}
+              className="rounded-full border border-[var(--rule)] bg-[var(--paper-3)] px-3.5 py-1.5 text-[12px] text-[var(--ink)] transition hover:bg-[var(--paper-3)]/70"
+            >
+              {isWatched ? "Unmark watched" : "Stop watching"}
+            </button>
+          )}
+          {!isWatching && !isWatched && (
+            <button
+              type="button"
+              onClick={() => onSetStatus(item, "watched")}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-[12px] transition",
+                "border-[var(--rule)] bg-transparent text-[var(--paper-dim)] hover:text-[var(--ink)]",
+              )}
+            >
+              Mark watched
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onRemove(item)}

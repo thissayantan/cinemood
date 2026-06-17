@@ -8,6 +8,7 @@ import { rowToTitle, type TitleRow } from "./titles";
 interface WatchlistRow extends TitleRow {
   status: WatchStatus;
   added_at: number;
+  started_at: number | null;
   watched_at: number | null;
   notes: string | null;
   catalog_no: number | null;
@@ -17,7 +18,7 @@ const SELECT_BASE = `
   SELECT t.id, t.type, t.title, t.original_title, t.overview, t.release_date,
          t.poster_path, t.backdrop_path, t.vote_average, t.vote_count, t.runtime,
          t.genres, t.cast_json, t.keywords, t.providers, t.imdb_id, t.imdb_rating,
-         w.status, w.added_at, w.watched_at, w.notes, w.catalog_no
+         w.status, w.added_at, w.started_at, w.watched_at, w.notes, w.catalog_no
     FROM watchlist w
     INNER JOIN titles t ON t.id = w.title_id
    WHERE w.user_id = ?1`;
@@ -27,6 +28,7 @@ function rowToItem(row: WatchlistRow): WatchlistItem {
     title: rowToTitle(row),
     status: row.status,
     added_at: row.added_at,
+    started_at: row.started_at,
     watched_at: row.watched_at,
     notes: row.notes,
     catalog_no: row.catalog_no ?? 0,
@@ -41,6 +43,7 @@ const SORT_SQL: Record<NonNullable<WatchlistFilters["sort"]>, string> = {
   year_asc: "substr(t.release_date,1,4) ASC, t.title ASC",
   rating_desc: "t.vote_average DESC, t.title ASC",
   catalog_desc: "w.catalog_no DESC",
+  started_desc: "w.started_at DESC NULLS LAST, w.added_at DESC",
 };
 
 export async function listWatchlist(
@@ -179,16 +182,35 @@ export async function setWatchlistStatus(
   titleId: number,
   status: WatchStatus,
 ): Promise<void> {
-  const watchedAt = status === "watched" ? Math.floor(Date.now() / 1000) : null;
-  await db
-    .prepare(
-      `UPDATE watchlist
-          SET status = ?3,
-              watched_at = ?4
-        WHERE user_id = ?1 AND title_id = ?2`,
-    )
-    .bind(userId, titleId, status, watchedAt)
-    .run();
+  const now = Math.floor(Date.now() / 1000);
+  // Timestamp rules:
+  //   watching → started_at = COALESCE(existing, now), clear watched_at
+  //   watched  → watched_at = now, leave started_at intact
+  //   pending  → clear both timestamps
+  let sql: string;
+  let binds: unknown[];
+  if (status === "watching") {
+    sql = `UPDATE watchlist
+              SET status = ?3,
+                  started_at = COALESCE(started_at, ?4),
+                  watched_at = NULL
+            WHERE user_id = ?1 AND title_id = ?2`;
+    binds = [userId, titleId, status, now];
+  } else if (status === "watched") {
+    sql = `UPDATE watchlist
+              SET status = ?3,
+                  watched_at = ?4
+            WHERE user_id = ?1 AND title_id = ?2`;
+    binds = [userId, titleId, status, now];
+  } else {
+    sql = `UPDATE watchlist
+              SET status = ?3,
+                  started_at = NULL,
+                  watched_at = NULL
+            WHERE user_id = ?1 AND title_id = ?2`;
+    binds = [userId, titleId, status];
+  }
+  await db.prepare(sql).bind(...binds).run();
 }
 
 export async function listWatchlistTitleIds(

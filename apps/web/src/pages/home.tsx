@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
-import type { User, WatchlistItem } from "@cinemood/shared";
+import type { User, WatchStatus, WatchlistItem } from "@cinemood/shared";
 import { api } from "@/lib/api";
 import { useMotionConfig } from "@/lib/motion";
 import { useWatchlist } from "@/lib/use-watchlist";
@@ -96,18 +96,23 @@ export default function HomePage({ user }: { user: User }) {
     [addId],
   );
 
-  const handleToggleWatched = useCallback(
-    async (item: WatchlistItem) => {
-      const next = item.status === "watched" ? "pending" : "watched";
+  const handleSetStatus = useCallback(
+    async (item: WatchlistItem, status: WatchStatus) => {
       const res = await api(`/api/watchlist/${item.title.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status }),
       });
       if (res.ok) {
         setReloadKey((k) => k + 1);
+        const now = Math.floor(Date.now() / 1000);
         setDetailItem((prev) =>
           prev && prev.title.id === item.title.id
-            ? { ...prev, status: next, watched_at: next === "watched" ? Math.floor(Date.now() / 1000) : null }
+            ? {
+                ...prev,
+                status,
+                started_at: status === "watching" ? (prev.started_at ?? now) : status === "pending" ? null : prev.started_at,
+                watched_at: status === "watched" ? now : null,
+              }
             : prev,
         );
       }
@@ -150,6 +155,9 @@ export default function HomePage({ user }: { user: User }) {
   const items = wl.visible;
   const isEmpty = wl.all !== null && wl.all.length === 0;
   const filtersCount = activeFilterCount(wl.filters);
+  // "Continue watching" shelf — items the user is currently watching,
+  // from the unfiltered set so it's always visible regardless of filters.
+  const watchingItems = wl.all?.filter((i) => i.status === "watching") ?? [];
 
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
@@ -181,6 +189,30 @@ export default function HomePage({ user }: { user: User }) {
           </div>
 
           <section>
+            {/* "Continue watching" shelf — only visible when the user has
+                items in-progress; hidden when filtered to avoid duplication. */}
+            {watchingItems.length > 0 && !wl.filters.status && (
+              <div className="mb-6 border-b border-[var(--rule)] pb-6">
+                <h2 className="mb-3 font-label text-[10px] uppercase tracking-widest text-[var(--accent)]">
+                  Continue watching
+                </h2>
+                <div className="flex gap-4 overflow-x-auto pb-1">
+                  {watchingItems.map((item) => (
+                    <div key={item.title.id} className="w-[120px] shrink-0">
+                      <PosterCard
+                        item={item}
+                        index={0}
+                        onOpen={() => setDetailItem(item)}
+                        onSetStatus={(status) => handleSetStatus(item, status)}
+                        onRemove={() => handleRemove(item)}
+                        focusable
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <ActiveChips
               filters={wl.filters}
               total={items?.length ?? 0}
@@ -208,7 +240,7 @@ export default function HomePage({ user }: { user: User }) {
                     item={item}
                     index={index}
                     onOpen={() => setDetailItem(item)}
-                    onToggleWatched={() => handleToggleWatched(item)}
+                    onSetStatus={(status) => handleSetStatus(item, status)}
                     onRemove={() => handleRemove(item)}
                   />
                 ))}
@@ -224,7 +256,7 @@ export default function HomePage({ user }: { user: User }) {
         onOpenChange={(open) => {
           if (!open) setDetailItem(null);
         }}
-        onToggleWatched={handleToggleWatched}
+        onSetStatus={handleSetStatus}
         onRemove={handleRemove}
       />
 

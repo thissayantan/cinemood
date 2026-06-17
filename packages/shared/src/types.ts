@@ -1,5 +1,5 @@
 export type TitleType = "movie" | "series";
-export type WatchStatus = "pending" | "watched";
+export type WatchStatus = "pending" | "watching" | "watched";
 
 export interface User {
   id: string;
@@ -35,6 +35,7 @@ export interface WatchlistItem {
   title: Title;
   status: WatchStatus;
   added_at: number;
+  started_at: number | null;
   watched_at: number | null;
   notes: string | null;
   /** Per-user catalog number (Criterion-spine style). Auto-assigned on insert. */
@@ -48,7 +49,8 @@ export type WatchlistSort =
   | "year_desc"
   | "year_asc"
   | "rating_desc"
-  | "catalog_desc";
+  | "catalog_desc"
+  | "started_desc";
 
 export interface WatchlistFilters {
   status?: WatchStatus;

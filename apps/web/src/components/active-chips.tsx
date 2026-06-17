@@ -30,9 +30,13 @@ export function ActiveChips({ filters, total, onPatch, onReset }: Props) {
     });
   }
   if (filters.status) {
+    const statusLabel =
+      filters.status === "watched" ? "Watched" :
+      filters.status === "watching" ? "Watching" :
+      "To watch";
     chips.push({
       key: `status-${filters.status}`,
-      label: filters.status === "watched" ? "Watched" : "To watch",
+      label: statusLabel,
       clear: () => onPatch("status", undefined),
     });
   }

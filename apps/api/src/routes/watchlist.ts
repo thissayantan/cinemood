@@ -23,11 +23,11 @@ const PostSchema = z.object({
 });
 
 const PatchSchema = z.object({
-  status: z.enum(["pending", "watched"]),
+  status: z.enum(["pending", "watching", "watched"]),
 });
 
 const ListQuerySchema = z.object({
-  status: z.enum(["pending", "watched"]).optional(),
+  status: z.enum(["pending", "watching", "watched"]).optional(),
   type: z.enum(["movie", "series"]).optional(),
   genre: z.string().min(1).optional(),
   year: z.string().regex(/^\d{4}$/).optional(),
@@ -45,6 +45,7 @@ const ListQuerySchema = z.object({
       "year_asc",
       "rating_desc",
       "catalog_desc",
+      "started_desc",
     ])
     .optional(),
 });

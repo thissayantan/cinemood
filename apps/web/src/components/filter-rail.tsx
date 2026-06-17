@@ -65,6 +65,7 @@ export function FilterRail({ items, filters, onPatch, onReset }: Props) {
           options={[
             { v: undefined, label: "All" },
             { v: "pending", label: "To watch" },
+            { v: "watching", label: "Watching" },
             { v: "watched", label: "Watched" },
           ]}
           value={filters.status}

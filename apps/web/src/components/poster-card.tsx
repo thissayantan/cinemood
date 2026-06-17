@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import type { WatchlistItem } from "@cinemood/shared";
+import type { WatchStatus, WatchlistItem } from "@cinemood/shared";
 import { cn } from "@/lib/utils";
 import { useMotionConfig, staggerDelay } from "@/lib/motion";
 import { posterUrl } from "@/lib/tmdb";
@@ -18,7 +18,8 @@ interface Props {
   item: WatchlistItem;
   index: number;
   onOpen: () => void;
-  onToggleWatched: () => void;
+  /** Called with the desired next status. Card shows contextual actions per current status. */
+  onSetStatus: (status: WatchStatus) => void;
   onRemove: () => void;
   focusable?: boolean;
 }
@@ -27,7 +28,7 @@ export function PosterCard({
   item,
   index,
   onOpen,
-  onToggleWatched,
+  onSetStatus,
   onRemove,
   focusable = true,
 }: Props) {
@@ -45,7 +46,18 @@ export function PosterCard({
   const year = t.release_date ? t.release_date.slice(0, 4) : "—";
   const rating = typeof t.vote_average === "number" ? t.vote_average : null;
   const isWatched = item.status === "watched";
+  const isWatching = item.status === "watching";
   const providers = selectProviders(t.providers, 3);
+
+  // Contextual primary action per status:
+  //   pending  → "Start watching"  (→ watching)
+  //   watching → "Mark watched"    (→ watched)
+  //   watched  → "Unmark watched"  (→ pending)
+  const quickActionConfig = {
+    pending:  { label: "Start watching",  icon: <PlayIcon />,  next: "watching" as WatchStatus },
+    watching: { label: "Mark watched",    icon: <CheckIcon />, next: "watched"  as WatchStatus },
+    watched:  { label: "Unmark watched",  icon: <UndoIcon />,  next: "pending"  as WatchStatus },
+  }[item.status];
 
   // Motion: when reduced, every entrance collapses to instant; otherwise
   // use the shared spring + a small fade-up offset.
@@ -90,7 +102,7 @@ export function PosterCard({
         className="relative block w-full overflow-hidden rounded-xl border border-[var(--rule)] bg-[var(--paper-2)] text-left"
         style={{ aspectRatio: "2 / 3" }}
       >
-        {/* Poster image */}
+        {/* Poster image — desaturated when watched; normal when watching or pending */}
         {src ? (
           <img
             src={src}
@@ -105,6 +117,15 @@ export function PosterCard({
           <div className="grid h-full w-full place-items-center bg-[var(--paper-3)] text-[var(--paper-faint)]">
             <span className="font-label text-[11px]">No poster</span>
           </div>
+        )}
+
+        {/* Watching ring — accent-coloured border overlay; communicates
+            "in progress" without touching the poster image itself. */}
+        {isWatching && (
+          <span
+            className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-inset ring-[var(--accent)]"
+            aria-label="Currently watching"
+          />
         )}
 
         {/* Top-left: OTT providers — informational, always visible (no
@@ -169,6 +190,19 @@ export function PosterCard({
           </motion.span>
         )}
 
+        {/* Watching play-dot badge — solid accent circle with a play
+            triangle; no draw-in animation (it's a steady state). */}
+        {isWatching && (
+          <span
+            className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-[var(--accent)] text-[var(--paper)]"
+            aria-label="Currently watching"
+          >
+            <svg width="10" height="11" viewBox="0 0 10 11" fill="currentColor">
+              <path d="M2 2.5l6 2.8-6 2.8z" />
+            </svg>
+          </span>
+        )}
+
         {/* Hover/focus synopsis overlay. Text is locked to white because
             the overlay sits on the poster image — a theme-following colour
             collapses to dark-on-dark in dark mode. */}
@@ -215,10 +249,10 @@ export function PosterCard({
           className="absolute right-2 top-2 z-10 flex gap-1.5"
         >
           <QuickAction
-            label={isWatched ? "Unmark watched" : "Mark watched"}
-            onClick={onToggleWatched}
+            label={quickActionConfig.label}
+            onClick={() => onSetStatus(quickActionConfig.next)}
           >
-            {isWatched ? <UndoIcon /> : <CheckIcon />}
+            {quickActionConfig.icon}
           </QuickAction>
           <QuickAction label="Remove from watchlist" onClick={onRemove} danger>
             <TrashIcon />
@@ -228,16 +262,24 @@ export function PosterCard({
 
       {/* Metadata strip below poster */}
       <div className="mt-2 flex items-baseline justify-between gap-2 px-0.5">
-        <h3
-          className={cn(
-            "truncate font-display-sm text-[14px] leading-tight text-[var(--ink)]",
-            isWatched && "text-[var(--paper-dim)]",
+        <div className="min-w-0">
+          <h3
+            className={cn(
+              "truncate font-display-sm text-[14px] leading-tight text-[var(--ink)]",
+              isWatched && "text-[var(--paper-dim)]",
+            )}
+            style={{ fontVariationSettings: '"opsz" 14, "wght" 600, "SOFT" 40' }}
+            title={t.title}
+          >
+            {t.title}
+          </h3>
+          {/* "Watching" label — shown below title so it doesn't push year/rating */}
+          {isWatching && (
+            <span className="block font-label text-[9px] uppercase tracking-widest text-[var(--accent)]">
+              Watching
+            </span>
           )}
-          style={{ fontVariationSettings: '"opsz" 14, "wght" 600, "SOFT" 40' }}
-          title={t.title}
-        >
-          {t.title}
-        </h3>
+        </div>
         <div className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[var(--paper-faint)]">
           {year}
           {rating !== null && rating > 0 ? (
@@ -279,6 +321,14 @@ function QuickAction({
     >
       {children}
     </button>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg width="11" height="13" viewBox="0 0 11 13" fill="currentColor">
+      <path d="M2 1.5l8 4.7-8 4.7z" />
+    </svg>
   );
 }
 

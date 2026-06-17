@@ -39,6 +39,7 @@ export const SORT_LABELS: Record<WatchlistSort, string> = {
   year_asc: "Year (oldest)",
   rating_desc: "Rating (highest)",
   catalog_desc: "Spine number",
+  started_desc: "Started watching",
 };
 
 export interface WatchlistView {
