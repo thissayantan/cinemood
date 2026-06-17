@@ -224,7 +224,7 @@ fun BrandReveal(onFinished: () -> Unit) {
             // Design space: 280×280. The canvas is 200dp; scale factor
             // ds = canvasPixels / 280 maps every design coordinate naturally.
             // Design center ≈ (140,140) → maps to canvas center. ✓
-            Canvas(modifier = Modifier.size(200.dp)) {
+            Canvas(modifier = Modifier.size(300.dp)) {
                 val ds = size.width / 280f   // design-to-canvas scale
 
                 withTransform({ scale(ds, ds, Offset.Zero) }) {
@@ -334,7 +334,7 @@ fun BrandReveal(onFinished: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(12.dp))
 
             // ── Wordmark ──────────────────────────────────────────────────
             Text(
@@ -345,7 +345,7 @@ fun BrandReveal(onFinished: () -> Unit) {
                 color      = WordmarkCream,
                 fontFamily = handlee,
                 fontWeight = FontWeight.Normal,
-                fontSize   = 40.sp,
+                fontSize   = 56.sp,
             )
         }
     }

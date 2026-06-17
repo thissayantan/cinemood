@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Splash screen background — cinema-room near-black; intentionally dark in both themes -->
-    <color name="splash_bg">#0A0908</color>
+    <color name="splash_bg">#0E0D0B</color>
     <!-- Window background before Compose first frame (light: warm cream) -->
     <color name="window_bg">#F5F0E8</color>
 </resources>

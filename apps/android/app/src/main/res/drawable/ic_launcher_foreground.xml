@@ -18,6 +18,15 @@
     android:viewportWidth="280"
     android:viewportHeight="280">
 
+    <!-- Outer scale-down — shrinks deck into adaptive safe zone. -->
+    <!-- Safe zone ≈ 47–233px on each axis (72/108 of the 280 viewport).    -->
+    <!-- 0.82× centered at the viewport midpoint keeps all corners inside.   -->
+    <group
+        android:scaleX="0.82"
+        android:scaleY="0.82"
+        android:pivotX="140"
+        android:pivotY="140">
+
     <!-- ── Teal card (back) — rotate 11° ─────────────────────────────── -->
     <group
         android:pivotX="150"
@@ -102,4 +111,5 @@
 
     </group>
 
+    </group> <!-- /outer scale -->
 </vector>

@@ -13,6 +13,13 @@
     android:viewportWidth="280"
     android:viewportHeight="280">
 
+    <!-- Outer scale-down — matches foreground layer exactly. -->
+    <group
+        android:scaleX="0.82"
+        android:scaleY="0.82"
+        android:pivotX="140"
+        android:pivotY="140">
+
     <!-- Teal card (back) -->
     <group android:pivotX="150" android:pivotY="230" android:rotation="11">
         <path
@@ -52,4 +59,5 @@
                 A4,4,0,0,1,103,83 Z"/>
     </group>
 
+    </group> <!-- /outer scale -->
 </vector>

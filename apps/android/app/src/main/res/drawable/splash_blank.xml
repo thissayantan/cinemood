@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fully transparent OS splash icon — used so the Android 12+ splash screen
+  shows only the dark plate, with no icon flash before BrandReveal takes over.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,0 h108 v108 h-108 z"/>
+</vector>

@@ -37,18 +37,26 @@ class AppViewModel(
 ) : ViewModel() {
 
     var isSignedIn by mutableStateOf(tokenStore.hasToken())
+    var authError  by mutableStateOf<String?>(null)
 
     fun handleDeviceCode(code: String) {
         viewModelScope.launch {
-            api.exchangeDeviceCode(code).onSuccess { result ->
-                tokenStore.saveToken(result.token)
-                isSignedIn = true
-            }
+            api.exchangeDeviceCode(code)
+                .onSuccess { result ->
+                    tokenStore.saveToken(result.token)
+                    authError  = null
+                    isSignedIn = true
+                }
+                .onFailure { err ->
+                    android.util.Log.e("Cinemood", "Device code exchange failed", err)
+                    authError = err.message ?: "Sign-in failed. Please try again."
+                }
         }
     }
 
     fun signOut() {
         tokenStore.clearToken()
+        authError  = null
         isSignedIn = false
     }
 
@@ -115,7 +123,7 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Real UI renders immediately behind the reveal overlay
                     if (!appVm.isSignedIn) {
-                        SignInScreen()
+                        SignInScreen(authError = appVm.authError)
                     } else {
                         MainScaffold(app.api, onSignOut = { appVm.signOut() })
                     }

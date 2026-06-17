@@ -7,6 +7,7 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
@@ -118,12 +119,15 @@ class CinemoodApi(private val tokenStore: TokenStore) {
     }
 
     // ── Device auth exchange ──────────────────────────────────────────────────
-
+    //
+    // Uses bodyAsText + manual decodeFromString to avoid Ktor ContentNegotiation
+    // failing to resolve the generic serializer on non-2xx response paths.
     suspend fun exchangeDeviceCode(code: String): Result<DeviceExchangeResult> = runCatching {
-        val response: ApiResponse<DeviceExchangeResult> = client.post("$BASE_URL/api/auth/device-exchange") {
+        val text = client.post("$BASE_URL/api/auth/device-exchange") {
             contentType(ContentType.Application.Json)
             setBody("""{"code":"${code.replace("\"","\\\"")}"}""")
-        }.body()
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<DeviceExchangeResult>>(text)
         response.data ?: error(response.error?.message ?: "Exchange failed")
     }
 }

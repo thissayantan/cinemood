@@ -21,6 +21,7 @@ private const val BASE_URL = "https://cinemood.sayantan.cloud"
 @Composable
 fun SignInScreen(
     modifier: Modifier = Modifier,
+    authError: String? = null,
 ) {
     val context = LocalContext.current
     val colors  = CinemoodTheme.colors
@@ -74,6 +75,17 @@ fun SignInScreen(
                 style     = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
                 textAlign = TextAlign.Center,
             )
+
+            if (authError != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text      = authError,
+                    style     = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.error,
+                    ),
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
