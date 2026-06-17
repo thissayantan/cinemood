@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta --kill-others-on-fail \"bun --filter @cinemood/api dev\" \"bun --filter @cinemood/web dev\"",
+    "dev:remote": "concurrently -n api,web -c blue,magenta --kill-others-on-fail \"bun --filter @cinemood/api dev:remote\" \"bun --filter @cinemood/web dev\"",
     "dev:api": "bun --filter @cinemood/api dev",
     "dev:web": "bun --filter @cinemood/web dev",
     "build": "bun run --filter '*' build",
