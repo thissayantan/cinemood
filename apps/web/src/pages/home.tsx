@@ -21,6 +21,8 @@ import { WelcomeOverlay } from "@/components/welcome-overlay";
 import { Toast } from "@/components/toast";
 import { MoodPicker } from "@/components/decide/mood-picker";
 import { CompareTable } from "@/components/decide/compare-table";
+import { SwipeDeck } from "@/components/decide/swipe-deck";
+import { DecideHub } from "@/components/decide/decide-hub";
 
 function activeFilterCount(filters: ReturnType<typeof useWatchlist>["filters"]): number {
   let n = 0;
@@ -43,8 +45,10 @@ export default function HomePage({ user }: { user: User }) {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [decideOpen, setDecideOpen] = useState(false);
+  const [moodOpen, setMoodOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [compareOpen, setCompareOpen] = useState(false);
+  const [swipeOpen, setSwipeOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<WatchlistItem | null>(null);
   // Tracks the most-recently removed item so the toast can offer Undo.
   // Only the latest removal is undoable; sequential removes overwrite.
@@ -343,10 +347,28 @@ export default function HomePage({ user }: { user: User }) {
 
       <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
-      <MoodPicker
+      <DecideHub
         open={decideOpen}
         onOpenChange={setDecideOpen}
-        onOpenItem={(it) => setDetailItem(it)}
+        onOpenMood={() => {
+          setDecideOpen(false);
+          setMoodOpen(true);
+        }}
+        onOpenSwipe={() => {
+          setDecideOpen(false);
+          setSwipeOpen(true);
+        }}
+        onStartCompare={() => setDecideOpen(false)}
+      />
+      <MoodPicker open={moodOpen} onOpenChange={setMoodOpen} onOpenItem={(it) => setDetailItem(it)} />
+      <SwipeDeck
+        open={swipeOpen}
+        onOpenChange={setSwipeOpen}
+        titleIds={wl.all?.map((it) => it.title.id) ?? []}
+        onOpenItem={(it) => {
+          setSwipeOpen(false);
+          setDetailItem(it);
+        }}
       />
 
       <WelcomeOverlay name={user.name} />

@@ -12,6 +12,7 @@ import importRoutes from "./routes/import";
 import setupStatusRoutes from "./routes/setup-status";
 import recommendRoutes from "./routes/recommend";
 import compareRoutes from "./routes/compare";
+import decideRoutes from "./routes/decide";
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
@@ -32,6 +33,7 @@ app.route("/", importRoutes);
 app.route("/", setupStatusRoutes);
 app.route("/", recommendRoutes);
 app.route("/", compareRoutes);
+app.route("/", decideRoutes);
 
 app.notFound((c) =>
   c.json(
