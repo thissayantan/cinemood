@@ -142,6 +142,22 @@ export default function SettingsAccountPage({ user }: { user: User }) {
                 </span>
               </Link>
             </li>
+            <li>
+              <Link
+                to="/settings/tokens"
+                className="flex items-center justify-between gap-4 py-3 text-[14px] text-[var(--ink)] hover:text-[var(--accent)]"
+              >
+                <span>
+                  <span className="block">API tokens</span>
+                  <span className="block text-[12px] text-[var(--paper-dim)]">
+                    Generate personal access tokens for Claude Desktop, Android app, or MCP clients.
+                  </span>
+                </span>
+                <span aria-hidden className="text-[var(--paper-faint)]">
+                  →
+                </span>
+              </Link>
+            </li>
           </ul>
         </motion.section>
 

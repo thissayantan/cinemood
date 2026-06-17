@@ -5,6 +5,7 @@ import HomePage from "./pages/home";
 import LandingPage from "./pages/landing";
 import SettingsSearchPage from "./pages/settings-search";
 import SettingsAccountPage from "./pages/settings-account";
+import SettingsTokensPage from "./pages/settings-tokens";
 import ImportPage from "./pages/import";
 import NotFoundPage from "./pages/not-found";
 import { useUser } from "./lib/use-user";
@@ -55,6 +56,10 @@ export default function App() {
       <Route
         path="/settings/search"
         element={<AuthedShell render={(u) => <SettingsSearchPage user={u} />} />}
+      />
+      <Route
+        path="/settings/tokens"
+        element={<AuthedShell render={(u) => <SettingsTokensPage user={u} />} />}
       />
       <Route
         path="/import"
