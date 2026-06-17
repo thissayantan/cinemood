@@ -203,6 +203,16 @@ _This section grows over time. Each entry is a lesson learned from a real mistak
 - Why: the previous build hardcoded the same spring on every page and ignored `prefers-reduced-motion`, which §9's hard rules explicitly forbid; users with reduced motion still got the full animation suite.
 - How to apply: export a `useMotionConfig()` from `apps/web/src/lib/motion.ts` that returns `{transition, staggerDelay, fadeY}` collapsed to instant/zero when `useReducedMotion()` is true; replace every literal Framer Motion `transition={...}` with the value from that hook.
 
+### Android Kotlin serialization plugin is mandatory
+**ALWAYS** include `alias(libs.plugins.kotlin.serialization)` in `apps/android/app/build.gradle.kts` and its entry in `libs.versions.toml`. **NEVER** add a `@Serializable` data class without verifying the plugin is already applied.
+- Why: without the compiler plugin, `@Serializable` is a no-op annotation — no serializer code is generated. All `json.decodeFromString<T>()` and Ktor `.body<T>()` calls fail at runtime with "Serializer for class X is not found." The missing plugin caused the entire Android login flow to silently break.
+- How to apply: after adding any new `@Serializable` class, run a debug build and confirm no "Serializer for class" errors appear in logcat. If they do, the plugin is missing.
+
+### Ktor ContentNegotiation fails on generic types on non-2xx response paths
+**ALWAYS** use `bodyAsText() + json.decodeFromString<ApiResponse<T>>()` for the device-code exchange endpoint instead of `.body<ApiResponse<T>>()`.
+- Why: on 400 responses Ktor's ContentNegotiation pipeline attempts to resolve `ApiResponse<T>` using runtime reflection, failing with SerializationException even when the plugin IS applied. `bodyAsText()` reads the raw string first and delegates parsing to kotlinx.serialization directly, which uses the generated serializer and works on any status code.
+- How to apply: any `CinemoodApi` method that may receive a non-2xx response with a JSON body should follow the same pattern as `exchangeDeviceCode` (`CinemoodApi.kt`).
+
 ### Preserve index-aligned forEach-and-collect loops
 **NEVER** let a refactor (or a code-simplifier suggestion) collapse a positional `results.forEach((res, i) => { if (cond(res)) out.push(input[i]) })` pattern into a `filter`/`map` chain when the predicate depends on the call-site index.
 - Why: this codebase has two such loops where the index is load-bearing — `addManyToWatchlist`'s D1 batch result (`meta.changes > 0` filters inserted ids, the index links back to `titleIds[i]`) and the import-commit handler's `outcomes[i]` index-aligned mutation (each `items[i]` maps 1:1 to `outcomes[i]` so the result array order is the request order). Collapsing either into a chain throws away the index and silently corrupts the post-condition.
