@@ -1,0 +1,30 @@
+# Copy this file to apps/api/.dev.vars and fill in real values.
+# NEVER commit .dev.vars.
+
+# --- TMDB / OMDB --------------------------------------------------------
+# Public-data APIs. Lower stakes but rotate when convenient.
+TMDB_API_KEY=
+OMDB_API_KEY=
+
+# --- Google OAuth -------------------------------------------------------
+# Project: cinemood-495916
+# The client_id is public (appears in OAuth URLs). Safe to commit if needed,
+# but kept here for symmetry. Replace with the value from Google Cloud Console.
+GOOGLE_CLIENT_ID=1061373460290-l2tu8lt5k3d2dm991ci4cvfuhd1dqsf1.apps.googleusercontent.com
+
+# The client_secret is sensitive. Paste the FRESHLY-ROTATED secret here only.
+# Never paste it into chat, Slack, or any LLM.
+GOOGLE_CLIENT_SECRET=
+
+# Local-dev redirect. Production uses https://cinemood.sayantan.cloud/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:8787/auth/google/callback
+
+# Origin to return the user to after OAuth. In dev this is the Vite server
+# (the Worker has no `/` route). In prod, leave unset — Pages and the Worker
+# share an origin so the Worker emits relative redirects.
+WEB_ORIGIN=http://localhost:5173
+
+# --- App secrets --------------------------------------------------------
+# Generate each with: openssl rand -base64 32
+SESSION_SIGNING_KEY=
+LLM_CONFIG_KEY=
