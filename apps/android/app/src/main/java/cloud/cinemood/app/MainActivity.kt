@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -21,6 +22,7 @@ import cloud.cinemood.app.data.auth.TokenStore
 import cloud.cinemood.app.navigation.Screen
 import cloud.cinemood.app.ui.components.HazeBottomNav
 import cloud.cinemood.app.ui.screens.*
+import cloud.cinemood.app.ui.splash.BrandReveal
 import cloud.cinemood.app.ui.theme.CinemoodTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -76,6 +78,8 @@ private fun watchlistVmFactory(api: CinemoodApi) = object : ViewModelProvider.Fa
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // installSplashScreen() MUST be called before super.onCreate()
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -96,10 +100,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CinemoodTheme {
-                if (!appVm.isSignedIn) {
-                    SignInScreen()
-                } else {
-                    MainScaffold(app.api, onSignOut = { appVm.signOut() })
+                var showReveal by remember { mutableStateOf(true) }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Real UI renders immediately behind the reveal overlay
+                    if (!appVm.isSignedIn) {
+                        SignInScreen()
+                    } else {
+                        MainScaffold(app.api, onSignOut = { appVm.signOut() })
+                    }
+                    // Spine-line brand reveal — non-blocking (real UI loads behind it)
+                    if (showReveal) {
+                        BrandReveal(onFinished = { showReveal = false })
+                    }
                 }
             }
         }

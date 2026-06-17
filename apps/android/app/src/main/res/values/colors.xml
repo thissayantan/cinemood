@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash screen background — cinema-room near-black (matches ic_launcher_background) -->
+    <color name="splash_bg">#0A0908</color>
+</resources>

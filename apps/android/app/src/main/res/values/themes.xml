@@ -7,4 +7,16 @@
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">true</item>
     </style>
+
+    <!--
+        Cold-start splash theme (applied to MainActivity only).
+        postSplashScreenTheme switches back to Theme.Cinemood on first frame.
+        The windowSplashScreenAnimatedIcon shows the brand mark centered
+        within the OS splash icon area (≈120dp circle on API 31+).
+    -->
+    <style name="Theme.Cinemood.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Cinemood</item>
+    </style>
 </resources>
