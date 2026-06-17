@@ -20,7 +20,7 @@ export const DialogOverlay = forwardRef<HTMLDivElement, OverlayProps>(
     return (
       <DialogPrimitive.Overlay
         ref={ref}
-        className={cn("fixed inset-0 z-40 bg-[var(--paper)]/55", className)}
+        className={cn("fixed inset-0 z-40 bg-[var(--paper)]/40", className)}
         style={{ backdropFilter: blur, WebkitBackdropFilter: blur }}
         {...props}
       />
@@ -77,7 +77,7 @@ export const DialogContent = forwardRef<HTMLDivElement, ContentProps>(
             exit={variants.exit}
             transition={pickTransition(m, isCenter)}
             className={cn(
-              "fixed z-50 bg-[var(--paper-2)] text-[var(--ink)] shadow-[var(--shadow-card)]",
+              "fixed z-50 bg-[var(--paper)]/90 text-[var(--ink)] shadow-[var(--shadow-card)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[var(--paper)]/80",
               isCenter
                 ? "left-1/2 top-1/2 w-[min(960px,calc(100vw-32px))] max-h-[calc(100vh-48px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl"
                 : "right-0 top-0 h-full w-[88vw] max-w-[420px] overflow-y-auto border-l border-[var(--rule)]",

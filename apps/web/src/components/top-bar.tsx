@@ -28,7 +28,7 @@ export function TopBar({
     : "Ctrl K";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[var(--rule)] bg-[var(--paper)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/65">
+    <header className="sticky top-0 z-20 border-b border-[var(--rule)] bg-[var(--paper)]/88 backdrop-blur-lg supports-[backdrop-filter]:bg-[var(--paper)]/72">
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-5 md:px-8">
         <Link
           to="/"

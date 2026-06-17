@@ -145,7 +145,7 @@ export function Dropdown<V extends string>({
                 ? { duration: 0 }
                 : { duration: m.durFast, ease: m.easeOutQuint }
             }
-            className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-[var(--rule)] bg-[var(--paper-2)] py-1 shadow-[var(--shadow-card)]"
+            className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-[var(--rule)] bg-[var(--paper)]/85 py-1 shadow-[var(--shadow-card)] backdrop-blur-md supports-[backdrop-filter]:bg-[var(--paper)]/75"
           >
             {options.map((opt, i) => {
               const isActive = opt.value === value;

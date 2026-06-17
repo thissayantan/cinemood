@@ -44,7 +44,7 @@ export function Toast({ open, message, action, onDismiss, duration = 5000 }: Pro
               ? { duration: 0 }
               : { duration: m.durToastIn, ease: m.easeOutQuint }
           }
-          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[var(--rule)] bg-[var(--paper-2)] px-4 py-2 shadow-[var(--shadow-card)]"
+          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[var(--rule)] bg-[var(--paper)]/80 px-4 py-2 shadow-[var(--shadow-card)] backdrop-blur-md supports-[backdrop-filter]:bg-[var(--paper)]/70"
         >
           <span className="text-[13px] text-[var(--ink)]">{message}</span>
           {action && (

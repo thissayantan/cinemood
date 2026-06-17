@@ -292,7 +292,7 @@ export default function HomePage({ user }: { user: User }) {
           animate={{ y: 0, opacity: 1 }}
           exit={m.reduced ? {} : { y: "100%", opacity: 0 }}
           transition={m.reduced ? { duration: 0 } : { duration: m.durBase, ease: m.easeOutQuint }}
-          className="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[var(--rule)] bg-[var(--paper)]/95 px-5 py-2.5 shadow-xl backdrop-blur-sm"
+          className="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[var(--rule)] bg-[var(--paper)]/75 px-5 py-2.5 shadow-xl backdrop-blur-md supports-[backdrop-filter]:bg-[var(--paper)]/65"
         >
           <span className="font-label text-[11px] uppercase tracking-widest text-[var(--paper-dim)]">
             {selectedIds.size} selected

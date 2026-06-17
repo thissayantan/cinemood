@@ -61,7 +61,7 @@ export function AvatarMenu({ user }: { user: User }) {
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] text-[var(--ink)] shadow-[var(--shadow-card)]"
+          className="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--paper)]/85 text-[var(--ink)] shadow-[var(--shadow-card)] backdrop-blur-lg supports-[backdrop-filter]:bg-[var(--paper)]/75"
           role="menu"
         >
           <div className="border-b border-[var(--rule)] px-3 py-2.5">
