@@ -15,9 +15,15 @@ import {
 } from "../lib/session";
 import { revokeAllSessions, upsertUser } from "../db/queries";
 import { checkSetupStatus } from "../lib/setup-status";
+import {
+  generateOtc,
+  OTC_PREFIX,
+  OTC_TTL_SECONDS,
+} from "./device-auth";
 
 const STATE_COOKIE = "cm_oauth_state";
 const STATE_TTL_SECONDS = 600;
+const STATE_KV_PREFIX = "oauthstate:";
 
 // Hard-coded list of setup_error codes the landing page knows how to
 // render. Keep the names short, snake_case, and stable — they ship in
@@ -57,6 +63,18 @@ app.get("/auth/google", async (c) => {
   }
   const state = newSessionId();
   const isProd = c.env.ENVIRONMENT === "production";
+
+  // Device-auth mode: store device metadata in KV so the callback can
+  // detect it and issue an OTC instead of a session cookie.
+  const device = c.req.query("device");
+  if (device === "android") {
+    await c.env.SESSIONS.put(
+      `${STATE_KV_PREFIX}${state}`,
+      JSON.stringify({ device: "android" }),
+      { expirationTtl: STATE_TTL_SECONDS },
+    );
+  }
+
   c.header("Set-Cookie", stateCookie(state, STATE_TTL_SECONDS, isProd));
   return c.redirect(buildAuthUrl(c.env, state));
 });
@@ -126,6 +144,33 @@ app.get("/auth/google/callback", async (c) => {
     return errorRedirect("db_write_failed", err);
   }
 
+  // Check if this is a device-auth (Android) flow
+  const stateMeta = await c.env.SESSIONS.get(
+    `${STATE_KV_PREFIX}${state}`,
+    "json",
+  ) as { device?: string } | null;
+  // Clean up the state-meta entry regardless of outcome
+  if (stateMeta) {
+    void c.env.SESSIONS.delete(`${STATE_KV_PREFIX}${state}`);
+  }
+
+  const isProd = c.env.ENVIRONMENT === "production";
+
+  if (stateMeta?.device === "android") {
+    // Device-auth path: mint OTC → redirect to App Link
+    // (never show the raw PAT in a redirect URL)
+    const otc = await generateOtc();
+    await c.env.SESSIONS.put(
+      `${OTC_PREFIX}${otc}`,
+      JSON.stringify({ userId: profile.sub, tokenName: "Android app" }),
+      { expirationTtl: OTC_TTL_SECONDS },
+    );
+    // Clear the state cookie before redirecting to the App Link
+    c.header("Set-Cookie", stateCookie("", 0, isProd), { append: true });
+    return c.redirect(`cinemood://auth?code=${encodeURIComponent(otc)}`);
+  }
+
+  // Web path: issue a session cookie as before
   let session;
   try {
     session = await createSession(c.env.SESSION_SIGNING_KEY, profile.sub);
@@ -133,7 +178,6 @@ app.get("/auth/google/callback", async (c) => {
     console.error("oauth callback: createSession failed", err);
     return errorRedirect("session_create_failed", err);
   }
-  const isProd = c.env.ENVIRONMENT === "production";
   c.header("Set-Cookie", buildSessionCookie(session.value, isProd), {
     append: true,
   });

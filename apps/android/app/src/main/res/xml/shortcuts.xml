@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Google Assistant App Actions.
+  Full Assistant routing requires Play Store listing + Digital Asset Links (not in v1 scope).
+  Test with the App Actions Test Tool in Android Studio.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- "Open my watchlist on Cinemood" -->
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="cloud.cinemood.app"
+            android:targetClass="cloud.cinemood.app.MainActivity">
+            <parameter android:name="feature" android:value="watchlist" />
+            <data android:scheme="cinemood" android:host="app" android:path="/watchlist" />
+        </intent>
+    </capability>
+
+    <!-- "What should I watch on Cinemood" → Decide hub -->
+    <capability android:name="actions.intent.GET_THING">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="cloud.cinemood.app"
+            android:targetClass="cloud.cinemood.app.MainActivity">
+            <data android:scheme="cinemood" android:host="app" android:path="/decide" />
+        </intent>
+    </capability>
+
+</shortcuts>
