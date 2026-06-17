@@ -10,17 +10,11 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 private const val BASE_URL = "https://cinemood.sayantan.cloud"
 
-/**
- * Ktor-backed HTTP client for the Cinemood API.
- *
- * All requests are authenticated with the stored Bearer token.
- * Responses follow the { ok, data, error } envelope — callers receive
- * typed Result<T> and must handle errors explicitly.
- */
 class CinemoodApi(private val tokenStore: TokenStore) {
 
     private val json = Json {
@@ -61,15 +55,13 @@ class CinemoodApi(private val tokenStore: TokenStore) {
         val response: ApiResponse<WatchlistItem> = client.patch("$BASE_URL/api/watchlist/$titleId") {
             bearer()
             contentType(ContentType.Application.Json)
-            setBody("""{"status":"$status"}""")
+            setBody(json.encodeToString(mapOf("status" to status)))
         }.body()
         response.data ?: error(response.error?.message ?: "Empty response")
     }
 
     suspend fun removeFromWatchlist(titleId: Int): Result<Unit> = runCatching {
-        client.delete("$BASE_URL/api/watchlist/$titleId") {
-            bearer()
-        }
+        client.delete("$BASE_URL/api/watchlist/$titleId") { bearer() }
         Unit
     }
 
@@ -96,7 +88,7 @@ class CinemoodApi(private val tokenStore: TokenStore) {
         val response: ApiResponse<SearchResult> = client.post("$BASE_URL/api/search") {
             bearer()
             contentType(ContentType.Application.Json)
-            setBody("""{"query":"${query.replace("\"", "\\\"")}"}""")
+            setBody("""{"query":${json.encodeToString(query)}}""")
         }.body()
         response.data ?: SearchResult()
     }
@@ -108,24 +100,75 @@ class CinemoodApi(private val tokenStore: TokenStore) {
         status: String? = null,
         limit: Int = 10,
     ): Result<RecommendResponse> = runCatching {
-        val statusPart = if (status != null) ""","status":"$status"""" else ""
-        val body = """{"mood":"${mood.replace("\"","\\\"")}","limit":$limit$statusPart}"""
+        @kotlinx.serialization.Serializable
+        data class Req(
+            val mood: String,
+            val limit: Int,
+            val status: String? = null,
+        )
         val response: ApiResponse<RecommendResponse> = client.post("$BASE_URL/api/recommend") {
             bearer()
             contentType(ContentType.Application.Json)
-            setBody(body)
+            setBody(json.encodeToString(Req(mood, limit, status)))
         }.body()
         response.data ?: RecommendResponse()
     }
 
+    // ── Compare ───────────────────────────────────────────────────────────────
+
+    suspend fun compare(titleIds: List<Int>): Result<CompareResponse> = runCatching {
+        val response: ApiResponse<CompareResponse> = client.post("$BASE_URL/api/compare") {
+            bearer()
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(CompareRequest(titleIds)))
+        }.body()
+        response.data ?: CompareResponse()
+    }
+
+    // ── Decide Q&A ────────────────────────────────────────────────────────────
+
+    suspend fun decideQuestions(
+        titleIds: List<Int>? = null,
+        status: String? = null,
+        count: Int = 5,
+    ): Result<DecideQuestionsResponse> = runCatching {
+        val text = client.post("$BASE_URL/api/decide/questions") {
+            bearer()
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(DecideQuestionsRequest(titleIds, status, count)))
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<DecideQuestionsResponse>>(text)
+        response.data ?: DecideQuestionsResponse()
+    }
+
+    suspend fun decidePick(
+        titleIds: List<Int>,
+        answers: List<SwipeAnswer>,
+        mood: String? = null,
+    ): Result<DecidePickResponse> = runCatching {
+        val text = client.post("$BASE_URL/api/decide/pick") {
+            bearer()
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(DecidePickRequest(titleIds, answers, mood)))
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<DecidePickResponse>>(text)
+        response.data ?: error(response.error?.message ?: "Could not pick a title")
+    }
+
+    // ── Profile ───────────────────────────────────────────────────────────────
+
+    suspend fun getMe(): Result<UserProfile> = runCatching {
+        val response: ApiResponse<UserProfile> = client.get("$BASE_URL/api/me") {
+            bearer()
+        }.body()
+        response.data ?: error(response.error?.message ?: "Not signed in")
+    }
+
     // ── Device auth exchange ──────────────────────────────────────────────────
-    //
-    // Uses bodyAsText + manual decodeFromString to avoid Ktor ContentNegotiation
-    // failing to resolve the generic serializer on non-2xx response paths.
     suspend fun exchangeDeviceCode(code: String): Result<DeviceExchangeResult> = runCatching {
         val text = client.post("$BASE_URL/api/auth/device-exchange") {
             contentType(ContentType.Application.Json)
-            setBody("""{"code":"${code.replace("\"","\\\"")}"}""")
+            setBody("""{"code":${json.encodeToString(code)}}""")
         }.bodyAsText()
         val response = json.decodeFromString<ApiResponse<DeviceExchangeResult>>(text)
         response.data ?: error(response.error?.message ?: "Exchange failed")

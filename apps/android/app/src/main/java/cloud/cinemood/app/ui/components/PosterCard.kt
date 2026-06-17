@@ -15,7 +15,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.model.WatchlistItem
-import cloud.cinemood.app.data.model.providerNames
 import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 private const val TMDB_IMG = "https://image.tmdb.org/t/p/w500"
@@ -113,21 +112,24 @@ fun PosterCard(
 
         Text(
             text     = t.title,
-            style    = MaterialTheme.typography.bodySmall.copy(color = colors.ink),
+            style    = MaterialTheme.typography.bodyMedium.copy(
+                color      = colors.ink,
+                fontSize   = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
 
-        // Provider pill
-        val providers = t.providerNames
-        if (providers.isNotEmpty()) {
-            Text(
-                text     = providers.first(),
-                style    = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        // Year + type — concise meta line
+        val metaLine = listOfNotNull(
+            t.releaseDate?.take(4),
+            if (t.type == "series") "Series" else "Film",
+        ).joinToString(" · ")
+        Text(
+            text     = metaLine,
+            style    = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
+            maxLines = 1,
+        )
 
         // AI reason caption (For You shelf)
         if (caption != null) {

@@ -2,12 +2,13 @@ package cloud.cinemood.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,21 +32,12 @@ data class NavItem(
 )
 
 private val NAV_ITEMS = listOf(
-    NavItem(Screen.Home,      Icons.Filled.Home,        "For You"),
-    NavItem(Screen.Watchlist, Icons.Filled.List,         "Watchlist"),
-    NavItem(Screen.Decide,    Icons.Filled.Psychology,   "Decide"),
-    NavItem(Screen.Settings,  Icons.Filled.Settings,     "Settings"),
+    NavItem(Screen.Home,      Icons.Rounded.AutoAwesome,    "For You"),
+    NavItem(Screen.Watchlist, Icons.Rounded.LocalMovies,    "Library"),
+    NavItem(Screen.Decide,    Icons.Rounded.Shuffle,        "Decide"),
+    NavItem(Screen.Settings,  Icons.Rounded.AccountCircle,  "Profile"),
 )
 
-/**
- * Floating liquid-glass bottom navigation pill.
- *
- * Uses Haze for the frosted-glass backdrop blur when available (API 31+).
- * Falls back to a high-opacity solid background on older APIs or when
- * reduce-transparency is enabled.
- *
- * The pill floats above the content — position it in a Box overlay.
- */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun HazeBottomNav(
@@ -55,67 +47,87 @@ fun HazeBottomNav(
     modifier: Modifier = Modifier,
 ) {
     val colors    = CinemoodTheme.colors
-    val pillShape = RoundedCornerShape(32.dp)
+    val pillShape = RoundedCornerShape(36.dp)
 
-    // Warm/cool translucent tint over palette — the "liquid glass" look
     val glassStyle = HazeMaterials.thin(
-        containerColor = colors.paper.copy(alpha = 0.72f),
+        containerColor = colors.paper.copy(alpha = 0.80f),
     )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp)
+            .navigationBarsPadding(),
         contentAlignment = Alignment.BottomCenter,
     ) {
         Row(
             modifier = Modifier
                 .shadow(
-                    elevation    = 12.dp,
+                    elevation    = 16.dp,
                     shape        = pillShape,
-                    ambientColor = colors.ink.copy(alpha = 0.12f),
-                    spotColor    = colors.ink.copy(alpha = 0.08f),
+                    ambientColor = colors.accent.copy(alpha = 0.08f),
+                    spotColor    = colors.paper.copy(alpha = 0.12f),
                 )
                 .clip(pillShape)
                 .hazeEffect(state = hazeState, style = glassStyle)
-                .background(colors.paper.copy(alpha = 0.06f)) // subtle tint over glass
-                .padding(horizontal = 4.dp, vertical = 8.dp)
+                .background(colors.paper.copy(alpha = 0.04f))
+                .padding(horizontal = 8.dp, vertical = 10.dp)
                 .selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment     = Alignment.CenterVertically,
         ) {
             NAV_ITEMS.forEach { item ->
                 val selected = currentRoute == item.screen.route
+
                 val iconColor by animateColorAsState(
-                    targetValue = if (selected) colors.accent else colors.dim,
-                    animationSpec = spring(),
-                    label = "navIconColor_${item.label}",
+                    targetValue   = if (selected) colors.accent else colors.faint,
+                    animationSpec = spring(stiffness = 400f),
+                    label         = "navIconColor_${item.label}",
                 )
                 val labelColor by animateColorAsState(
-                    targetValue = if (selected) colors.accent else colors.dim,
-                    animationSpec = spring(),
-                    label = "navLabelColor_${item.label}",
+                    targetValue   = if (selected) colors.accent else colors.faint,
+                    animationSpec = spring(stiffness = 400f),
+                    label         = "navLabelColor_${item.label}",
                 )
+
                 Column(
                     modifier            = Modifier
                         .weight(1f)
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    IconButton(
-                        onClick   = { onNavigate(item.screen) },
-                        modifier  = Modifier.size(36.dp),
+                    // Selection pill behind icon
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (selected) colors.accent.copy(alpha = 0.15f)
+                                else          androidx.compose.ui.graphics.Color.Transparent
+                            )
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                     ) {
-                        Icon(
-                            imageVector         = item.icon,
-                            contentDescription  = item.label,
-                            tint                = iconColor,
-                            modifier            = Modifier.size(22.dp),
-                        )
+                        IconButton(
+                            onClick  = { onNavigate(item.screen) },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                imageVector        = item.icon,
+                                contentDescription = item.label,
+                                tint               = iconColor,
+                                modifier           = Modifier.size(24.dp),
+                            )
+                        }
                     }
+
                     Text(
                         text  = item.label,
-                        style = MaterialTheme.typography.labelSmall.copy(color = labelColor),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color         = labelColor,
+                            fontSize      = androidx.compose.ui.unit.TextUnit(9f, androidx.compose.ui.unit.TextUnitType.Sp),
+                            letterSpacing = 0.3.sp,
+                        ),
                     )
                 }
             }

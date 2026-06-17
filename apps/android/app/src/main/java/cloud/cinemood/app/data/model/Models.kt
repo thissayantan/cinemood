@@ -2,18 +2,30 @@ package cloud.cinemood.app.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+
+@Serializable
+data class CastMember(
+    val name: String,
+    val character: String? = null,
+)
 
 @Serializable
 data class Title(
     val id: Int,
     val type: String,
     val title: String,
+    @SerialName("original_title") val originalTitle: String? = null,
     @SerialName("release_date") val releaseDate: String? = null,
     @SerialName("poster_path") val posterPath: String? = null,
     @SerialName("backdrop_path") val backdropPath: String? = null,
     val overview: String? = null,
     val genres: List<String> = emptyList(),
+    val cast: List<CastMember> = emptyList(),
+    val keywords: List<String> = emptyList(),
     val runtime: Int? = null,
     @SerialName("vote_average") val voteAverage: Double? = null,
     @SerialName("vote_count") val voteCount: Int? = null,
@@ -22,9 +34,24 @@ data class Title(
     val providers: JsonObject? = null,
 )
 
-// Provider names come from the object keys (e.g. "Netflix", "Prime Video")
-val Title.providerNames: List<String>
-    get() = providers?.keys?.toList() ?: emptyList()
+fun Title.streamingProviders(region: String = "US"): List<String> {
+    val json = providers ?: return emptyList()
+
+    fun namesFromRegion(code: String): List<String> {
+        val regionObj = json[code] as? JsonObject ?: return emptyList()
+        val flatrate = regionObj["flatrate"] as? JsonArray ?: return emptyList()
+        return flatrate.mapNotNull { entry ->
+            (entry as? JsonObject)?.get("provider_name")?.jsonPrimitive?.contentOrNull
+        }
+    }
+
+    val preferred = region.uppercase().ifBlank { "US" }
+    return (namesFromRegion(preferred)
+        .ifEmpty { namesFromRegion("US") }
+        .ifEmpty { json.keys.flatMap { namesFromRegion(it) } })
+        .distinct()
+        .take(6)
+}
 
 @Serializable
 data class WatchlistItem(
@@ -51,7 +78,7 @@ data class TmdbResult(
 @Serializable
 data class Recommendation(
     @SerialName("title_id") val titleId: Int,
-    val score: Int,
+    val score: Double,
     val reason: String,
 )
 
@@ -65,6 +92,14 @@ data class RecommendResponse(
 @Serializable
 data class SearchResult(
     val hits: List<WatchlistItem> = emptyList(),
+)
+
+@Serializable
+data class UserProfile(
+    val id: String,
+    val email: String,
+    val name: String? = null,
+    val picture: String? = null,
 )
 
 @Serializable
@@ -85,4 +120,78 @@ data class ApiResponse<T>(
 data class ApiError(
     val code: String,
     val message: String,
+)
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+
+@Serializable
+data class CompareRequest(@SerialName("title_ids") val titleIds: List<Int>)
+
+@Serializable
+data class CompareCell(
+    @SerialName("title_id") val titleId: Int,
+    val title: String,
+    val year: String? = null,
+    val type: String,
+    val runtime: Int? = null,
+    val genres: List<String> = emptyList(),
+    val providers: List<String> = emptyList(),
+    @SerialName("vote_average") val voteAverage: Double? = null,
+    @SerialName("imdb_rating") val imdbRating: Double? = null,
+    val mood: String = "",
+    val pacing: String = "",
+    val tone: String = "",
+    @SerialName("critical_consensus") val criticalConsensus: String = "",
+    @SerialName("watch_if_you_liked") val watchIfYouLiked: List<String> = emptyList(),
+)
+
+@Serializable
+data class CompareResponse(val rows: List<CompareCell> = emptyList())
+
+// ── Decide swipe Q&A ──────────────────────────────────────────────────────────
+
+@Serializable
+data class SwipeOption(val id: String, val label: String)
+
+@Serializable
+data class SwipeQuestion(
+    val id: String,
+    val prompt: String,
+    val options: List<SwipeOption> = emptyList(),
+)
+
+@Serializable
+data class DecideQuestionsRequest(
+    @SerialName("title_ids") val titleIds: List<Int>? = null,
+    val status: String? = null,
+    val count: Int = 5,
+)
+
+@Serializable
+data class DecideQuestionsResponse(
+    val questions: List<SwipeQuestion> = emptyList(),
+    @SerialName("candidate_ids") val candidateIds: List<Int> = emptyList(),
+)
+
+@Serializable
+data class SwipeAnswer(
+    @SerialName("question_id") val questionId: String,
+    @SerialName("option_id") val optionId: String,
+)
+
+@Serializable
+data class DecidePickRequest(
+    @SerialName("title_ids") val titleIds: List<Int>,
+    val answers: List<SwipeAnswer>,
+    val mood: String? = null,
+)
+
+@Serializable
+data class RunnerUp(val item: WatchlistItem, val reason: String)
+
+@Serializable
+data class DecidePickResponse(
+    val winner: WatchlistItem,
+    val reason: String,
+    @SerialName("runners_up") val runnersUp: List<RunnerUp> = emptyList(),
 )
