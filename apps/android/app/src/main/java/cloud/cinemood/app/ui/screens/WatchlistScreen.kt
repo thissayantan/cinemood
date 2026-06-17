@@ -32,7 +32,7 @@ class WatchlistViewModel(private val api: CinemoodApi) : ViewModel() {
 
     val displayed: List<WatchlistItem>
         get() = allItems
-            .filter { typeFilter == null || it.type == typeFilter }
+            .filter { typeFilter == null || it.title.type == typeFilter }
             .filter { statusFilter == null || it.status == statusFilter }
 
     init { load() }
@@ -51,7 +51,7 @@ class WatchlistViewModel(private val api: CinemoodApi) : ViewModel() {
     fun setStatus(titleId: Int, status: String) {
         viewModelScope.launch {
             api.setStatus(titleId, status).onSuccess {
-                allItems = allItems.map { if (it.id == titleId) it.copy(status = status) else it }
+                allItems = allItems.map { if (it.title.id == titleId) it.copy(status = status) else it }
             }
         }
     }
@@ -110,7 +110,7 @@ fun WatchlistScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(vm.displayed, key = { it.id }) { item ->
+                items(vm.displayed, key = { it.title.id }) { item ->
                     PosterCard(
                         item    = item,
                         onClick = { onItemClick(item) },

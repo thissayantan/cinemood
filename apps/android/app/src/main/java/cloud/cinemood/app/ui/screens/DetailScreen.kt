@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.model.WatchlistItem
+import cloud.cinemood.app.data.model.providerNames
 import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 private const val TMDB_IMG_BACKDROP = "https://image.tmdb.org/t/p/w780"
@@ -32,6 +33,7 @@ fun DetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = CinemoodTheme.colors
+    val t      = item.title
 
     var overviewExpanded by remember { mutableStateOf(false) }
     var currentStatus by remember(item.status) { mutableStateOf(item.status) }
@@ -48,14 +50,14 @@ fun DetailScreen(
                 .fillMaxWidth()
                 .height(240.dp),
         ) {
-            val backdropUrl = item.backdropPath?.let { "$TMDB_IMG_BACKDROP$it" }
-            val posterUrl   = item.posterPath?.let { "$TMDB_IMG_POSTER$it" }
+            val backdropUrl = t.backdropPath?.let { "$TMDB_IMG_BACKDROP$it" }
+            val posterUrl   = t.posterPath?.let { "$TMDB_IMG_POSTER$it" }
             val imageUrl    = backdropUrl ?: posterUrl
 
             if (imageUrl != null) {
                 AsyncImage(
                     model              = imageUrl,
-                    contentDescription = item.title,
+                    contentDescription = t.title,
                     contentScale       = ContentScale.Crop,
                     modifier           = Modifier.fillMaxSize(),
                 )
@@ -63,7 +65,6 @@ fun DetailScreen(
                 Box(modifier = Modifier.fillMaxSize().background(colors.paper2))
             }
 
-            // Gradient scrim so the back button is readable — fixed black, theme-independent
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -75,7 +76,6 @@ fun DetailScreen(
                     ),
             )
 
-            // Back button
             IconButton(
                 onClick  = onBack,
                 modifier = Modifier
@@ -91,22 +91,21 @@ fun DetailScreen(
             }
         }
 
-        // Content
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
         ) {
-            // Title + meta
             Text(
-                text  = item.title,
+                text  = t.title,
                 style = MaterialTheme.typography.headlineMedium.copy(color = colors.ink),
             )
             Spacer(modifier = Modifier.height(4.dp))
+            val year = t.releaseDate?.take(4)?.toIntOrNull()
             val meta = listOfNotNull(
-                item.year?.toString(),
-                item.runtime?.let { "${it}m" },
-                if (item.type == "series") "Series" else "Film",
+                year?.toString(),
+                t.runtime?.let { "${it}m" },
+                if (t.type == "series") "Series" else "Film",
             ).joinToString(" · ")
             if (meta.isNotEmpty()) {
                 Text(
@@ -115,8 +114,7 @@ fun DetailScreen(
                 )
             }
 
-            // Rating
-            val rating = item.imdbRating ?: item.voteAverage
+            val rating = t.imdbRating ?: t.voteAverage
             if (rating != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -127,10 +125,10 @@ fun DetailScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Providers
-            if (item.providers.isNotEmpty()) {
+            val providers = t.providerNames
+            if (providers.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item.providers.take(3).forEach { provider ->
+                    providers.take(3).forEach { provider ->
                         SuggestionChip(
                             onClick = {},
                             label   = { Text(provider, style = MaterialTheme.typography.labelSmall) },
@@ -140,7 +138,6 @@ fun DetailScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Status actions
             Text(
                 text  = "Status".uppercase(),
                 style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
@@ -166,15 +163,14 @@ fun DetailScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Overview
-            if (!item.overview.isNullOrBlank()) {
+            if (!t.overview.isNullOrBlank()) {
                 Text(
                     text     = "Overview".uppercase(),
                     style    = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text     = item.overview,
+                    text     = t.overview,
                     style    = MaterialTheme.typography.bodyMedium.copy(color = colors.ink),
                     maxLines = if (overviewExpanded) Int.MAX_VALUE else 4,
                     overflow = TextOverflow.Ellipsis,
@@ -189,8 +185,7 @@ fun DetailScreen(
                 }
             }
 
-            // Genres
-            if (item.genres.isNotEmpty()) {
+            if (t.genres.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text  = "Genres".uppercase(),
@@ -198,7 +193,7 @@ fun DetailScreen(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item.genres.take(4).forEach { genre ->
+                    t.genres.take(4).forEach { genre ->
                         SuggestionChip(
                             onClick = {},
                             label   = { Text(genre, style = MaterialTheme.typography.labelSmall) },

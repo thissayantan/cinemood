@@ -162,7 +162,7 @@ fun MainScaffold(api: CinemoodApi, onSignOut: () -> Unit) {
                 HomeScreen(
                     vm          = homeVm,
                     onItemClick = { item ->
-                        navController.navigate(Screen.Detail.createRoute(item.id))
+                        navController.navigate(Screen.Detail.createRoute(item.title.id))
                     },
                 )
             }
@@ -170,7 +170,7 @@ fun MainScaffold(api: CinemoodApi, onSignOut: () -> Unit) {
                 WatchlistScreen(
                     vm          = watchlistVm,
                     onItemClick = { item ->
-                        navController.navigate(Screen.Detail.createRoute(item.id))
+                        navController.navigate(Screen.Detail.createRoute(item.title.id))
                     },
                 )
             }
@@ -196,12 +196,12 @@ fun MainScaffold(api: CinemoodApi, onSignOut: () -> Unit) {
             composable(Screen.Detail.route) { backStackEntry ->
                 val titleId = backStackEntry.arguments?.getString("titleId")?.toIntOrNull()
                 // Title detail — looks up from watchlistVm.allItems for the cached list
-                val item = watchlistVm.allItems.find { it.id == titleId }
+                val item = watchlistVm.allItems.find { it.title.id == titleId }
                 if (item != null) {
                     DetailScreen(
                         item       = item,
                         onBack     = { navController.popBackStack() },
-                        onSetStatus = { status -> watchlistVm.setStatus(item.id, status) },
+                        onSetStatus = { status -> watchlistVm.setStatus(item.title.id, status) },
                     )
                 } else {
                     Box(

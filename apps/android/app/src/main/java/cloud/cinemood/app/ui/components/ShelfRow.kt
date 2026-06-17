@@ -37,11 +37,11 @@ fun ShelfRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(items, key = { it.id }) { item ->
+            items(items, key = { it.title.id }) { item ->
                 PosterCard(
                     item      = item,
                     onClick   = { onItemClick(item) },
-                    caption   = captions[item.id],
+                    caption   = captions[item.title.id],
                     modifier  = Modifier.width(130.dp),
                 )
             }

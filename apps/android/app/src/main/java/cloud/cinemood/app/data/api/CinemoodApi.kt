@@ -115,7 +115,7 @@ class CinemoodApi(private val tokenStore: TokenStore) {
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()
-        response.data ?: RecommendResponse(emptyList())
+        response.data ?: RecommendResponse()
     }
 
     // ── Device auth exchange ──────────────────────────────────────────────────
