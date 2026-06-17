@@ -10,8 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.data.model.Recommendation
-import cloud.cinemood.app.ui.theme.CineMoodDim
-import cloud.cinemood.app.ui.theme.CineMoodFaint
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 /**
  * A horizontal shelf of poster cards with a labelled header.
@@ -30,7 +29,7 @@ fun ShelfRow(
     Column(modifier = modifier) {
         Text(
             text     = title.uppercase(),
-            style    = MaterialTheme.typography.labelSmall.copy(color = CineMoodFaint),
+            style    = MaterialTheme.typography.labelSmall.copy(color = CinemoodTheme.colors.faint),
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         Spacer(modifier = Modifier.height(8.dp))

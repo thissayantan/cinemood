@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background before Compose first frame (dark: cinema-room near-black) -->
+    <color name="window_bg">#0A0908</color>
+</resources>

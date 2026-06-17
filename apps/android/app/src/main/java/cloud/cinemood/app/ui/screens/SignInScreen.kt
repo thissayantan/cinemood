@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import cloud.cinemood.app.ui.theme.*
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 private const val BASE_URL = "https://cinemood.sayantan.cloud"
 
@@ -23,11 +23,12 @@ fun SignInScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val colors  = CinemoodTheme.colors
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CineMoodPaper),
+            .background(colors.paper),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -37,12 +38,12 @@ fun SignInScreen(
             // Wordmark
             Text(
                 text  = "Cinemood",
-                style = MaterialTheme.typography.headlineLarge.copy(color = CineMoodInk),
+                style = MaterialTheme.typography.headlineLarge.copy(color = colors.ink),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text      = "Movies and series, found by mood.",
-                style     = MaterialTheme.typography.bodyMedium.copy(color = CineMoodDim),
+                style     = MaterialTheme.typography.bodyMedium.copy(color = colors.dim),
                 textAlign = TextAlign.Center,
             )
 
@@ -53,7 +54,7 @@ fun SignInScreen(
                 onClick  = { launchGoogleAuth(context) },
                 shape    = RoundedCornerShape(12.dp),
                 colors   = ButtonDefaults.buttonColors(
-                    containerColor = CineMoodAccent,
+                    containerColor = colors.accent,
                     contentColor   = Color.White,
                 ),
                 modifier = Modifier
@@ -70,7 +71,7 @@ fun SignInScreen(
 
             Text(
                 text      = "Your watchlist, your preferences.\nNo account sharing.",
-                style     = MaterialTheme.typography.bodySmall.copy(color = CineMoodFaint),
+                style     = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
                 textAlign = TextAlign.Center,
             )
         }

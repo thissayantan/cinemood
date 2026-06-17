@@ -15,7 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.model.WatchlistItem
-import cloud.cinemood.app.ui.theme.*
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 private const val TMDB_IMG = "https://image.tmdb.org/t/p/w500"
 
@@ -26,14 +26,16 @@ fun PosterCard(
     modifier: Modifier = Modifier,
     caption: String? = null,
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val colors = CinemoodTheme.colors
+    val shape  = RoundedCornerShape(12.dp)
+
     Column(modifier = modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .clip(shape)
-                .background(CineMoodPaper2),
+                .background(colors.paper2),
         ) {
             if (item.posterPath != null) {
                 AsyncImage(
@@ -51,7 +53,7 @@ fun PosterCard(
                     Text(
                         text  = item.title.take(2).uppercase(),
                         style = MaterialTheme.typography.headlineLarge,
-                        color = CineMoodFaint,
+                        color = colors.faint,
                     )
                 }
             }
@@ -62,7 +64,7 @@ fun PosterCard(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(6.dp)
-                        .background(CineMoodAccent, RoundedCornerShape(4.dp))
+                        .background(colors.accent, RoundedCornerShape(4.dp))
                         .padding(horizontal = 5.dp, vertical = 2.dp),
                 ) {
                     Text(
@@ -72,11 +74,13 @@ fun PosterCard(
                     )
                 }
             } else if (item.status == "watched") {
+                // Fixed dark scrim — theme-independent so it stays legible over posters
+                // in both light and dark mode (colors.dim is cream in dark → white-on-cream fails)
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(6.dp)
-                        .background(CineMoodDim.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 5.dp, vertical = 2.dp),
                 ) {
                     Text(
@@ -87,7 +91,7 @@ fun PosterCard(
                 }
             }
 
-            // Rating chip
+            // Rating chip — fixed dark scrim, theme-independent (same reasoning as above)
             val rating = item.imdbRating ?: item.voteAverage
             if (rating != null) {
                 Box(
@@ -110,7 +114,7 @@ fun PosterCard(
 
         Text(
             text     = item.title,
-            style    = MaterialTheme.typography.bodySmall.copy(color = CineMoodInk),
+            style    = MaterialTheme.typography.bodySmall.copy(color = colors.ink),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -119,7 +123,7 @@ fun PosterCard(
         if (item.providers.isNotEmpty()) {
             Text(
                 text     = item.providers.first(),
-                style    = MaterialTheme.typography.labelSmall.copy(color = CineMoodFaint),
+                style    = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -129,7 +133,7 @@ fun PosterCard(
         if (caption != null) {
             Text(
                 text     = caption,
-                style    = MaterialTheme.typography.bodySmall.copy(color = CineMoodDim),
+                style    = MaterialTheme.typography.bodySmall.copy(color = colors.dim),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )

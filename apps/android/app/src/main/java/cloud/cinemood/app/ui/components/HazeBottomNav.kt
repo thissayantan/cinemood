@@ -15,16 +15,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import cloud.cinemood.app.navigation.Screen
-import cloud.cinemood.app.ui.theme.*
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 data class NavItem(
     val screen: Screen,
@@ -56,11 +54,12 @@ fun HazeBottomNav(
     onNavigate: (Screen) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors    = CinemoodTheme.colors
     val pillShape = RoundedCornerShape(32.dp)
 
-    // Warm translucent tint over cream palette — the "liquid glass" look
+    // Warm/cool translucent tint over palette — the "liquid glass" look
     val glassStyle = HazeMaterials.thin(
-        containerColor = CineMoodPaper.copy(alpha = 0.72f),
+        containerColor = colors.paper.copy(alpha = 0.72f),
     )
 
     Box(
@@ -74,12 +73,12 @@ fun HazeBottomNav(
                 .shadow(
                     elevation    = 12.dp,
                     shape        = pillShape,
-                    ambientColor = CineMoodInk.copy(alpha = 0.12f),
-                    spotColor    = CineMoodInk.copy(alpha = 0.08f),
+                    ambientColor = colors.ink.copy(alpha = 0.12f),
+                    spotColor    = colors.ink.copy(alpha = 0.08f),
                 )
                 .clip(pillShape)
                 .hazeEffect(state = hazeState, style = glassStyle)
-                .background(CineMoodPaper.copy(alpha = 0.06f)) // subtle tint over glass
+                .background(colors.paper.copy(alpha = 0.06f)) // subtle tint over glass
                 .padding(horizontal = 4.dp, vertical = 8.dp)
                 .selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -88,12 +87,12 @@ fun HazeBottomNav(
             NAV_ITEMS.forEach { item ->
                 val selected = currentRoute == item.screen.route
                 val iconColor by animateColorAsState(
-                    targetValue = if (selected) CineMoodAccent else CineMoodDim,
+                    targetValue = if (selected) colors.accent else colors.dim,
                     animationSpec = spring(),
                     label = "navIconColor_${item.label}",
                 )
                 val labelColor by animateColorAsState(
-                    targetValue = if (selected) CineMoodAccent else CineMoodDim,
+                    targetValue = if (selected) colors.accent else colors.dim,
                     animationSpec = spring(),
                     label = "navLabelColor_${item.label}",
                 )

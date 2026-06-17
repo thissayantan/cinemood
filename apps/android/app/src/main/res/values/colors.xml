@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Splash screen background — cinema-room near-black (matches ic_launcher_background) -->
+    <!-- Splash screen background — cinema-room near-black; intentionally dark in both themes -->
     <color name="splash_bg">#0A0908</color>
+    <!-- Window background before Compose first frame (light: warm cream) -->
+    <color name="window_bg">#F5F0E8</color>
 </resources>

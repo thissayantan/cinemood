@@ -8,15 +8,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cloud.cinemood.app.data.api.CinemoodApi
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.ui.components.PosterCard
-import cloud.cinemood.app.ui.theme.CineMoodAccent
-import cloud.cinemood.app.ui.theme.CineMoodFaint
-import cloud.cinemood.app.ui.theme.CineMoodInk
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 import kotlinx.coroutines.launch
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -66,6 +65,8 @@ fun WatchlistScreen(
     onItemClick: (WatchlistItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = CinemoodTheme.colors
+
     Column(modifier = modifier.fillMaxSize()) {
         // Type filter chips
         FilterRow(
@@ -89,7 +90,7 @@ fun WatchlistScreen(
             vm.error != null -> Text(
                 text     = "Error: ${vm.error}",
                 modifier = Modifier.padding(16.dp),
-                color    = CineMoodFaint,
+                color    = colors.faint,
             )
 
             vm.displayed.isEmpty() -> Box(
@@ -98,7 +99,7 @@ fun WatchlistScreen(
             ) {
                 Text(
                     text  = "Nothing here yet.\nAdd a film or series to get started.",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = CineMoodFaint),
+                    style = MaterialTheme.typography.bodyMedium.copy(color = colors.faint),
                 )
             }
 
@@ -128,6 +129,7 @@ private fun FilterRow(
     selected: String?,
     onSelect: (String?) -> Unit,
 ) {
+    val colors = CinemoodTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -140,8 +142,8 @@ private fun FilterRow(
                 onClick  = { onSelect(value) },
                 label    = { Text(label, style = MaterialTheme.typography.labelSmall) },
                 colors   = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = CineMoodAccent,
-                    selectedLabelColor     = androidx.compose.ui.graphics.Color.White,
+                    selectedContainerColor = colors.accent,
+                    selectedLabelColor     = Color.White,
                 ),
             )
         }

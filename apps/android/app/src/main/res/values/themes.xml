@@ -1,18 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme — translucent status/nav bars so Compose draws edge-to-edge -->
+    <!--
+        Base application theme — DayNight parent lets the system apply light/dark
+        automatically. Compose handles all surface colours; the only XML concern is
+        the window background (shown briefly before Compose's first frame) and the
+        system bar colours (managed by enableEdgeToEdge in MainActivity).
+    -->
     <style name="Theme.Cinemood" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">true</item>
+        <!-- Prevents a cream/dark flash before Compose draws; flips per res/values-night/ -->
+        <item name="android:windowBackground">@color/window_bg</item>
     </style>
 
     <!--
         Cold-start splash theme (applied to MainActivity only).
         postSplashScreenTheme switches back to Theme.Cinemood on first frame.
-        The windowSplashScreenAnimatedIcon shows the brand mark centered
-        within the OS splash icon area (≈120dp circle on API 31+).
+        The splash stays intentionally dark in both light and dark mode —
+        it is the brand signature and matches the adaptive icon background.
     -->
     <style name="Theme.Cinemood.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_bg</item>

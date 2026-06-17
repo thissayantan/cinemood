@@ -18,7 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.model.WatchlistItem
-import cloud.cinemood.app.ui.theme.*
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 
 private const val TMDB_IMG_BACKDROP = "https://image.tmdb.org/t/p/w780"
 private const val TMDB_IMG_POSTER   = "https://image.tmdb.org/t/p/w342"
@@ -31,13 +31,15 @@ fun DetailScreen(
     onSetStatus: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = CinemoodTheme.colors
+
     var overviewExpanded by remember { mutableStateOf(false) }
     var currentStatus by remember(item.status) { mutableStateOf(item.status) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(CineMoodPaper)
+            .background(colors.paper)
             .verticalScroll(rememberScrollState()),
     ) {
         // Full-bleed backdrop
@@ -58,10 +60,10 @@ fun DetailScreen(
                     modifier           = Modifier.fillMaxSize(),
                 )
             } else {
-                Box(modifier = Modifier.fillMaxSize().background(CineMoodPaper2))
+                Box(modifier = Modifier.fillMaxSize().background(colors.paper2))
             }
 
-            // Gradient scrim so the back button is readable
+            // Gradient scrim so the back button is readable — fixed black, theme-independent
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -98,7 +100,7 @@ fun DetailScreen(
             // Title + meta
             Text(
                 text  = item.title,
-                style = MaterialTheme.typography.headlineMedium.copy(color = CineMoodInk),
+                style = MaterialTheme.typography.headlineMedium.copy(color = colors.ink),
             )
             Spacer(modifier = Modifier.height(4.dp))
             val meta = listOfNotNull(
@@ -109,7 +111,7 @@ fun DetailScreen(
             if (meta.isNotEmpty()) {
                 Text(
                     text  = meta,
-                    style = MaterialTheme.typography.bodySmall.copy(color = CineMoodDim),
+                    style = MaterialTheme.typography.bodySmall.copy(color = colors.dim),
                 )
             }
 
@@ -119,7 +121,7 @@ fun DetailScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text  = "★ ${"%.1f".format(rating)}",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = CineMoodAccent),
+                    style = MaterialTheme.typography.bodyMedium.copy(color = colors.accent),
                 )
             }
 
@@ -141,7 +143,7 @@ fun DetailScreen(
             // Status actions
             Text(
                 text  = "Status".uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(color = CineMoodFaint),
+                style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
             )
             Spacer(modifier = Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -155,7 +157,7 @@ fun DetailScreen(
                         },
                         label  = { Text(label, style = MaterialTheme.typography.labelSmall) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CineMoodAccent,
+                            selectedContainerColor = colors.accent,
                             selectedLabelColor     = Color.White,
                         ),
                     )
@@ -168,12 +170,12 @@ fun DetailScreen(
             if (!item.overview.isNullOrBlank()) {
                 Text(
                     text     = "Overview".uppercase(),
-                    style    = MaterialTheme.typography.labelSmall.copy(color = CineMoodFaint),
+                    style    = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text     = item.overview,
-                    style    = MaterialTheme.typography.bodyMedium.copy(color = CineMoodInk),
+                    style    = MaterialTheme.typography.bodyMedium.copy(color = colors.ink),
                     maxLines = if (overviewExpanded) Int.MAX_VALUE else 4,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -182,7 +184,7 @@ fun DetailScreen(
                         onClick = { overviewExpanded = true },
                         contentPadding = PaddingValues(0.dp),
                     ) {
-                        Text("Show more", style = MaterialTheme.typography.labelSmall.copy(color = CineMoodDim))
+                        Text("Show more", style = MaterialTheme.typography.labelSmall.copy(color = colors.dim))
                     }
                 }
             }
@@ -192,7 +194,7 @@ fun DetailScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text  = "Genres".uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(color = CineMoodFaint),
+                    style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

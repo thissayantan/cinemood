@@ -13,7 +13,7 @@ import cloud.cinemood.app.data.api.CinemoodApi
 import cloud.cinemood.app.data.model.Recommendation
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.ui.components.ShelfRow
-import cloud.cinemood.app.ui.theme.CineMoodFaint
+import cloud.cinemood.app.ui.theme.CinemoodTheme
 import kotlinx.coroutines.launch
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ fun HomeScreen(
             item {
                 Text(
                     text     = "Could not load recommendations: $err",
-                    style    = MaterialTheme.typography.bodySmall.copy(color = CineMoodFaint),
+                    style    = MaterialTheme.typography.bodySmall.copy(color = CinemoodTheme.colors.faint),
                     modifier = Modifier.padding(16.dp),
                 )
             }
