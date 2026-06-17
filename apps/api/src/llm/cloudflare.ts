@@ -1,6 +1,6 @@
 import type { LlmConfig, ParsedQuery } from "@cinemood/shared";
 import type { Env } from "../env";
-import type { LlmProvider } from "./index";
+import type { CompleteOptions, LlmMessage, LlmProvider } from "./index";
 import {
   SYSTEM_PROMPT,
   tryParseJsonObject,
@@ -56,22 +56,32 @@ export class CloudflareProvider implements LlmProvider {
     this.env = env;
   }
 
-  async parseQuery(input: string): Promise<ParsedQuery> {
-    const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: input },
-    ];
-
-    // gpt-oss models accept the OpenAI Responses-API shape via `input` and
-    // a top-level `instructions`; everything else uses chat-style `messages`.
+  async complete(messages: LlmMessage[], opts: CompleteOptions = {}): Promise<string> {
+    const { maxTokens = 1500, temperature = 0 } = opts;
     const isGptOss = this.model.startsWith("@cf/openai/gpt-oss");
-    const payload = isGptOss
-      ? {
-          instructions: SYSTEM_PROMPT,
-          input,
-          reasoning: { effort: "low" },
-        }
-      : { messages, max_tokens: 512, temperature: 0 };
+
+    // gpt-oss uses the Responses-API: top-level instructions + input.
+    // For multi-turn messages we extract the first system message as instructions
+    // and concatenate the rest as a single user input string.
+    let payload: Record<string, unknown>;
+    if (isGptOss) {
+      const sysMsg = messages.find((m) => m.role === "system");
+      const userContent = messages
+        .filter((m) => m.role !== "system")
+        .map((m) => m.content)
+        .join("\n");
+      payload = {
+        instructions: sysMsg?.content ?? "",
+        input: userContent,
+        reasoning: { effort: "low" },
+      };
+    } else {
+      payload = {
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        max_tokens: maxTokens,
+        temperature,
+      };
+    }
 
     const result = await this.env.AI.run(this.model as never, payload as never);
     const text = extractText(result);
@@ -84,6 +94,15 @@ export class CloudflareProvider implements LlmProvider {
         }`,
       );
     }
+    return text;
+  }
+
+  async parseQuery(input: string): Promise<ParsedQuery> {
+    const messages = [
+      { role: "system" as const, content: SYSTEM_PROMPT },
+      { role: "user" as const, content: input },
+    ];
+    const text = await this.complete(messages, { maxTokens: 512, temperature: 0 });
     const obj = tryParseJsonObject(text);
     return validateParsedQuery(obj);
   }

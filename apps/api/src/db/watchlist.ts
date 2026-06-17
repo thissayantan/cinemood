@@ -234,3 +234,28 @@ export async function getMaxCatalogNo(
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
+
+/**
+ * Fetch a specific subset of the user's watchlist items by title id.
+ * Used by the AI feature routes (recommend, compare, decide) so they
+ * can hydrate a caller-supplied `title_ids` array into full WatchlistItems
+ * while maintaining the user-scoping invariant.
+ *
+ * Items whose id is not in the user's watchlist are silently omitted
+ * (no error) — callers should treat absent ids as removed/invalid.
+ */
+export async function getWatchlistItems(
+  db: D1Database,
+  userId: string,
+  titleIds: number[],
+): Promise<WatchlistItem[]> {
+  if (titleIds.length === 0) return [];
+  // Build positional placeholders: ?2, ?3, … (userId is ?1).
+  const placeholders = titleIds.map((_, i) => `?${i + 2}`).join(", ");
+  const sql = `${SELECT_BASE} AND w.title_id IN (${placeholders})`;
+  const result = await db
+    .prepare(sql)
+    .bind(userId, ...titleIds)
+    .all<WatchlistRow>();
+  return (result.results ?? []).map(rowToItem);
+}

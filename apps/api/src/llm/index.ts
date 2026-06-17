@@ -5,8 +5,26 @@ import { AnthropicProvider } from "./anthropic";
 import { OpenAIProvider } from "./openai";
 import { GoogleProvider } from "./google";
 
+export interface LlmMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+export interface CompleteOptions {
+  /** Maximum tokens to generate. Defaults to 1500 for structured features. */
+  maxTokens?: number;
+  /** Sampling temperature (0 = deterministic). Defaults to 0. */
+  temperature?: number;
+}
+
 export interface LlmProvider {
   parseQuery(input: string): Promise<ParsedQuery>;
+  /**
+   * Generic structured completion. Returns the raw text from the model.
+   * JSON parsing and schema validation are the caller's responsibility —
+   * use `completeJson()` from `llm/structured.ts` for that.
+   */
+  complete(messages: LlmMessage[], opts?: CompleteOptions): Promise<string>;
   testConnection(): Promise<{
     ok: boolean;
     error?: string;

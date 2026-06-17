@@ -1,5 +1,5 @@
 import type { LlmConfig, ParsedQuery } from "@cinemood/shared";
-import type { LlmProvider } from "./index";
+import type { CompleteOptions, LlmMessage, LlmProvider } from "./index";
 import {
   SYSTEM_PROMPT,
   tryParseJsonObject,
@@ -21,20 +21,32 @@ export class GoogleProvider implements LlmProvider {
     this.apiKey = cfg.apiKey;
   }
 
-  async parseQuery(input: string): Promise<ParsedQuery> {
+  async complete(messages: LlmMessage[], opts: CompleteOptions = {}): Promise<string> {
+    const { maxTokens = 1500, temperature = 0 } = opts;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
       this.model,
     )}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+
+    // Gemini separates the system prompt via systemInstruction.
+    const sysMsg = messages.find((m) => m.role === "system");
+    // Map non-system messages: Gemini uses "model" instead of "assistant".
+    const contents = messages
+      .filter((m) => m.role !== "system")
+      .map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
     const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: "user", parts: [{ text: input }] }],
+        ...(sysMsg ? { systemInstruction: { parts: [{ text: sysMsg.content }] } } : {}),
+        contents,
         generationConfig: {
           responseMimeType: "application/json",
-          maxOutputTokens: 512,
-          temperature: 0,
+          maxOutputTokens: maxTokens,
+          temperature,
         },
       }),
     });
@@ -49,6 +61,15 @@ export class GoogleProvider implements LlmProvider {
         ?.map((p) => p.text ?? "")
         .join("") ?? "";
     if (!text) throw new Error("google_empty_response");
+    return text;
+  }
+
+  async parseQuery(input: string): Promise<ParsedQuery> {
+    const messages: LlmMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: input },
+    ];
+    const text = await this.complete(messages, { maxTokens: 512, temperature: 0 });
     const obj = tryParseJsonObject(text);
     return validateParsedQuery(obj);
   }
