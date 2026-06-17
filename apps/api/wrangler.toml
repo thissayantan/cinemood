@@ -27,6 +27,7 @@ bucket_name = "cinemood-index"
 
 [ai]
 binding = "AI"
+remote = true   # Workers AI has no local emulator — always remote
 
 # Production environment — same bindings, route attached.
 #

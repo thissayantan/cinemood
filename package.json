@@ -3,22 +3,23 @@
   "private": true,
   "version": "0.0.1",
   "description": "Movies and series, found by mood.",
+  "packageManager": "bun@1.3.14",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,magenta --kill-others-on-fail \"bun --filter @cinemood/api dev\" \"bun --filter @cinemood/web dev\"",
-    "dev:remote": "concurrently -n api,web -c blue,magenta --kill-others-on-fail \"bun --filter @cinemood/api dev:remote\" \"bun --filter @cinemood/web dev\"",
-    "dev:api": "bun --filter @cinemood/api dev",
-    "dev:web": "bun --filter @cinemood/web dev",
-    "build": "bun run --filter '*' build",
-    "typecheck": "bun run --filter '*' typecheck",
-    "deploy": "bun run --filter @cinemood/web build && bunx wrangler --cwd apps/api deploy --env production",
+    "dev":        "turbo run dev --filter=@cinemood/api --filter=@cinemood/web",
+    "dev:remote": "turbo run dev:remote --filter=@cinemood/api --filter=@cinemood/web",
+    "dev:api":    "turbo run dev --filter=@cinemood/api",
+    "dev:web":    "turbo run dev --filter=@cinemood/web",
+    "build":      "turbo run build",
+    "typecheck":  "turbo run typecheck",
+    "deploy":     "turbo run build --filter=@cinemood/web && bunx wrangler --cwd apps/api deploy --env production",
     "reset:data": "bash apps/api/scripts/reset-data.sh"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0",
+    "turbo": "^2",
     "typescript": "^5.7.2"
   }
 }
