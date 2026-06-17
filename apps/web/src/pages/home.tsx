@@ -20,6 +20,7 @@ import { ShortcutsSheet } from "@/components/shortcuts-sheet";
 import { WelcomeOverlay } from "@/components/welcome-overlay";
 import { Toast } from "@/components/toast";
 import { MoodPicker } from "@/components/decide/mood-picker";
+import { CompareTable } from "@/components/decide/compare-table";
 
 function activeFilterCount(filters: ReturnType<typeof useWatchlist>["filters"]): number {
   let n = 0;
@@ -42,6 +43,8 @@ export default function HomePage({ user }: { user: User }) {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [decideOpen, setDecideOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [compareOpen, setCompareOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<WatchlistItem | null>(null);
   // Tracks the most-recently removed item so the toast can offer Undo.
   // Only the latest removal is undoable; sequential removes overwrite.
@@ -161,6 +164,29 @@ export default function HomePage({ user }: { user: User }) {
   // from the unfiltered set so it's always visible regardless of filters.
   const watchingItems = wl.all?.filter((i) => i.status === "watching") ?? [];
 
+  const isSelectMode = selectedIds.size > 0;
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 6) next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  // Build lookup maps for the compare dialog
+  const posterPathsMap: Record<number, string | null> = {};
+  const titleNamesMap: Record<number, string> = {};
+  for (const item of wl.all ?? []) {
+    posterPathsMap[item.title.id] = item.title.poster_path;
+    titleNamesMap[item.title.id] = item.title.title;
+  }
+
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
       <RouteTitle />
@@ -245,6 +271,8 @@ export default function HomePage({ user }: { user: User }) {
                     onOpen={() => setDetailItem(item)}
                     onSetStatus={(status) => handleSetStatus(item, status)}
                     onRemove={() => handleRemove(item)}
+                    selected={selectedIds.has(item.title.id)}
+                    onSelect={() => toggleSelect(item.title.id)}
                   />
                 ))}
               </motion.div>
@@ -252,6 +280,48 @@ export default function HomePage({ user }: { user: User }) {
           </section>
         </main>
       )}
+
+      {/* Selection toolbar — slides up from bottom when ≥1 item is selected */}
+      {isSelectMode && (
+        <motion.div
+          initial={m.reduced ? {} : { y: "100%", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={m.reduced ? {} : { y: "100%", opacity: 0 }}
+          transition={m.reduced ? { duration: 0 } : { duration: m.durBase, ease: m.easeOutQuint }}
+          className="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[var(--rule)] bg-[var(--paper)]/95 px-5 py-2.5 shadow-xl backdrop-blur-sm"
+        >
+          <span className="font-label text-[11px] uppercase tracking-widest text-[var(--paper-dim)]">
+            {selectedIds.size} selected
+          </span>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="font-label text-[11px] uppercase tracking-widest text-[var(--paper-faint)] hover:text-[var(--ink)]"
+          >
+            Clear
+          </button>
+          {selectedIds.size >= 2 && (
+            <button
+              type="button"
+              onClick={() => setCompareOpen(true)}
+              className="rounded-full bg-[var(--accent)] px-4 py-1.5 font-label text-[11px] uppercase tracking-widest text-[var(--paper)] hover:opacity-90"
+            >
+              Compare {selectedIds.size}
+            </button>
+          )}
+        </motion.div>
+      )}
+
+      <CompareTable
+        open={compareOpen}
+        onOpenChange={(open) => {
+          setCompareOpen(open);
+          if (!open) clearSelection();
+        }}
+        titleIds={Array.from(selectedIds)}
+        posterPaths={posterPathsMap}
+        titleNames={titleNamesMap}
+      />
 
       <TitleDetailDialog
         item={detailItem}

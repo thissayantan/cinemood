@@ -22,6 +22,10 @@ interface Props {
   onSetStatus: (status: WatchStatus) => void;
   onRemove: () => void;
   focusable?: boolean;
+  /** Multi-select mode: whether this card is currently selected. */
+  selected?: boolean;
+  /** Multi-select mode: called when the user clicks the selection toggle. */
+  onSelect?: () => void;
 }
 
 export function PosterCard({
@@ -31,6 +35,8 @@ export function PosterCard({
   onSetStatus,
   onRemove,
   focusable = true,
+  selected = false,
+  onSelect,
 }: Props) {
   const t = item.title;
   const m = useMotionConfig();
@@ -126,6 +132,38 @@ export function PosterCard({
             className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-inset ring-[var(--accent)]"
             aria-label="Currently watching"
           />
+        )}
+
+        {/* Multi-select: selection ring + checkmark overlay.
+            The checkbox is shown on hover (via group-hover) or when already
+            selected, so the user can click it to enter/exit select mode.
+            The main card click (onOpen) is unchanged — selection is only
+            triggered by clicking this checkbox. */}
+        {onSelect && (
+          <>
+            {selected && (
+              <span className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-inset ring-sky-500/80" />
+            )}
+            <button
+              type="button"
+              aria-label={selected ? "Deselect" : "Select for compare"}
+              aria-pressed={selected}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+              }}
+              className={cn(
+                "absolute left-2 top-2 z-10 grid h-5 w-5 place-items-center rounded-full border-2 transition",
+                selected
+                  ? "border-sky-500 bg-sky-500 text-white"
+                  : "border-white/60 bg-black/40 text-transparent opacity-0 group-hover:opacity-100",
+              )}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M2 5.3l2 2 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </>
         )}
 
         {/* Top-left: OTT providers — informational, always visible (no
