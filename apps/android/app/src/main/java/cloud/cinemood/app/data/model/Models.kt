@@ -11,7 +11,10 @@ import kotlinx.serialization.json.jsonPrimitive
 data class CastMember(
     val name: String,
     val character: String? = null,
+    @SerialName("profile_path") val profilePath: String? = null,
 )
+
+data class ProviderInfo(val name: String, val logoPath: String?)
 
 @Serializable
 data class Title(
@@ -34,23 +37,26 @@ data class Title(
     val providers: JsonObject? = null,
 )
 
-fun Title.streamingProviders(region: String = "US"): List<String> {
+fun Title.streamingProviders(region: String = "US"): List<ProviderInfo> {
     val json = providers ?: return emptyList()
 
-    fun namesFromRegion(code: String): List<String> {
+    fun infosFromRegion(code: String): List<ProviderInfo> {
         val regionObj = json[code] as? JsonObject ?: return emptyList()
         val flatrate = regionObj["flatrate"] as? JsonArray ?: return emptyList()
         return flatrate.mapNotNull { entry ->
-            (entry as? JsonObject)?.get("provider_name")?.jsonPrimitive?.contentOrNull
+            val obj = entry as? JsonObject ?: return@mapNotNull null
+            val name = obj["provider_name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val logo = obj["logo_path"]?.jsonPrimitive?.contentOrNull
+            ProviderInfo(name, logo)
         }
     }
 
     val preferred = region.uppercase().ifBlank { "US" }
-    return (namesFromRegion(preferred)
-        .ifEmpty { namesFromRegion("US") }
-        .ifEmpty { json.keys.flatMap { namesFromRegion(it) } })
-        .distinct()
-        .take(6)
+    return (infosFromRegion(preferred)
+        .ifEmpty { infosFromRegion("US") }
+        .ifEmpty { json.keys.flatMap { infosFromRegion(it) } })
+        .distinctBy { it.name }
+        .take(8)
 }
 
 @Serializable

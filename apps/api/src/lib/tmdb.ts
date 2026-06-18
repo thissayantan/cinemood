@@ -184,7 +184,7 @@ export interface TmdbDetail {
   vote_count: number | null;
   runtime: number | null;
   genres: string[];
-  cast: { name: string; character?: string }[];
+  cast: { name: string; character?: string; profile_path?: string | null }[];
   keywords: string[];
   providers: Record<string, unknown> | null;
   imdb_id: string | null;
@@ -200,7 +200,7 @@ interface TmdbCommonDetail {
   vote_count: number | null;
   genres?: { id: number; name: string }[];
   credits?: {
-    cast?: { name: string; character?: string; order?: number }[];
+    cast?: { name: string; character?: string; order?: number; profile_path?: string | null }[];
   };
   keywords?: {
     keywords?: { name: string }[];
@@ -253,7 +253,7 @@ export async function fetchTmdbDetail(
     .slice()
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
     .slice(0, 10)
-    .map((c) => ({ name: c.name, character: c.character }));
+    .map((c) => ({ name: c.name, character: c.character, profile_path: c.profile_path ?? null }));
 
   // Normalise movie/tv shape differences (title vs name, release_date vs
   // first_air_date, runtime vs episode_run_time, keywords.keywords vs

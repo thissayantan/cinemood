@@ -21,10 +21,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import cloud.cinemood.app.data.model.CastMember
+import cloud.cinemood.app.data.model.ProviderInfo
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.data.model.streamingProviders
 import cloud.cinemood.app.ui.theme.CinemoodTheme
@@ -262,12 +265,12 @@ fun DetailScreen(
         val providers = t.streamingProviders(region)
         if (providers.isNotEmpty()) {
             DetailSection(label = "Where to watch") {
-                Row(
-                    modifier              = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding        = PaddingValues(vertical = 4.dp),
                 ) {
-                    providers.forEach { name ->
-                        ThemedChip(name)
+                    items(providers) { info ->
+                        ProviderCard(info)
                     }
                 }
             }
@@ -303,11 +306,11 @@ fun DetailScreen(
         if (t.cast.isNotEmpty()) {
             DetailSection(label = "Cast") {
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding        = PaddingValues(vertical = 4.dp),
                 ) {
                     items(t.cast) { member ->
-                        CastChip(name = member.name, character = member.character)
+                        CastCard(member)
                     }
                 }
             }
@@ -417,44 +420,100 @@ private fun ThemedChip(label: String) {
 }
 
 @Composable
-private fun CastChip(name: String, character: String?) {
+private fun CastCard(member: CastMember) {
     val colors = CinemoodTheme.colors
     Column(
-        modifier            = Modifier.width(72.dp),
+        modifier            = Modifier.width(80.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
             modifier         = Modifier
-                .size(48.dp)
+                .size(76.dp)
                 .clip(CircleShape)
                 .background(colors.paper2),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text  = name.take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium.copy(color = colors.accent),
-            )
+            if (member.profilePath != null) {
+                AsyncImage(
+                    model              = "https://image.tmdb.org/t/p/w185${member.profilePath}",
+                    contentDescription = member.name,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize(),
+                )
+            } else {
+                Text(
+                    text  = member.name.take(2).uppercase(),
+                    style = MaterialTheme.typography.titleSmall.copy(color = colors.accent),
+                )
+            }
         }
         Text(
-            text     = name,
-            style    = MaterialTheme.typography.labelSmall.copy(
+            text      = member.name,
+            style     = MaterialTheme.typography.labelSmall.copy(
                 color    = colors.ink,
-                fontSize = 9.sp,
+                fontSize = 10.sp,
             ),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            maxLines  = 2,
+            overflow  = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth(),
         )
-        if (!character.isNullOrBlank()) {
+        if (!member.character.isNullOrBlank()) {
             Text(
-                text     = character,
-                style    = MaterialTheme.typography.labelSmall.copy(
+                text      = member.character,
+                style     = MaterialTheme.typography.labelSmall.copy(
                     color    = colors.faint,
                     fontSize = 9.sp,
                 ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                maxLines  = 1,
+                overflow  = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier  = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Composable
+private fun ProviderCard(info: ProviderInfo) {
+    val colors = CinemoodTheme.colors
+    Column(
+        modifier            = Modifier.width(64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier         = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(colors.paper2),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (info.logoPath != null) {
+                AsyncImage(
+                    model              = "https://image.tmdb.org/t/p/w92${info.logoPath}",
+                    contentDescription = info.name,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)),
+                )
+            } else {
+                Text(
+                    text  = info.name.take(2).uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
+                )
+            }
+        }
+        Text(
+            text      = info.name,
+            style     = MaterialTheme.typography.labelSmall.copy(
+                color    = colors.dim,
+                fontSize = 9.sp,
+            ),
+            maxLines  = 2,
+            overflow  = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth(),
+        )
     }
 }
