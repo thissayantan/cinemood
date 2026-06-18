@@ -46,6 +46,11 @@ class HomeViewModel(private val api: CinemoodApi) : ViewModel() {
     var topPicks        by mutableStateOf<List<Recommendation>>(emptyList())
     var topPickItems    by mutableStateOf<List<WatchlistItem>>(emptyList())
     var quickWatches    by mutableStateOf<List<WatchlistItem>>(emptyList())
+    var topRated        by mutableStateOf<List<WatchlistItem>>(emptyList())
+    var pendingFilms    by mutableStateOf<List<WatchlistItem>>(emptyList())
+    var pendingSeries   by mutableStateOf<List<WatchlistItem>>(emptyList())
+    var watchedItems    by mutableStateOf<List<WatchlistItem>>(emptyList())
+    var recentlyAdded   by mutableStateOf<List<WatchlistItem>>(emptyList())
     var loading         by mutableStateOf(true)
     var error           by mutableStateOf<String?>(null)
 
@@ -60,11 +65,41 @@ class HomeViewModel(private val api: CinemoodApi) : ViewModel() {
             loading = true
             error   = null
             try {
-                val all = api.listWatchlist(limit = 200).getOrThrow()
+                val all     = api.listWatchlist(limit = 200).getOrThrow()
+                val pending = all.filter { it.status == "pending" }
+
                 watchingItems = all.filter { it.status == "watching" }
-                quickWatches  = all.filter { it.status == "pending" && (it.title.runtime ?: 999) < 100 }
-                    .sortedByDescending { it.title.voteAverage }
+
+                val quick = pending
+                    .filter { (it.title.runtime ?: 999) < 100 }
+                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
                     .take(10)
+                quickWatches = quick
+                val quickIds = quick.map { it.title.id }.toSet()
+
+                topRated = pending
+                    .filter { (it.title.imdbRating ?: it.title.voteAverage ?: 0.0) >= 7.5 }
+                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+                    .take(15)
+
+                pendingFilms = pending
+                    .filter { it.title.type == "film" && it.title.id !in quickIds }
+                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+                    .take(15)
+
+                pendingSeries = pending
+                    .filter { it.title.type == "series" }
+                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+                    .take(15)
+
+                watchedItems = all
+                    .filter { it.status == "watched" }
+                    .sortedByDescending { it.watchedAt ?: it.addedAt }
+                    .take(15)
+
+                recentlyAdded = all
+                    .sortedByDescending { it.addedAt }
+                    .take(15)
 
                 val recs = api.recommend(mood = "great film tonight", status = "pending", limit = 10)
                     .getOrNull()
@@ -156,6 +191,66 @@ fun HomeScreen(
                 ShelfRow(
                     title       = "Quick Watches · Under 100 min",
                     items       = vm.quickWatches,
+                    onItemClick = onItemClick,
+                    modifier    = Modifier.padding(top = 24.dp),
+                )
+            }
+        }
+
+        // ── Highly Rated shelf ─────────────────────────────────────────────────
+        if (vm.topRated.isNotEmpty()) {
+            item {
+                ShelfRow(
+                    title       = "Highly Rated",
+                    items       = vm.topRated,
+                    onItemClick = onItemClick,
+                    modifier    = Modifier.padding(top = 24.dp),
+                )
+            }
+        }
+
+        // ── Films shelf ────────────────────────────────────────────────────────
+        if (vm.pendingFilms.isNotEmpty()) {
+            item {
+                ShelfRow(
+                    title       = "Films",
+                    items       = vm.pendingFilms,
+                    onItemClick = onItemClick,
+                    modifier    = Modifier.padding(top = 24.dp),
+                )
+            }
+        }
+
+        // ── Series shelf ───────────────────────────────────────────────────────
+        if (vm.pendingSeries.isNotEmpty()) {
+            item {
+                ShelfRow(
+                    title       = "Series",
+                    items       = vm.pendingSeries,
+                    onItemClick = onItemClick,
+                    modifier    = Modifier.padding(top = 24.dp),
+                )
+            }
+        }
+
+        // ── Watched shelf ──────────────────────────────────────────────────────
+        if (vm.watchedItems.isNotEmpty()) {
+            item {
+                ShelfRow(
+                    title       = "Your Watchlog",
+                    items       = vm.watchedItems,
+                    onItemClick = onItemClick,
+                    modifier    = Modifier.padding(top = 24.dp),
+                )
+            }
+        }
+
+        // ── Recently Added shelf ───────────────────────────────────────────────
+        if (vm.recentlyAdded.isNotEmpty()) {
+            item {
+                ShelfRow(
+                    title       = "Recently Added",
+                    items       = vm.recentlyAdded,
                     onItemClick = onItemClick,
                     modifier    = Modifier.padding(top = 24.dp),
                 )
