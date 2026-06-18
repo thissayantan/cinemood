@@ -357,10 +357,9 @@ fun MainScaffold(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
-        // AI assistant FAB — bottom-right, above the nav pill
-        // Hide on Detail and Person screens (full-screen; FAB would float over content)
-        val onDetailRoute = currentRoute == Screen.Detail.route || currentRoute == Screen.Person.route
-        if (!onDetailRoute) {
+        // AI assistant FAB — only on content-browsing tabs where search is relevant
+        val showFab = currentRoute == Screen.Home.route || currentRoute == Screen.Watchlist.route
+        if (showFab) {
             AssistantFab(
                 onClick  = { showAssistant = true },
                 modifier = Modifier

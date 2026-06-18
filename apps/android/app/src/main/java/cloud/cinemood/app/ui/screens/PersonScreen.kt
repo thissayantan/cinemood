@@ -97,6 +97,7 @@ fun PersonScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .statusBarsPadding()
                         .verticalScroll(rememberScrollState()),
                 ) {
                     // ── Hero photo ────────────────────────────────────────────
@@ -138,7 +139,6 @@ fun PersonScreen(
                             onClick  = onBack,
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .statusBarsPadding()
                                 .padding(8.dp),
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
