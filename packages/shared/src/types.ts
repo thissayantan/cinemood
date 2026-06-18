@@ -24,7 +24,7 @@ export interface Title extends TitleSummary {
   vote_count: number | null;
   runtime: number | null;
   genres: string[];
-  cast: { name: string; character?: string; profile_path?: string | null }[];
+  cast: { id: number; name: string; character?: string; profile_path?: string | null }[];
   keywords: string[];
   providers: Record<string, unknown> | null;
   imdb_id: string | null;

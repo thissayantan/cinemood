@@ -184,7 +184,7 @@ export interface TmdbDetail {
   vote_count: number | null;
   runtime: number | null;
   genres: string[];
-  cast: { name: string; character?: string; profile_path?: string | null }[];
+  cast: { id: number; name: string; character?: string; profile_path?: string | null }[];
   keywords: string[];
   providers: Record<string, unknown> | null;
   imdb_id: string | null;
@@ -200,7 +200,7 @@ interface TmdbCommonDetail {
   vote_count: number | null;
   genres?: { id: number; name: string }[];
   credits?: {
-    cast?: { name: string; character?: string; order?: number; profile_path?: string | null }[];
+    cast?: { id: number; name: string; character?: string; order?: number; profile_path?: string | null }[];
   };
   keywords?: {
     keywords?: { name: string }[];
@@ -230,10 +230,13 @@ export async function fetchTmdbDetail(
   cache: KVNamespace,
   type: TitleType,
   id: number,
+  opts?: { force?: boolean },
 ): Promise<TmdbDetail> {
   const cacheKey = `tmdb:detail:${type}:${id}`;
-  const cached = await cache.get(cacheKey, "json");
-  if (cached) return cached as TmdbDetail;
+  if (!opts?.force) {
+    const cached = await cache.get(cacheKey, "json");
+    if (cached) return cached as TmdbDetail;
+  }
 
   const path = type === "movie" ? "movie" : "tv";
   const url = new URL(`${TMDB_BASE}/${path}/${id}`);
@@ -253,7 +256,7 @@ export async function fetchTmdbDetail(
     .slice()
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
     .slice(0, 10)
-    .map((c) => ({ name: c.name, character: c.character, profile_path: c.profile_path ?? null }));
+    .map((c) => ({ id: c.id, name: c.name, character: c.character, profile_path: c.profile_path ?? null }));
 
   // Normalise movie/tv shape differences (title vs name, release_date vs
   // first_air_date, runtime vs episode_run_time, keywords.keywords vs
@@ -297,6 +300,114 @@ export async function fetchTmdbDetail(
     providers: json["watch/providers"]?.results ?? null,
     imdb_id: json.external_ids?.imdb_id ?? json.imdb_id ?? null,
     raw: json,
+  };
+
+  await kvPutSafe(cache, cacheKey, JSON.stringify(detail), {
+    expirationTtl: DETAIL_TTL,
+  });
+  return detail;
+}
+
+// ── Person / Actor detail ─────────────────────────────────────────────────────
+
+export interface TmdbPersonCredit {
+  id: number;
+  type: TitleType;
+  title: string;
+  poster_path: string | null;
+  character: string | null;
+  release_date: string | null;
+  vote_average: number | null;
+  popularity: number | null;
+}
+
+export interface TmdbPersonDetail {
+  id: number;
+  name: string;
+  biography: string | null;
+  profile_path: string | null;
+  birthday: string | null;
+  known_for_department: string | null;
+  place_of_birth: string | null;
+  credits: TmdbPersonCredit[];
+}
+
+interface TmdbPersonRaw {
+  id: number;
+  name: string;
+  biography: string | null;
+  profile_path: string | null;
+  birthday: string | null;
+  known_for_department: string | null;
+  place_of_birth: string | null;
+  combined_credits?: {
+    cast?: Array<{
+      id: number;
+      media_type: string;
+      title?: string;
+      name?: string;
+      poster_path?: string | null;
+      character?: string;
+      release_date?: string;
+      first_air_date?: string;
+      vote_average?: number;
+      popularity?: number;
+    }>;
+  };
+}
+
+export async function getPersonDetail(
+  apiKey: string,
+  cache: KVNamespace,
+  personId: number,
+): Promise<TmdbPersonDetail> {
+  const cacheKey = `tmdb:person:${personId}`;
+  const cached = await cache.get(cacheKey, "json");
+  if (cached) return cached as TmdbPersonDetail;
+
+  const url = new URL(`${TMDB_BASE}/person/${personId}`);
+  url.searchParams.set("append_to_response", "combined_credits");
+  url.searchParams.set("api_key", apiKey);
+
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`tmdb_person_failed: ${personId} ${res.status}`);
+  }
+  const json = (await res.json()) as TmdbPersonRaw;
+
+  // Build credits: dedupe by id, sort by popularity desc, cap at 20
+  const seen = new Set<number>();
+  const credits: TmdbPersonCredit[] = [];
+  const rawCast = json.combined_credits?.cast ?? [];
+  rawCast
+    .filter((c) => c.media_type === "movie" || c.media_type === "tv")
+    .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
+    .forEach((c) => {
+      if (seen.has(c.id)) return;
+      seen.add(c.id);
+      if (credits.length < 20) {
+        credits.push({
+          id: c.id,
+          type: c.media_type === "movie" ? "movie" : "series",
+          title: c.title ?? c.name ?? "",
+          poster_path: c.poster_path ?? null,
+          character: c.character ?? null,
+          release_date: c.release_date ?? c.first_air_date ?? null,
+          vote_average: c.vote_average ?? null,
+          popularity: c.popularity ?? null,
+        });
+      }
+    });
+
+  const detail: TmdbPersonDetail = {
+    id: json.id,
+    name: json.name,
+    biography: json.biography ?? null,
+    profile_path: json.profile_path ?? null,
+    birthday: json.birthday ?? null,
+    known_for_department: json.known_for_department ?? null,
+    place_of_birth: json.place_of_birth ?? null,
+    credits,
   };
 
   await kvPutSafe(cache, cacheKey, JSON.stringify(detail), {

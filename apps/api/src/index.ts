@@ -16,6 +16,7 @@ import decideRoutes from "./routes/decide";
 import tokenRoutes from "./routes/tokens";
 import deviceAuthRoutes from "./routes/device-auth";
 import discoverRoutes from "./routes/discover";
+import personRoutes from "./routes/person";
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
@@ -40,6 +41,7 @@ app.route("/", decideRoutes);
 app.route("/", tokenRoutes);
 app.route("/", deviceAuthRoutes);
 app.route("/", discoverRoutes);
+app.route("/", personRoutes);
 
 app.notFound((c) =>
   c.json(

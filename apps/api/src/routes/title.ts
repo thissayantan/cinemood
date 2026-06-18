@@ -34,7 +34,14 @@ app.get("/api/title/:type/:id", async (c) => {
   }
 
   const cached = await getTitle(c.env.DB, id);
-  if (cached) {
+  // A cached row is considered stale when it has cast entries that lack the
+  // `id` field (rows written before actor-id was added). Re-enrich stale rows
+  // so that cast photos and clickability heal automatically on first detail view.
+  const stale =
+    cached !== null &&
+    cached.cast.length > 0 &&
+    cached.cast.some((m) => (m as { id?: number }).id == null);
+  if (cached && !stale) {
     return c.json({ ok: true, data: cached });
   }
 
@@ -58,7 +65,10 @@ app.get("/api/title/:type/:id", async (c) => {
   }
 
   try {
-    const detail = await fetchTmdbDetail(c.env.TMDB_API_KEY, c.env.CACHE, type, id);
+    // Force a fresh TMDB fetch when healing a stale row (bypasses KV detail cache)
+    const detail = await fetchTmdbDetail(c.env.TMDB_API_KEY, c.env.CACHE, type, id, {
+      force: stale,
+    });
     const imdbRating = detail.imdb_id
       ? await fetchOmdbRating(c.env.OMDB_API_KEY, c.env.CACHE, detail.imdb_id)
       : null;
@@ -67,6 +77,11 @@ app.get("/api/title/:type/:id", async (c) => {
     return c.json({ ok: true, data: fresh });
   } catch (err) {
     console.error("title detail failed", err);
+    // Graceful degradation: if we were re-enriching a stale row, return the
+    // existing cached row rather than surfacing a 502 to the client.
+    if (cached) {
+      return c.json({ ok: true, data: cached });
+    }
     return c.json(
       {
         ok: false,
