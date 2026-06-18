@@ -39,6 +39,6 @@ fun AssistantFab(
         elevation            = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
         interactionSource    = interaction,
     ) {
-        AiSearchIcon(size = 24.dp)
+        AiSearchIcon(size = 24.dp, tint = Color.White)
     }
 }

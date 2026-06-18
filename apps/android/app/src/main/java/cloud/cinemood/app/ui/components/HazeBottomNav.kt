@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
@@ -93,6 +95,11 @@ fun HazeBottomNav(
                 Column(
                     modifier            = Modifier
                         .weight(1f)
+                        .selectable(
+                            selected  = selected,
+                            onClick   = { onNavigate(item.screen) },
+                            role      = Role.Tab,
+                        )
                         .padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -108,17 +115,12 @@ fun HazeBottomNav(
                             )
                             .padding(horizontal = 16.dp, vertical = 6.dp),
                     ) {
-                        IconButton(
-                            onClick  = { onNavigate(item.screen) },
-                            modifier = Modifier.size(28.dp),
-                        ) {
-                            Icon(
-                                imageVector        = item.icon,
-                                contentDescription = item.label,
-                                tint               = iconColor,
-                                modifier           = Modifier.size(24.dp),
-                            )
-                        }
+                        Icon(
+                            imageVector        = item.icon,
+                            contentDescription = item.label,
+                            tint               = iconColor,
+                            modifier           = Modifier.size(24.dp),
+                        )
                     }
 
                     Text(

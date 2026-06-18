@@ -10,6 +10,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cloud.cinemood.app.ui.theme.CinemoodTheme
@@ -20,15 +21,16 @@ import cloud.cinemood.app.ui.theme.CinemoodTheme
  * plain TMDB keyword search.
  *
  * Usage:
- *   AiSearchIcon()                    // default 24dp
- *   AiSearchIcon(size = 20.dp)        // scaled
+ *   AiSearchIcon()                          // default 24dp, crimson tint
+ *   AiSearchIcon(size = 20.dp)              // scaled
+ *   AiSearchIcon(tint = Color.White)        // on dark/coloured backgrounds
  */
 @Composable
 fun AiSearchIcon(
     modifier: Modifier = Modifier,
     size: Dp = 24.dp,
+    tint: Color = CinemoodTheme.colors.accent,
 ) {
-    val colors = CinemoodTheme.colors
     Box(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center,
@@ -37,7 +39,7 @@ fun AiSearchIcon(
             imageVector        = Icons.Rounded.Search,
             contentDescription = null,
             modifier           = Modifier.size(size),
-            tint               = colors.accent,
+            tint               = tint,
         )
         // Sparkle badge — positioned at the top-right of the magnifier
         Icon(
@@ -47,7 +49,7 @@ fun AiSearchIcon(
                 .size(size * 0.42f)
                 .align(Alignment.TopEnd)
                 .offset(x = (size * 0.10f), y = -(size * 0.08f)),
-            tint               = colors.accent,
+            tint               = tint,
         )
     }
 }
