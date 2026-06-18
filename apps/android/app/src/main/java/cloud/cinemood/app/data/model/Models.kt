@@ -9,9 +9,34 @@ import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class CastMember(
+    val id: Int = 0,
     val name: String,
     val character: String? = null,
     @SerialName("profile_path") val profilePath: String? = null,
+)
+
+@Serializable
+data class PersonCredit(
+    val id: Int,
+    val type: String,
+    val title: String,
+    @SerialName("poster_path") val posterPath: String? = null,
+    val character: String? = null,
+    @SerialName("release_date") val releaseDate: String? = null,
+    @SerialName("vote_average") val voteAverage: Double? = null,
+    val popularity: Double? = null,
+)
+
+@Serializable
+data class PersonDetail(
+    val id: Int,
+    val name: String,
+    val biography: String? = null,
+    @SerialName("profile_path") val profilePath: String? = null,
+    val birthday: String? = null,
+    @SerialName("known_for_department") val knownForDepartment: String? = null,
+    @SerialName("place_of_birth") val placeOfBirth: String? = null,
+    val credits: List<PersonCredit> = emptyList(),
 )
 
 data class ProviderInfo(val name: String, val logoPath: String?)

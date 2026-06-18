@@ -1,6 +1,7 @@
 package cloud.cinemood.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -11,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -26,8 +30,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import cloud.cinemood.app.data.api.CinemoodApi
 import cloud.cinemood.app.data.model.CastMember
 import cloud.cinemood.app.data.model.ProviderInfo
+import cloud.cinemood.app.data.model.Title
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.data.model.streamingProviders
 import cloud.cinemood.app.ui.theme.CinemoodTheme
@@ -41,11 +47,20 @@ fun DetailScreen(
     region: String,
     onBack: () -> Unit,
     onSetStatus: (String) -> Unit,
+    api: CinemoodApi? = null,
+    onPersonClick: (Int) -> Unit = {},
     onRemove: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = CinemoodTheme.colors
-    val t = item.title
+
+    // Instant render from cache; upgrade in place once fresh title arrives
+    var freshTitle by remember(item.title.id) { mutableStateOf<Title?>(null) }
+    val t = freshTitle ?: item.title
+
+    LaunchedEffect(item.title.id) {
+        api?.getTitle(item.title.type, item.title.id)?.onSuccess { freshTitle = it }
+    }
 
     var overviewExpanded by remember { mutableStateOf(false) }
     var currentStatus by remember(item.status) { mutableStateOf(item.status) }
@@ -76,9 +91,9 @@ fun DetailScreen(
             Box(
                 modifier = Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
-                        0f   to Color.Black.copy(alpha = 0.35f),
+                        0f    to Color.Black.copy(alpha = 0.35f),
                         0.45f to Color.Transparent,
-                        1f   to Color.Black.copy(alpha = 0.92f),
+                        1f    to Color.Black.copy(alpha = 0.92f),
                     )
                 ),
             )
@@ -219,9 +234,9 @@ fun DetailScreen(
         // ── Status action row ─────────────────────────────────────────────────
         DetailSection {
             val statusOptions = listOf(
-                "pending"  to "Want to watch",
-                "watching" to "Watching",
-                "watched"  to "Watched",
+                Triple("pending",  "Want to watch", Icons.Rounded.BookmarkAdd),
+                Triple("watching", "Watching",      Icons.Rounded.PlayArrow),
+                Triple("watched",  "Watched",       Icons.Rounded.CheckCircle),
             )
             Row(
                 modifier = Modifier
@@ -229,7 +244,7 @@ fun DetailScreen(
                     .clip(RoundedCornerShape(12.dp))
                     .background(colors.paper2),
             ) {
-                statusOptions.forEach { (value, label) ->
+                statusOptions.forEach { (value, label, icon) ->
                     val selected = currentStatus == value
                     Box(
                         modifier = Modifier
@@ -247,6 +262,13 @@ fun DetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(0.dp),
                         ) {
+                            Icon(
+                                imageVector        = icon,
+                                contentDescription = null,
+                                modifier           = Modifier.size(14.dp),
+                                tint               = if (selected) Color.White else colors.dim,
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text  = label,
                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -264,7 +286,7 @@ fun DetailScreen(
         // ── Where to watch ────────────────────────────────────────────────────
         val providers = t.streamingProviders(region)
         if (providers.isNotEmpty()) {
-            DetailSection(label = "Where to watch") {
+            DetailSection(label = "Where to watch", icon = Icons.Rounded.LiveTv) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding        = PaddingValues(vertical = 4.dp),
@@ -278,7 +300,7 @@ fun DetailScreen(
 
         // ── Overview ──────────────────────────────────────────────────────────
         if (!t.overview.isNullOrBlank()) {
-            DetailSection(label = "Overview") {
+            DetailSection(label = "Overview", icon = Icons.AutoMirrored.Rounded.Notes) {
                 Text(
                     text     = t.overview,
                     style    = MaterialTheme.typography.bodyMedium.copy(
@@ -304,13 +326,13 @@ fun DetailScreen(
 
         // ── Cast ──────────────────────────────────────────────────────────────
         if (t.cast.isNotEmpty()) {
-            DetailSection(label = "Cast") {
+            DetailSection(label = "Cast", icon = Icons.Rounded.Groups) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding        = PaddingValues(vertical = 4.dp),
                 ) {
                     items(t.cast) { member ->
-                        CastCard(member)
+                        CastCard(member, onClick = { onPersonClick(member.id) })
                     }
                 }
             }
@@ -318,7 +340,7 @@ fun DetailScreen(
 
         // ── Genres ────────────────────────────────────────────────────────────
         if (t.genres.isNotEmpty()) {
-            DetailSection(label = "Genres") {
+            DetailSection(label = "Genres", icon = Icons.Rounded.Theaters) {
                 Row(
                     modifier              = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -343,6 +365,13 @@ fun DetailScreen(
                 TextButton(
                     onClick = { showConfirm = true },
                 ) {
+                    Icon(
+                        imageVector        = Icons.Rounded.DeleteOutline,
+                        contentDescription = null,
+                        modifier           = Modifier.size(16.dp),
+                        tint               = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         "Remove from library",
                         style = MaterialTheme.typography.labelMedium.copy(
@@ -380,6 +409,7 @@ fun DetailScreen(
 @Composable
 private fun DetailSection(
     label: String? = null,
+    icon: ImageVector? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = CinemoodTheme.colors
@@ -391,13 +421,26 @@ private fun DetailSection(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (label != null) {
-            Text(
-                text  = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color         = colors.faint,
-                    letterSpacing = 1.sp,
-                ),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector        = icon,
+                        contentDescription = null,
+                        modifier           = Modifier.size(14.dp),
+                        tint               = colors.faint,
+                    )
+                }
+                Text(
+                    text  = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color         = colors.faint,
+                        letterSpacing = 1.sp,
+                    ),
+                )
+            }
         }
         content()
     }
@@ -420,10 +463,13 @@ private fun ThemedChip(label: String) {
 }
 
 @Composable
-private fun CastCard(member: CastMember) {
+private fun CastCard(member: CastMember, onClick: () -> Unit = {}) {
     val colors = CinemoodTheme.colors
+    val clickable = member.id != 0
     Column(
-        modifier            = Modifier.width(80.dp),
+        modifier            = Modifier
+            .width(80.dp)
+            .then(if (clickable) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

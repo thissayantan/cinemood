@@ -247,6 +247,11 @@ fun MainScaffold(
         navController.navigate(Screen.Detail.createRoute(item.title.id))
     }
 
+    // Navigate to actor/person detail screen
+    fun navigateToPerson(personId: Int) {
+        navController.navigate(Screen.Person.createRoute(personId))
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController    = navController,
@@ -297,14 +302,16 @@ fun MainScaffold(
 
                 if (item != null) {
                     DetailScreen(
-                        item        = item,
-                        region      = settings.region,
-                        onBack      = { navController.popBackStack() },
-                        onSetStatus = { status ->
+                        item          = item,
+                        region        = settings.region,
+                        onBack        = { navController.popBackStack() },
+                        onSetStatus   = { status ->
                             watchlistVm.setStatus(item.title.id, status)
                             appVm.updateStatusInCache(item.title.id, status)
                         },
-                        onRemove    = {
+                        api           = api,
+                        onPersonClick = { personId -> navigateToPerson(personId) },
+                        onRemove      = {
                             watchlistVm.removeItem(item.title.id)
                             appVm.removeFromCache(item.title.id)
                             navController.popBackStack()
@@ -315,6 +322,21 @@ fun MainScaffold(
                         modifier         = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) { Text("Title not found") }
+                }
+            }
+            composable(Screen.Person.route) { backStackEntry ->
+                val personId = backStackEntry.arguments?.getString("personId")?.toIntOrNull()
+                if (personId != null) {
+                    PersonScreen(
+                        api      = api,
+                        personId = personId,
+                        onBack   = { navController.popBackStack() },
+                    )
+                } else {
+                    Box(
+                        modifier         = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Person not found") }
                 }
             }
         }
@@ -336,7 +358,8 @@ fun MainScaffold(
         )
 
         // AI assistant FAB — bottom-right, above the nav pill
-        val onDetailRoute = currentRoute == Screen.Detail.route
+        // Hide on Detail and Person screens (full-screen; FAB would float over content)
+        val onDetailRoute = currentRoute == Screen.Detail.route || currentRoute == Screen.Person.route
         if (!onDetailRoute) {
             AssistantFab(
                 onClick  = { showAssistant = true },

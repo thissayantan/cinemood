@@ -76,6 +76,24 @@ class CinemoodApi(private val tokenStore: TokenStore) {
 
     // ── Search ────────────────────────────────────────────────────────────────
 
+    suspend fun getTitle(type: String, id: Int): Result<Title> = runCatching {
+        // Use bodyAsText + manual decode per CLAUDE.md learned rule:
+        // Ktor ContentNegotiation fails on generic types on non-2xx paths.
+        val text = client.get("$BASE_URL/api/title/$type/$id") {
+            bearer()
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<Title>>(text)
+        response.data ?: error(response.error?.message ?: "Title fetch failed")
+    }
+
+    suspend fun getPerson(id: Int): Result<PersonDetail> = runCatching {
+        val text = client.get("$BASE_URL/api/person/$id") {
+            bearer()
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<PersonDetail>>(text)
+        response.data ?: error(response.error?.message ?: "Person fetch failed")
+    }
+
     suspend fun searchTmdb(query: String): Result<List<TmdbResult>> = runCatching {
         val response: ApiResponse<List<TmdbResult>> = client.get("$BASE_URL/api/search/tmdb") {
             bearer()
