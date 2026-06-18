@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +32,7 @@ import cloud.cinemood.app.ui.components.ShelfRow
 import cloud.cinemood.app.ui.theme.CinemoodTheme
 import cloud.cinemood.app.ui.util.rememberReducedMotion
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val TMDB_BACKDROP = "https://image.tmdb.org/t/p/w780"
@@ -190,21 +192,23 @@ private fun HeroCarousel(
     val reduced = rememberReducedMotion()
     val pagerState = rememberPagerState(pageCount = { picks.size })
 
-    // Auto-advance: restart timer whenever the current page changes (user swipe resets naturally)
-    LaunchedEffect(pagerState.currentPage, reduced) {
+    // Auto-advance: while loop so the animation is never cancelled mid-scroll.
+    // Keyed only on reduced/size — NOT on currentPage (which would cancel the animation mid-flight
+    // and leave the pager at a fractional position).
+    LaunchedEffect(reduced, picks.size) {
         if (!reduced && picks.size > 1) {
-            delay(5_000)
-            val next = (pagerState.currentPage + 1) % picks.size
-            pagerState.animateScrollToPage(next)
+            while (true) {
+                delay(5_000)
+                // Wait until any user swipe has settled before advancing
+                snapshotFlow { pagerState.isScrollInProgress }.first { !it }
+                val next = (pagerState.currentPage + 1) % picks.size
+                pagerState.animateScrollToPage(next)
+            }
         }
     }
 
     Column(modifier = modifier) {
-        HorizontalPager(
-            state          = pagerState,
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            pageSpacing    = 12.dp,
-        ) { page ->
+        HorizontalPager(state = pagerState) { page ->
             val item   = picks[page]
             val reason = reasonById[item.title.id]
             val eyebrow = when {
@@ -217,6 +221,7 @@ private fun HeroCarousel(
                 eyebrow  = eyebrow,
                 reason   = reason,
                 onClick  = { onItemClick(item) },
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
 
