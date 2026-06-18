@@ -85,12 +85,25 @@ class CinemoodApi(private val tokenStore: TokenStore) {
     }
 
     suspend fun nlSearch(query: String): Result<SearchResult> = runCatching {
-        val response: ApiResponse<SearchResult> = client.post("$BASE_URL/api/search") {
+        // Use bodyAsText + manual decode per CLAUDE.md learned rule:
+        // Ktor ContentNegotiation fails on generic types on non-2xx paths.
+        val text = client.post("$BASE_URL/api/search") {
             bearer()
             contentType(ContentType.Application.Json)
             setBody("""{"query":${json.encodeToString(query)}}""")
-        }.body()
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<SearchResult>>(text)
         response.data ?: SearchResult()
+    }
+
+    suspend fun discover(query: String): Result<DiscoverResult> = runCatching {
+        val text = client.post("$BASE_URL/api/discover") {
+            bearer()
+            contentType(ContentType.Application.Json)
+            setBody("""{"query":${json.encodeToString(query)}}""")
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<DiscoverResult>>(text)
+        response.data ?: DiscoverResult()
     }
 
     // ── Recommend ─────────────────────────────────────────────────────────────

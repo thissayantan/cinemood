@@ -89,9 +89,41 @@ data class RecommendResponse(
     val mood: String = "",
 )
 
+// ── AI search / discover ──────────────────────────────────────────────────────
+
+@Serializable
+data class ParsedQueryFilters(
+    val type: List<String>? = null,
+    val genres: List<String>? = null,
+    @SerialName("exclude_genres") val excludeGenres: List<String>? = null,
+    @SerialName("min_rating") val minRating: Double? = null,
+    @SerialName("max_rating") val maxRating: Double? = null,
+    @SerialName("release_after") val releaseAfter: String? = null,
+    @SerialName("release_before") val releaseBefore: String? = null,
+    val cast: List<String>? = null,
+    val keywords: List<String>? = null,
+    val providers: List<String>? = null,
+)
+
+@Serializable
+data class ParsedQuery(
+    val filters: ParsedQueryFilters = ParsedQueryFilters(),
+    @SerialName("semantic_query") val semanticQuery: String = "",
+)
+
+/** Response from POST /api/search (library NL search). */
 @Serializable
 data class SearchResult(
-    val hits: List<WatchlistItem> = emptyList(),
+    // The server field is "results", not "hits" — serialName is critical here.
+    @SerialName("results") val results: List<WatchlistItem> = emptyList(),
+    val parsed: ParsedQuery? = null,
+)
+
+/** Response from POST /api/discover (TMDB discovery). */
+@Serializable
+data class DiscoverResult(
+    val parsed: ParsedQuery? = null,
+    val results: List<TmdbResult> = emptyList(),
 )
 
 @Serializable

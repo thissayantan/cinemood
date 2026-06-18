@@ -7,10 +7,16 @@ import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -19,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -26,69 +33,122 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.api.CinemoodApi
+import cloud.cinemood.app.data.model.ParsedQuery
+import cloud.cinemood.app.data.model.TmdbResult
 import cloud.cinemood.app.data.model.WatchlistItem
+import cloud.cinemood.app.ui.components.AiSearchIcon
 import cloud.cinemood.app.ui.theme.CinemoodTheme
+import cloud.cinemood.app.ui.util.rememberReducedMotion
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val TMDB_POSTER = "https://image.tmdb.org/t/p/w185"
 
-// ── ViewModel ─────────────────────────────────────────────────────────────────
+// ── Mode ──────────────────────────────────────────────────────────────────────
+
+enum class AssistantMode { Discover, Library }
+
+// ── State ─────────────────────────────────────────────────────────────────────
 
 sealed interface AssistantState {
-    data object Idle      : AssistantState
-    data object Listening : AssistantState
-    data object Searching : AssistantState
-    data class Results(val hits: List<WatchlistItem>) : AssistantState
-    data class NoResults(val query: String)           : AssistantState
-    data class Error(val message: String)             : AssistantState
+    data object Idle : AssistantState
+    data class Listening(val interim: String = "") : AssistantState
+    data class Thinking(val query: String) : AssistantState
+    data class DiscoverResults(
+        val parsed: ParsedQuery?,
+        val results: List<TmdbResult>,
+        val query: String,
+    ) : AssistantState
+    data class LibraryResults(
+        val parsed: ParsedQuery?,
+        val results: List<WatchlistItem>,
+        val query: String,
+    ) : AssistantState
+    data class NoResults(val query: String, val mode: AssistantMode) : AssistantState
+    data class Error(val message: String) : AssistantState
 }
+
+// ── ViewModel ─────────────────────────────────────────────────────────────────
 
 class AssistantViewModel(private val api: CinemoodApi) : ViewModel() {
 
-    var state by mutableStateOf<AssistantState>(AssistantState.Idle)
-    var query by mutableStateOf("")
+    var state    by mutableStateOf<AssistantState>(AssistantState.Idle)
+    var query    by mutableStateOf("")
+    var addedIds by mutableStateOf<Set<Int>>(emptySet())
+        private set
 
-    val addedIds = mutableSetOf<Int>()
+    // Private backing field to avoid JVM signature clash with setMode() (CLAUDE.md rule)
+    private var _mode by mutableStateOf(AssistantMode.Discover)
+    val mode: AssistantMode get() = _mode
+
+    fun setMode(m: AssistantMode) {
+        _mode = m
+        val q = query.trim()
+        if (q.isNotBlank()) search(q)
+    }
 
     fun search(q: String) {
-        if (q.isBlank()) return
-        query = q
+        val trimmed = q.trim()
+        if (trimmed.isBlank()) return
+        query = trimmed
         viewModelScope.launch {
-            state = AssistantState.Searching
-            api.nlSearch(q).fold(
-                onSuccess = { result ->
-                    state = if (result.hits.isEmpty()) AssistantState.NoResults(q)
-                            else AssistantState.Results(result.hits)
-                },
-                onFailure = { state = AssistantState.Error(it.message ?: "Search failed") },
-            )
+            state = AssistantState.Thinking(trimmed)
+            when (mode) {
+                AssistantMode.Discover -> {
+                    api.discover(trimmed).fold(
+                        onSuccess = { result ->
+                            state = if (result.results.isEmpty())
+                                AssistantState.NoResults(trimmed, mode)
+                            else
+                                AssistantState.DiscoverResults(result.parsed, result.results, trimmed)
+                        },
+                        onFailure = {
+                            state = AssistantState.Error(it.message ?: "Discover failed")
+                        },
+                    )
+                }
+                AssistantMode.Library -> {
+                    api.nlSearch(trimmed).fold(
+                        onSuccess = { result ->
+                            state = if (result.results.isEmpty())
+                                AssistantState.NoResults(trimmed, mode)
+                            else
+                                AssistantState.LibraryResults(result.parsed, result.results, trimmed)
+                        },
+                        onFailure = {
+                            state = AssistantState.Error(it.message ?: "Search failed")
+                        },
+                    )
+                }
+            }
         }
     }
 
-    fun add(item: WatchlistItem) {
-        if (addedIds.contains(item.title.id)) return
+    fun addToWatchlist(item: TmdbResult) {
+        if (addedIds.contains(item.id)) return
         viewModelScope.launch {
-            api.addToWatchlist(item.title.id, item.title.type).onSuccess {
-                addedIds.add(item.title.id)
+            api.addToWatchlist(item.id, item.type).onSuccess {
+                addedIds = addedIds + item.id
             }
         }
     }
 
     fun reset() {
-        state = AssistantState.Idle
-        query = ""
-        addedIds.clear()
+        state    = AssistantState.Idle
+        query    = ""
+        addedIds = emptySet()
     }
 }
 
-// ── Bottom sheet ───────────────────────────────────────────────────────────────
+// ── Root composable ────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantSheet(
     vm:          AssistantViewModel,
@@ -97,166 +157,322 @@ fun AssistantSheet(
 ) {
     val colors  = CinemoodTheme.colors
     val context = LocalContext.current
+    val reduced = rememberReducedMotion()
 
-    // Voice recognition launcher
+    // Voice launchers
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val matches = result.data
+            val transcript = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            val transcript = matches?.firstOrNull() ?: return@rememberLauncherForActivityResult
+                ?.firstOrNull()
+                ?: return@rememberLauncherForActivityResult
             vm.search(transcript)
+        } else {
+            // Cancelled — go back to Idle if we were Listening
+            if (vm.state is AssistantState.Listening) vm.state = AssistantState.Idle
         }
     }
-
-    // Mic permission launcher — falls through to text input on denial
     val micPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "What do you want to watch?")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-            speechLauncher.launch(intent)
-        }
+        if (granted) launchSpeech(context, speechLauncher, vm)
     }
 
-    fun launchVoice() {
+    fun onMicTap() {
         val hasPerm = ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-        if (hasPerm) {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "What do you want to watch?")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-            speechLauncher.launch(intent)
-        } else {
-            micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
+        if (hasPerm) launchSpeech(context, speechLauncher, vm)
+        else micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = {
             vm.reset()
             onDismiss()
         },
-        containerColor = colors.paper,
-        contentColor   = colors.ink,
-        dragHandle     = { BottomSheetDefaults.DragHandle(color = colors.rule) },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows  = false,
+        ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        Surface(
+            modifier     = Modifier.fillMaxSize(),
+            color        = colors.paper,
+            contentColor = colors.ink,
         ) {
-            Text(
-                text  = "Find something to watch",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    color      = colors.ink,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-
-            // Search bar
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment     = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
             ) {
-                OutlinedTextField(
-                    value         = vm.query,
-                    onValueChange = { vm.query = it },
-                    modifier      = Modifier.weight(1f),
-                    placeholder   = { Text("e.g. \"something like Arrival\" or \"Park Chan-wook films\"") },
-                    singleLine    = true,
-                    shape         = RoundedCornerShape(12.dp),
-                    colors        = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = colors.accent,
-                        unfocusedBorderColor = colors.rule,
-                    ),
-                    trailingIcon  = {
-                        if (vm.state is AssistantState.Searching) {
-                            CircularProgressIndicator(
-                                color    = colors.accent,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        } else if (vm.query.isNotBlank()) {
-                            IconButton(onClick = { vm.search(vm.query) }) {
-                                Icon(Icons.Rounded.Search, null, tint = colors.accent)
-                            }
-                        }
-                    },
+                // ── Header ─────────────────────────────────────────────────
+                AssistantHeader(
+                    mode     = vm.mode,
+                    onMode   = { vm.setMode(it) },
+                    onClose  = { vm.reset(); onDismiss() },
                 )
 
-                // Mic button
-                FilledIconButton(
-                    onClick  = { launchVoice() },
-                    shape    = RoundedCornerShape(12.dp),
-                    colors   = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = colors.accent,
-                        contentColor   = Color.White,
-                    ),
+                HorizontalDivider(color = colors.rule, thickness = 0.5.dp)
+
+                // ── Search field ───────────────────────────────────────────
+                AssistantSearchField(
+                    query     = vm.query,
+                    onChange  = { vm.query = it },
+                    onSearch  = { vm.search(vm.query) },
+                    onMic     = { onMicTap() },
+                    searching = vm.state is AssistantState.Thinking,
+                )
+
+                // ── Parsed chips ───────────────────────────────────────────
+                val parsedToShow: ParsedQuery? = when (val s = vm.state) {
+                    is AssistantState.DiscoverResults -> s.parsed
+                    is AssistantState.LibraryResults  -> s.parsed
+                    is AssistantState.NoResults       -> null
+                    else -> null
+                }
+                AnimatedVisibility(
+                    visible = parsedToShow != null,
+                    enter   = if (reduced) fadeIn(tween(0)) else fadeIn() + expandVertically(),
+                    exit    = if (reduced) fadeOut(tween(0)) else fadeOut() + shrinkVertically(),
                 ) {
-                    Icon(Icons.Rounded.Mic, "Search by voice")
+                    parsedToShow?.let { ParsedChipsRow(it) }
+                }
+
+                HorizontalDivider(color = colors.rule, thickness = 0.5.dp)
+
+                // ── Content ────────────────────────────────────────────────
+                when (val s = vm.state) {
+                    is AssistantState.Idle -> {
+                        IdleContent(
+                            mode      = vm.mode,
+                            onPrompt  = { vm.search(it) },
+                        )
+                    }
+                    is AssistantState.Listening -> {
+                        ListeningContent(interim = s.interim, reduced = reduced)
+                    }
+                    is AssistantState.Thinking -> {
+                        ThinkingContent(reduced = reduced)
+                    }
+                    is AssistantState.DiscoverResults -> {
+                        DiscoverResultsList(
+                            results   = s.results,
+                            addedIds  = vm.addedIds,
+                            reduced   = reduced,
+                            onAdd     = { vm.addToWatchlist(it) },
+                            onOpen    = { /* Discover results aren't in library yet */ },
+                        )
+                    }
+                    is AssistantState.LibraryResults -> {
+                        LibraryResultsList(
+                            results   = s.results,
+                            reduced   = reduced,
+                            onOpen    = { item ->
+                                vm.reset()
+                                onItemClick(item)
+                                onDismiss()
+                            },
+                        )
+                    }
+                    is AssistantState.NoResults -> {
+                        NoResultsContent(
+                            query    = s.query,
+                            mode     = s.mode,
+                            onSwitch = {
+                                val other = if (s.mode == AssistantMode.Discover)
+                                    AssistantMode.Library else AssistantMode.Discover
+                                vm.setMode(other)
+                            },
+                        )
+                    }
+                    is AssistantState.Error -> {
+                        ErrorContent(message = s.message)
+                    }
                 }
             }
+        }
+    }
+}
 
-            // Results / states
-            when (val s = vm.state) {
-                is AssistantState.Idle -> {
-                    Text(
-                        text  = "Speak or type to search your library and discover new titles.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
+// ── Header ────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AssistantHeader(
+    mode:    AssistantMode,
+    onMode:  (AssistantMode) -> Unit,
+    onClose: () -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+    Row(
+        modifier          = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        AiSearchIcon(size = 20.dp)
+        Text(
+            text  = "Ask Cinemood",
+            style = MaterialTheme.typography.titleMedium.copy(
+                color      = colors.ink,
+                fontWeight = FontWeight.Bold,
+            ),
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        ModeToggle(mode = mode, onMode = onMode)
+        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Rounded.Close, "Close", tint = colors.dim, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+// ── Mode toggle (Discover / Library) ─────────────────────────────────────────
+
+@Composable
+private fun ModeToggle(
+    mode:   AssistantMode,
+    onMode: (AssistantMode) -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.paper2),
+    ) {
+        AssistantMode.entries.forEach { m ->
+            val selected = mode == m
+            Text(
+                text     = if (m == AssistantMode.Discover) "Discover" else "My Library",
+                style    = MaterialTheme.typography.labelSmall.copy(
+                    color      = if (selected) Color.White else colors.dim,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    fontSize   = 11.sp,
+                ),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (selected) colors.accent else Color.Transparent)
+                    .clickable { onMode(m) }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            )
+        }
+    }
+}
+
+// ── Search field ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun AssistantSearchField(
+    query:    String,
+    onChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onMic:    () -> Unit,
+    searching: Boolean,
+) {
+    val colors = CinemoodTheme.colors
+    Row(
+        modifier              = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value         = query,
+            onValueChange = onChange,
+            modifier      = Modifier.weight(1f),
+            placeholder   = {
+                Text(
+                    "Ask anything — genre, mood, director…",
+                    style = MaterialTheme.typography.bodyMedium.copy(color = colors.faint),
+                )
+            },
+            singleLine    = true,
+            shape         = RoundedCornerShape(14.dp),
+            colors        = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor   = colors.accent,
+                unfocusedBorderColor = colors.rule,
+                focusedTextColor     = colors.ink,
+                unfocusedTextColor   = colors.ink,
+            ),
+            leadingIcon   = { AiSearchIcon(size = 20.dp) },
+            trailingIcon  = {
+                when {
+                    searching         -> CircularProgressIndicator(
+                        color       = colors.accent,
+                        modifier    = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
                     )
-                }
-
-                is AssistantState.Listening, is AssistantState.Searching -> {
-                    Box(
-                        modifier         = Modifier.fillMaxWidth().height(80.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = colors.accent)
+                    query.isNotBlank() -> IconButton(onClick = onSearch) {
+                        Icon(Icons.Rounded.Send, "Search", tint = colors.accent, modifier = Modifier.size(18.dp))
                     }
                 }
+            },
+        )
 
-                is AssistantState.Results -> {
-                    LazyColumn(
-                        modifier       = Modifier.heightIn(max = 400.dp),
-                        verticalArrangement = Arrangement.spacedBy(0.dp),
-                    ) {
-                        items(s.hits, key = { it.title.id }) { item ->
-                            AssistantResultRow(
-                                item      = item,
-                                added     = vm.addedIds.contains(item.title.id),
-                                onAdd     = { vm.add(item) },
-                                onTap     = { onItemClick(item); vm.reset(); onDismiss() },
-                            )
-                            HorizontalDivider(color = colors.rule, thickness = 0.5.dp)
-                        }
-                    }
-                }
+        // Mic button
+        FilledIconButton(
+            onClick  = onMic,
+            shape    = RoundedCornerShape(14.dp),
+            colors   = IconButtonDefaults.filledIconButtonColors(
+                containerColor = colors.accent,
+                contentColor   = Color.White,
+            ),
+            modifier = Modifier.size(56.dp),
+        ) {
+            Icon(Icons.Rounded.Mic, "Search by voice", modifier = Modifier.size(22.dp))
+        }
+    }
+}
 
-                is AssistantState.NoResults -> {
-                    Text(
-                        text  = "Nothing found for \"${s.query}\". Try rephrasing or use different keywords.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
-                    )
-                }
+// ── Parsed chips row ──────────────────────────────────────────────────────────
 
-                is AssistantState.Error -> {
-                    Text(
-                        text  = s.message,
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error),
-                    )
+@Composable
+private fun ParsedChipsRow(parsed: ParsedQuery) {
+    val colors = CinemoodTheme.colors
+    val f = parsed.filters
+
+    val chips: List<String> = buildList {
+        f.type?.forEach { t -> add(if (t == "movie") "Film" else "Series") }
+        f.genres?.forEach { add(it) }
+        f.excludeGenres?.forEach { add("not $it") }
+        f.minRating?.let { add("≥ ${"%.1f".format(it)}★") }
+        f.releaseAfter?.let { add("after ${it.take(4)}") }
+        f.releaseBefore?.let { add("before ${it.take(4)}") }
+        f.cast?.forEach { add(it) }
+        f.providers?.forEach { add(it) }
+    }
+    val hasMood = parsed.semanticQuery.isNotBlank()
+
+    if (chips.isEmpty() && !hasMood) return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.paper2)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text  = "Parsed",
+            style = MaterialTheme.typography.labelSmall.copy(
+                color    = colors.faint,
+                fontSize = 10.sp,
+            ),
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(chips) { label ->
+                ParsedChip(label = label, accent = false)
+            }
+            if (hasMood) {
+                item {
+                    ParsedChip(label = "mood: ${parsed.semanticQuery}", accent = true)
                 }
             }
         }
@@ -264,11 +480,410 @@ fun AssistantSheet(
 }
 
 @Composable
-private fun AssistantResultRow(
-    item:  WatchlistItem,
+private fun ParsedChip(label: String, accent: Boolean) {
+    val colors = CinemoodTheme.colors
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (accent) colors.accent.copy(alpha = 0.12f) else colors.paper,
+            )
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text  = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(
+                color     = if (accent) colors.accent else colors.dim,
+                fontSize  = 10.sp,
+                letterSpacing = 0.8.sp,
+            ),
+        )
+    }
+}
+
+// ── Idle ──────────────────────────────────────────────────────────────────────
+
+private val DISCOVER_PROMPTS = listOf(
+    "dark sci-fi after 2015",
+    "feel-good comedies",
+    "Park Chan-wook films",
+    "thriller under 2 hours",
+    "rated above 8",
+)
+
+private val LIBRARY_PROMPTS = listOf(
+    "something I started watching",
+    "high-rated films I haven't seen",
+    "sci-fi in my list",
+    "under 90 minutes",
+)
+
+@Composable
+private fun IdleContent(mode: AssistantMode, onPrompt: (String) -> Unit) {
+    val colors  = CinemoodTheme.colors
+    val prompts = if (mode == AssistantMode.Discover) DISCOVER_PROMPTS else LIBRARY_PROMPTS
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp, start = 16.dp, end = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text  = if (mode == AssistantMode.Discover)
+                "Find new titles to add to your library"
+            else
+                "Search what you've saved",
+            style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
+        )
+
+        Text(
+            text  = "Try asking…",
+            style = MaterialTheme.typography.labelSmall.copy(color = colors.dim),
+        )
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(prompts) { prompt ->
+                val colors2 = CinemoodTheme.colors
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(colors2.paper2)
+                        .clickable { onPrompt(prompt) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.AutoAwesome,
+                        null,
+                        tint     = colors2.accent,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Text(
+                        text  = prompt,
+                        style = MaterialTheme.typography.labelSmall.copy(color = colors2.ink),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Listening ─────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ListeningContent(interim: String, reduced: Boolean) {
+    val colors     = CinemoodTheme.colors
+    val transition = rememberInfiniteTransition(label = "mic")
+    val scale      by transition.animateFloat(
+        initialValue  = 0.85f,
+        targetValue   = 1.15f,
+        animationSpec = if (reduced) infiniteRepeatable(tween(0))
+                        else infiniteRepeatable(tween(600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label         = "micPulse",
+    )
+
+    Box(
+        modifier         = Modifier.fillMaxWidth().padding(48.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(
+                modifier         = Modifier
+                    .size(64.dp * scale)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Mic,
+                    null,
+                    tint     = colors.accent,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Text(
+                text  = if (interim.isBlank()) "Listening…" else interim,
+                style = MaterialTheme.typography.bodyMedium.copy(color = colors.dim),
+            )
+        }
+    }
+}
+
+// ── Thinking (shimmer) ───────────────────────────────────────────────────────
+
+@Composable
+private fun ThinkingContent(reduced: Boolean) {
+    val colors     = CinemoodTheme.colors
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val alpha      by transition.animateFloat(
+        initialValue  = 0.25f,
+        targetValue   = 0.55f,
+        animationSpec = if (reduced) infiniteRepeatable(tween(0))
+                        else infiniteRepeatable(tween(800, easing = LinearEasing), RepeatMode.Reverse),
+        label         = "shimmerAlpha",
+    )
+
+    Column(
+        modifier            = Modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text  = "Thinking…",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color  = colors.faint,
+                fontWeight = FontWeight.Medium,
+            ),
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        repeat(4) {
+            ShimmerCard(alpha = alpha, colors = colors)
+        }
+    }
+}
+
+@Composable
+private fun ShimmerCard(alpha: Float, colors: cloud.cinemood.app.ui.theme.CinemoodColors) {
+    Row(
+        modifier              = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.paper2)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 40.dp, height = 60.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(colors.rule.copy(alpha = alpha))
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(colors.rule.copy(alpha = alpha))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.4f)
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(colors.rule.copy(alpha = alpha * 0.7f))
+            )
+        }
+    }
+}
+
+// ── Discover results ──────────────────────────────────────────────────────────
+
+@Composable
+private fun DiscoverResultsList(
+    results:  List<TmdbResult>,
+    addedIds: Set<Int>,
+    reduced:  Boolean,
+    onAdd:    (TmdbResult) -> Unit,
+    onOpen:   (TmdbResult) -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+    var visibleCount by remember(results) { mutableIntStateOf(if (reduced) results.size else 0) }
+
+    LaunchedEffect(results, reduced) {
+        if (!reduced) {
+            for (i in results.indices) {
+                delay(60L * i)
+                visibleCount = i + 1
+            }
+        }
+    }
+
+    Text(
+        text     = "Here are some films you might like",
+        style    = MaterialTheme.typography.bodySmall.copy(
+            color      = colors.faint,
+            fontWeight = FontWeight.Medium,
+        ),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+
+    LazyColumn(
+        modifier       = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        itemsIndexed(results, key = { _, item -> item.id }) { index, item ->
+            AnimatedVisibility(
+                visible = index < visibleCount,
+                enter   = if (reduced) fadeIn(tween(0))
+                          else fadeIn(tween(200)) + slideInVertically(tween(200)) { it / 3 },
+            ) {
+                DiscoverResultCard(
+                    item     = item,
+                    added    = addedIds.contains(item.id),
+                    onAdd    = { onAdd(item) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscoverResultCard(
+    item:  TmdbResult,
     added: Boolean,
     onAdd: () -> Unit,
-    onTap: () -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+
+    Row(
+        modifier              = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.paper2)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment     = Alignment.Top,
+    ) {
+        // Poster
+        if (item.posterPath != null) {
+            AsyncImage(
+                model              = "$TMDB_POSTER${item.posterPath}",
+                contentDescription = null,
+                contentScale       = ContentScale.Crop,
+                modifier           = Modifier
+                    .size(width = 44.dp, height = 64.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.rule),
+            )
+        } else {
+            Box(
+                modifier         = Modifier
+                    .size(width = 44.dp, height = 64.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.rule),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    item.title.take(2).uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
+                )
+            }
+        }
+
+        // Info
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text     = item.title,
+                style    = MaterialTheme.typography.bodyMedium.copy(color = colors.ink),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val meta = listOfNotNull(
+                item.releaseDate?.take(4),
+                if (item.type == "series") "Series" else "Film",
+                item.voteAverage?.let { "★ ${"%.1f".format(it)}" },
+            ).joinToString(" · ")
+            Text(
+                text  = meta,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color    = colors.faint,
+                    fontSize = 10.sp,
+                ),
+            )
+            if (!item.overview.isNullOrBlank()) {
+                Text(
+                    text     = item.overview,
+                    style    = MaterialTheme.typography.bodySmall.copy(
+                        color    = colors.dim,
+                        fontSize = 11.sp,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        // Add action
+        if (added) {
+            Icon(
+                Icons.Rounded.CheckCircle,
+                null,
+                tint     = Color(0xFF34A853),
+                modifier = Modifier.size(22.dp).padding(top = 2.dp),
+            )
+        } else {
+            FilledTonalIconButton(
+                onClick  = onAdd,
+                modifier = Modifier.size(32.dp),
+                shape    = RoundedCornerShape(8.dp),
+                colors   = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = colors.accent.copy(alpha = 0.12f),
+                    contentColor   = colors.accent,
+                ),
+            ) {
+                Icon(Icons.Rounded.Add, "Add to library", modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+// ── Library results ───────────────────────────────────────────────────────────
+
+@Composable
+private fun LibraryResultsList(
+    results: List<WatchlistItem>,
+    reduced: Boolean,
+    onOpen:  (WatchlistItem) -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+    var visibleCount by remember(results) { mutableIntStateOf(if (reduced) results.size else 0) }
+
+    LaunchedEffect(results, reduced) {
+        if (!reduced) {
+            for (i in results.indices) {
+                delay(60L * i)
+                visibleCount = i + 1
+            }
+        }
+    }
+
+    Text(
+        text     = "From your library",
+        style    = MaterialTheme.typography.bodySmall.copy(
+            color      = colors.faint,
+            fontWeight = FontWeight.Medium,
+        ),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+    )
+
+    LazyColumn(
+        modifier            = Modifier.fillMaxSize(),
+        contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        itemsIndexed(results, key = { _, item -> item.title.id }) { index, item ->
+            AnimatedVisibility(
+                visible = index < visibleCount,
+                enter   = if (reduced) fadeIn(tween(0))
+                          else fadeIn(tween(200)) + slideInVertically(tween(200)) { it / 3 },
+            ) {
+                LibraryResultCard(item = item, onOpen = { onOpen(item) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryResultCard(
+    item:   WatchlistItem,
+    onOpen: () -> Unit,
 ) {
     val colors = CinemoodTheme.colors
     val t      = item.title
@@ -276,36 +891,37 @@ private fun AssistantResultRow(
     Row(
         modifier              = Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.paper2)
+            .clickable(onClick = onOpen)
+            .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment     = Alignment.CenterVertically,
     ) {
+        // Poster
         if (t.posterPath != null) {
             AsyncImage(
                 model              = "$TMDB_POSTER${t.posterPath}",
                 contentDescription = null,
                 contentScale       = ContentScale.Crop,
                 modifier           = Modifier
-                    .size(width = 40.dp, height = 60.dp)
+                    .size(width = 44.dp, height = 64.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(colors.paper2),
+                    .background(colors.rule),
             )
         } else {
             Box(
                 modifier         = Modifier
-                    .size(width = 40.dp, height = 60.dp)
+                    .size(width = 44.dp, height = 64.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(colors.paper2),
+                    .background(colors.rule),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(t.title.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(color = colors.faint))
             }
         }
 
-        Column(
-            modifier            = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text     = t.title,
                 style    = MaterialTheme.typography.bodyMedium.copy(color = colors.ink),
@@ -319,29 +935,105 @@ private fun AssistantResultRow(
             ).joinToString(" · ")
             Text(
                 text  = meta,
-                style = MaterialTheme.typography.labelSmall.copy(color = colors.faint, fontSize = 10.sp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color    = colors.faint,
+                    fontSize = 10.sp,
+                ),
+            )
+            // Status badge inline
+            val statusLabel = when (item.status) {
+                "watching" -> "Watching"
+                "watched"  -> "Watched"
+                else       -> "To watch"
+            }
+            Text(
+                text  = statusLabel,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color    = colors.accent,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
             )
         }
 
-        // Add or view
-        if (added) {
-            Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF34A853), modifier = Modifier.size(20.dp))
-        } else {
-            TextButton(
-                onClick = onAdd,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Icon(Icons.Rounded.Add, null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Add", style = MaterialTheme.typography.labelSmall.copy(color = colors.accent))
-            }
-        }
+        Icon(
+            Icons.Rounded.ChevronRight,
+            "Open",
+            tint     = colors.faint,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
 
-        TextButton(
-            onClick = onTap,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Text("View", style = MaterialTheme.typography.labelSmall.copy(color = colors.dim, fontSize = 11.sp))
+// ── No results ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun NoResultsContent(
+    query:    String,
+    mode:     AssistantMode,
+    onSwitch: () -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+    Column(
+        modifier            = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Icon(
+            Icons.Rounded.SearchOff,
+            null,
+            tint     = colors.faint,
+            modifier = Modifier.size(40.dp),
+        )
+        Text(
+            text  = if (mode == AssistantMode.Discover)
+                "Couldn't find new titles for \"$query\".\nTry a genre, mood, or director."
+            else
+                "Nothing in your library matches \"$query\".",
+            style = MaterialTheme.typography.bodyMedium.copy(color = colors.dim),
+        )
+        val switchLabel = if (mode == AssistantMode.Discover)
+            "Search my library instead"
+        else
+            "Search all of TMDB instead"
+        TextButton(onClick = onSwitch) {
+            Icon(Icons.Rounded.SwapHoriz, null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(switchLabel, style = MaterialTheme.typography.labelMedium.copy(color = colors.accent))
         }
     }
+}
+
+// ── Error ─────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ErrorContent(message: String) {
+    val colors = CinemoodTheme.colors
+    Box(
+        modifier         = Modifier.fillMaxWidth().padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text  = message,
+            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error),
+        )
+    }
+}
+
+// ── Voice helper ──────────────────────────────────────────────────────────────
+
+private fun launchSpeech(
+    context:  android.content.Context,
+    launcher: androidx.activity.result.ActivityResultLauncher<Intent>,
+    vm:       AssistantViewModel,
+) {
+    vm.state = AssistantState.Listening()
+    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_PROMPT, "What are you in the mood for?")
+        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+    }
+    launcher.launch(intent)
 }
