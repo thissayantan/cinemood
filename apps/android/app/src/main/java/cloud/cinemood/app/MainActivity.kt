@@ -81,6 +81,10 @@ class AppViewModel(
         }
     }
 
+    fun removeFromCache(titleId: Int) {
+        sharedWatchlist = sharedWatchlist.filter { it.title.id != titleId }
+    }
+
     private fun fetchProfile() {
         viewModelScope.launch {
             api.getMe().onSuccess { userProfile = it }
@@ -232,7 +236,7 @@ fun MainScaffold(
     LaunchedEffect(appVm.sharedWatchlist) {
         val shared = appVm.sharedWatchlist
         if (shared.isNotEmpty()) {
-            watchlistVm.allItems = shared
+            watchlistVm.updateAllItems(shared)
             decideVm.watchlist   = shared
         }
     }
@@ -299,6 +303,11 @@ fun MainScaffold(
                         onSetStatus = { status ->
                             watchlistVm.setStatus(item.title.id, status)
                             appVm.updateStatusInCache(item.title.id, status)
+                        },
+                        onRemove    = {
+                            watchlistVm.removeItem(item.title.id)
+                            appVm.removeFromCache(item.title.id)
+                            navController.popBackStack()
                         },
                     )
                 } else {

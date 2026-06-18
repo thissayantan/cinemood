@@ -38,6 +38,7 @@ fun DetailScreen(
     region: String,
     onBack: () -> Unit,
     onSetStatus: (String) -> Unit,
+    onRemove: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = CinemoodTheme.colors
@@ -323,6 +324,47 @@ fun DetailScreen(
                         ThemedChip(genre)
                     }
                 }
+            }
+        }
+
+        // ── Remove from library ───────────────────────────────────────────────
+        if (onRemove != null) {
+            var showConfirm by remember { mutableStateOf(false) }
+            Box(
+                modifier         = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                TextButton(
+                    onClick = { showConfirm = true },
+                ) {
+                    Text(
+                        "Remove from library",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = MaterialTheme.colorScheme.error,
+                        ),
+                    )
+                }
+            }
+            if (showConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showConfirm = false },
+                    title            = { Text("Remove from library?") },
+                    text             = { Text("This will remove \"${item.title.title}\" from your library. You can always add it again later.") },
+                    confirmButton    = {
+                        TextButton(onClick = {
+                            showConfirm = false
+                            onRemove()
+                        }) {
+                            Text("Remove", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton    = {
+                        TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
+                    },
+                )
             }
         }
 
