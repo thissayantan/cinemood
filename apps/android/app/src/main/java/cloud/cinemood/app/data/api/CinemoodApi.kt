@@ -94,6 +94,14 @@ class CinemoodApi(private val tokenStore: TokenStore) {
         response.data ?: error(response.error?.message ?: "Person fetch failed")
     }
 
+    suspend fun getSeason(seriesId: Int, seasonNumber: Int): Result<SeasonDetail> = runCatching {
+        val text = client.get("$BASE_URL/api/title/series/$seriesId/season/$seasonNumber") {
+            bearer()
+        }.bodyAsText()
+        val response = json.decodeFromString<ApiResponse<SeasonDetail>>(text)
+        response.data ?: error(response.error?.message ?: "Season fetch failed")
+    }
+
     suspend fun searchTmdb(query: String): Result<List<TmdbResult>> = runCatching {
         val response: ApiResponse<List<TmdbResult>> = client.get("$BASE_URL/api/search/tmdb") {
             bearer()

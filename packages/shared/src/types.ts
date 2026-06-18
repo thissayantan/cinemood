@@ -17,6 +17,37 @@ export interface TitleSummary {
   vote_average: number | null;
 }
 
+// Episode and season summary shapes (series only)
+export interface Episode {
+  air_date: string | null;
+  episode_number: number;
+  season_number: number;
+  name: string | null;
+  still_path: string | null;
+  overview: string | null;
+  runtime: number | null;
+  vote_average: number | null;
+}
+
+export interface Season {
+  season_number: number;
+  name: string;
+  episode_count: number;
+  air_date: string | null;
+  poster_path: string | null;
+  overview: string | null;
+}
+
+export interface SeasonDetail {
+  series_id: number;
+  season_number: number;
+  name: string;
+  overview: string | null;
+  air_date: string | null;
+  poster_path: string | null;
+  episodes: Episode[];
+}
+
 export interface Title extends TitleSummary {
   original_title: string | null;
   overview: string | null;
@@ -29,6 +60,12 @@ export interface Title extends TitleSummary {
   providers: Record<string, unknown> | null;
   imdb_id: string | null;
   imdb_rating: number | null;
+  // Series-only episode metadata (absent/null for movies)
+  number_of_seasons?: number | null;
+  number_of_episodes?: number | null;
+  seasons?: Season[] | null;
+  next_episode_to_air?: Episode | null;
+  last_episode_to_air?: Episode | null;
 }
 
 export interface WatchlistItem {

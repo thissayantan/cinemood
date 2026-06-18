@@ -1,14 +1,16 @@
-import type { Title, TitleType } from "@cinemood/shared";
+import type { Episode, Season, Title, TitleType } from "@cinemood/shared";
 import type { TmdbDetail } from "../lib/tmdb";
 
 const UPSERT_TITLE_SQL = `INSERT INTO titles (
     id, type, title, original_title, overview, release_date,
     poster_path, backdrop_path, vote_average, vote_count, runtime,
     genres, cast_json, keywords, providers, imdb_id, imdb_rating,
-    raw_tmdb, fetched_at
+    raw_tmdb, fetched_at,
+    number_of_seasons, number_of_episodes, seasons,
+    next_episode_to_air, last_episode_to_air
   ) VALUES (
     ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-    ?15, ?16, ?17, ?18, ?19
+    ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24
   )
   ON CONFLICT(id) DO UPDATE SET
     type = excluded.type,
@@ -28,7 +30,12 @@ const UPSERT_TITLE_SQL = `INSERT INTO titles (
     imdb_id = excluded.imdb_id,
     imdb_rating = COALESCE(excluded.imdb_rating, titles.imdb_rating),
     raw_tmdb = excluded.raw_tmdb,
-    fetched_at = excluded.fetched_at`;
+    fetched_at = excluded.fetched_at,
+    number_of_seasons = COALESCE(excluded.number_of_seasons, titles.number_of_seasons),
+    number_of_episodes = COALESCE(excluded.number_of_episodes, titles.number_of_episodes),
+    seasons = COALESCE(excluded.seasons, titles.seasons),
+    next_episode_to_air = COALESCE(excluded.next_episode_to_air, titles.next_episode_to_air),
+    last_episode_to_air = COALESCE(excluded.last_episode_to_air, titles.last_episode_to_air)`;
 
 function bindUpsertTitle(
   db: D1Database,
@@ -58,6 +65,11 @@ function bindUpsertTitle(
       imdbRating,
       JSON.stringify(detail.raw),
       now,
+      detail.number_of_seasons ?? null,
+      detail.number_of_episodes ?? null,
+      detail.seasons ? JSON.stringify(detail.seasons) : null,
+      detail.next_episode_to_air ? JSON.stringify(detail.next_episode_to_air) : null,
+      detail.last_episode_to_air ? JSON.stringify(detail.last_episode_to_air) : null,
     );
 }
 
@@ -87,6 +99,11 @@ interface TitleRow {
   providers: string | null;
   imdb_id: string | null;
   imdb_rating: number | null;
+  number_of_seasons: number | null;
+  number_of_episodes: number | null;
+  seasons: string | null;
+  next_episode_to_air: string | null;
+  last_episode_to_air: string | null;
 }
 
 export function rowToTitle(row: TitleRow): Title {
@@ -110,6 +127,17 @@ export function rowToTitle(row: TitleRow): Title {
       : null,
     imdb_id: row.imdb_id,
     imdb_rating: row.imdb_rating,
+    number_of_seasons: row.number_of_seasons,
+    number_of_episodes: row.number_of_episodes,
+    seasons: row.seasons
+      ? (() => { try { return JSON.parse(row.seasons) as Season[]; } catch { return null; } })()
+      : null,
+    next_episode_to_air: row.next_episode_to_air
+      ? (() => { try { return JSON.parse(row.next_episode_to_air) as Episode; } catch { return null; } })()
+      : null,
+    last_episode_to_air: row.last_episode_to_air
+      ? (() => { try { return JSON.parse(row.last_episode_to_air) as Episode; } catch { return null; } })()
+      : null,
   };
 }
 
@@ -131,7 +159,9 @@ export async function getTitle(
     .prepare(
       `SELECT id, type, title, original_title, overview, release_date,
               poster_path, backdrop_path, vote_average, vote_count, runtime,
-              genres, cast_json, keywords, providers, imdb_id, imdb_rating
+              genres, cast_json, keywords, providers, imdb_id, imdb_rating,
+              number_of_seasons, number_of_episodes, seasons,
+              next_episode_to_air, last_episode_to_air
          FROM titles WHERE id = ?1`,
     )
     .bind(id)
@@ -153,6 +183,8 @@ export async function getTitlesById(
   const sql = `SELECT id, type, title, original_title, overview, release_date,
                       poster_path, backdrop_path, vote_average, vote_count, runtime,
                       genres, cast_json, keywords, providers, imdb_id, imdb_rating,
+                      number_of_seasons, number_of_episodes, seasons,
+                      next_episode_to_air, last_episode_to_air,
                       fetched_at
                  FROM titles WHERE id IN (${placeholders})`;
   const result = await db

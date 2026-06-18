@@ -171,6 +171,37 @@ export async function searchTmdb(
   return results;
 }
 
+// Episode/season shapes shared between detail and season-fetch output
+export interface TmdbEpisodeSummary {
+  air_date: string | null;
+  episode_number: number;
+  season_number: number;
+  name: string | null;
+  still_path: string | null;
+  overview: string | null;
+  runtime: number | null;
+  vote_average: number | null;
+}
+
+export interface TmdbSeasonSummary {
+  season_number: number;
+  name: string;
+  episode_count: number;
+  air_date: string | null;
+  poster_path: string | null;
+  overview: string | null;
+}
+
+export interface TmdbSeasonDetail {
+  series_id: number;
+  season_number: number;
+  name: string;
+  overview: string | null;
+  air_date: string | null;
+  poster_path: string | null;
+  episodes: TmdbEpisodeSummary[];
+}
+
 export interface TmdbDetail {
   id: number;
   type: TitleType;
@@ -189,6 +220,12 @@ export interface TmdbDetail {
   providers: Record<string, unknown> | null;
   imdb_id: string | null;
   raw: unknown;
+  // Series-only episode/season metadata (null/undefined for movies)
+  number_of_seasons?: number | null;
+  number_of_episodes?: number | null;
+  seasons?: TmdbSeasonSummary[] | null;
+  next_episode_to_air?: TmdbEpisodeSummary | null;
+  last_episode_to_air?: TmdbEpisodeSummary | null;
 }
 
 interface TmdbCommonDetail {
@@ -223,6 +260,36 @@ interface TmdbTvDetail extends TmdbCommonDetail {
   original_name: string | null;
   first_air_date: string | null;
   episode_run_time?: number[];
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+  seasons?: Array<{
+    season_number: number;
+    name: string;
+    episode_count: number;
+    air_date: string | null;
+    poster_path: string | null;
+    overview: string | null;
+  }>;
+  next_episode_to_air?: {
+    air_date: string | null;
+    episode_number: number;
+    season_number: number;
+    name: string | null;
+    still_path: string | null;
+    overview: string | null;
+    runtime: number | null;
+    vote_average: number | null;
+  } | null;
+  last_episode_to_air?: {
+    air_date: string | null;
+    episode_number: number;
+    season_number: number;
+    name: string | null;
+    still_path: string | null;
+    overview: string | null;
+    runtime: number | null;
+    vote_average: number | null;
+  } | null;
 }
 
 export async function fetchTmdbDetail(
@@ -266,6 +333,13 @@ export async function fetchTmdbDetail(
   let releaseDate: string | null;
   let runtime: number | null;
   let keywords: string[];
+  // Series-only episode metadata
+  let numberOfSeasons: number | null = null;
+  let numberOfEpisodes: number | null = null;
+  let seasons: TmdbSeasonSummary[] | null = null;
+  let nextEpisodeToAir: TmdbEpisodeSummary | null = null;
+  let lastEpisodeToAir: TmdbEpisodeSummary | null = null;
+
   if (type === "movie") {
     const m = json as TmdbMovieDetail;
     title = m.title;
@@ -280,6 +354,31 @@ export async function fetchTmdbDetail(
     releaseDate = t.first_air_date;
     runtime = t.episode_run_time?.[0] ?? null;
     keywords = (t.keywords?.results ?? []).map((k) => k.name);
+    numberOfSeasons = t.number_of_seasons ?? null;
+    numberOfEpisodes = t.number_of_episodes ?? null;
+    seasons = (t.seasons ?? []).map((s) => ({
+      season_number: s.season_number,
+      name: s.name,
+      episode_count: s.episode_count,
+      air_date: s.air_date,
+      poster_path: s.poster_path,
+      overview: s.overview,
+    }));
+    const mapEp = (ep: NonNullable<TmdbTvDetail["next_episode_to_air"]> | null | undefined): TmdbEpisodeSummary | null => {
+      if (!ep) return null;
+      return {
+        air_date: ep.air_date,
+        episode_number: ep.episode_number,
+        season_number: ep.season_number,
+        name: ep.name,
+        still_path: ep.still_path,
+        overview: ep.overview,
+        runtime: ep.runtime,
+        vote_average: ep.vote_average,
+      };
+    };
+    nextEpisodeToAir = mapEp(t.next_episode_to_air);
+    lastEpisodeToAir = mapEp(t.last_episode_to_air);
   }
 
   const detail: TmdbDetail = {
@@ -300,6 +399,11 @@ export async function fetchTmdbDetail(
     providers: json["watch/providers"]?.results ?? null,
     imdb_id: json.external_ids?.imdb_id ?? json.imdb_id ?? null,
     raw: json,
+    number_of_seasons: numberOfSeasons,
+    number_of_episodes: numberOfEpisodes,
+    seasons,
+    next_episode_to_air: nextEpisodeToAir,
+    last_episode_to_air: lastEpisodeToAir,
   };
 
   await kvPutSafe(cache, cacheKey, JSON.stringify(detail), {
@@ -408,6 +512,72 @@ export async function getPersonDetail(
     known_for_department: json.known_for_department ?? null,
     place_of_birth: json.place_of_birth ?? null,
     credits,
+  };
+
+  await kvPutSafe(cache, cacheKey, JSON.stringify(detail), {
+    expirationTtl: DETAIL_TTL,
+  });
+  return detail;
+}
+
+// ── Season episode list ───────────────────────────────────────────────────────
+
+interface TmdbSeasonRaw {
+  id: number;
+  name: string;
+  season_number: number;
+  air_date: string | null;
+  overview: string | null;
+  poster_path: string | null;
+  episodes?: Array<{
+    id: number;
+    episode_number: number;
+    season_number: number;
+    name: string | null;
+    overview: string | null;
+    still_path: string | null;
+    air_date: string | null;
+    runtime: number | null;
+    vote_average: number | null;
+  }>;
+}
+
+export async function fetchTmdbSeason(
+  apiKey: string,
+  cache: KVNamespace,
+  seriesId: number,
+  seasonNumber: number,
+): Promise<TmdbSeasonDetail> {
+  const cacheKey = `tmdb:season:${seriesId}:${seasonNumber}`;
+  const cached = await cache.get(cacheKey, "json");
+  if (cached) return cached as TmdbSeasonDetail;
+
+  const url = new URL(`${TMDB_BASE}/tv/${seriesId}/season/${seasonNumber}`);
+  url.searchParams.set("api_key", apiKey);
+
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`tmdb_season_failed: ${seriesId}/season/${seasonNumber} ${res.status}`);
+  }
+  const json = (await res.json()) as TmdbSeasonRaw;
+
+  const detail: TmdbSeasonDetail = {
+    series_id: seriesId,
+    season_number: json.season_number,
+    name: json.name,
+    overview: json.overview ?? null,
+    air_date: json.air_date ?? null,
+    poster_path: json.poster_path ?? null,
+    episodes: (json.episodes ?? []).map((ep) => ({
+      air_date: ep.air_date ?? null,
+      episode_number: ep.episode_number,
+      season_number: ep.season_number,
+      name: ep.name ?? null,
+      still_path: ep.still_path ?? null,
+      overview: ep.overview ?? null,
+      runtime: ep.runtime ?? null,
+      vote_average: ep.vote_average ?? null,
+    })),
   };
 
   await kvPutSafe(cache, cacheKey, JSON.stringify(detail), {

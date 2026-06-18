@@ -41,6 +41,43 @@ data class PersonDetail(
 
 data class ProviderInfo(val name: String, val logoPath: String?)
 
+// ── Episode / Season data classes ─────────────────────────────────────────────
+
+@Serializable
+data class Episode(
+    @SerialName("air_date") val airDate: String? = null,
+    @SerialName("episode_number") val episodeNumber: Int,
+    @SerialName("season_number") val seasonNumber: Int,
+    val name: String? = null,
+    @SerialName("still_path") val stillPath: String? = null,
+    val overview: String? = null,
+    val runtime: Int? = null,
+    @SerialName("vote_average") val voteAverage: Double? = null,
+)
+
+@Serializable
+data class Season(
+    @SerialName("season_number") val seasonNumber: Int,
+    val name: String,
+    @SerialName("episode_count") val episodeCount: Int,
+    @SerialName("air_date") val airDate: String? = null,
+    @SerialName("poster_path") val posterPath: String? = null,
+    val overview: String? = null,
+)
+
+@Serializable
+data class SeasonDetail(
+    @SerialName("series_id") val seriesId: Int,
+    @SerialName("season_number") val seasonNumber: Int,
+    val name: String,
+    val overview: String? = null,
+    @SerialName("air_date") val airDate: String? = null,
+    @SerialName("poster_path") val posterPath: String? = null,
+    val episodes: List<Episode> = emptyList(),
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Serializable
 data class Title(
     val id: Int,
@@ -60,6 +97,12 @@ data class Title(
     @SerialName("imdb_id") val imdbId: String? = null,
     @SerialName("imdb_rating") val imdbRating: Double? = null,
     val providers: JsonObject? = null,
+    // Series-only episode metadata (absent/null for movies)
+    @SerialName("number_of_seasons") val numberOfSeasons: Int? = null,
+    @SerialName("number_of_episodes") val numberOfEpisodes: Int? = null,
+    val seasons: List<Season>? = null,
+    @SerialName("next_episode_to_air") val nextEpisodeToAir: Episode? = null,
+    @SerialName("last_episode_to_air") val lastEpisodeToAir: Episode? = null,
 )
 
 fun Title.streamingProviders(region: String = "US"): List<ProviderInfo> {

@@ -31,7 +31,10 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.api.CinemoodApi
 import cloud.cinemood.app.data.model.CastMember
+import cloud.cinemood.app.data.model.Episode
 import cloud.cinemood.app.data.model.ProviderInfo
+import cloud.cinemood.app.data.model.Season
+import cloud.cinemood.app.data.model.SeasonDetail
 import cloud.cinemood.app.data.model.Title
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.data.model.streamingProviders
@@ -67,10 +70,38 @@ fun DetailScreen(
     var showOverflowMenu  by remember { mutableStateOf(false) }
     var showRemoveConfirm by remember { mutableStateOf(false) }
 
+    // Episode guide state (series only)
+    var selectedSeason by remember(item.title.id) { mutableStateOf<Int?>(null) }
+    var seasonDetail   by remember(item.title.id) { mutableStateOf<SeasonDetail?>(null) }
+    var seasonLoading  by remember { mutableStateOf(false) }
+
     val backdropUrl = t.backdropPath?.let { "$TMDB_BACKDROP$it" }
     val posterUrl   = t.posterPath?.let { "$TMDB_POSTER_LG$it" }
     val heroUrl     = backdropUrl ?: posterUrl
     val providers   = remember(t, region) { t.streamingProviders(region) }
+
+    // Derived season list — filter specials (season 0), sorted ascending
+    val realSeasons: List<Season> = remember(t.seasons) {
+        t.seasons?.filter { it.seasonNumber > 0 }?.sortedBy { it.seasonNumber } ?: emptyList()
+    }
+
+    // Auto-select first season when seasons become available
+    LaunchedEffect(item.title.id, realSeasons.firstOrNull()?.seasonNumber) {
+        if (selectedSeason == null && realSeasons.isNotEmpty()) {
+            selectedSeason = realSeasons.first().seasonNumber
+        }
+    }
+
+    // Load episodes whenever selected season changes
+    LaunchedEffect(item.title.id, selectedSeason) {
+        val season = selectedSeason ?: return@LaunchedEffect
+        if (api == null) return@LaunchedEffect
+        seasonLoading = true
+        seasonDetail  = null
+        api.getSeason(item.title.id, season)
+            .onSuccess { seasonDetail = it }
+        seasonLoading = false
+    }
 
     Column(
         modifier = modifier
@@ -217,11 +248,14 @@ fun DetailScreen(
                     )
                 }
 
-                // Meta line: year · runtime · type
+                // Meta line: year · runtime · type/seasons
+                val typeLabel = if (t.type == "series") {
+                    t.numberOfSeasons?.let { "$it seasons" } ?: "Series"
+                } else "Film"
                 val meta = listOfNotNull(
                     t.releaseDate?.take(4),
                     t.runtime?.let { "${it}m" },
-                    if (t.type == "series") "Series" else "Film",
+                    typeLabel,
                 ).joinToString(" · ")
                 if (meta.isNotEmpty()) {
                     Text(
@@ -380,6 +414,68 @@ fun DetailScreen(
                             "Show more",
                             style = MaterialTheme.typography.labelSmall.copy(color = colors.accent),
                         )
+                    }
+                }
+            }
+        }
+
+        // ── Episode guide (series only) ───────────────────────────────────────
+        if (t.type == "series" && realSeasons.isNotEmpty()) {
+            DetailSection(label = "Episodes", icon = Icons.Rounded.Tv) {
+                val effectiveSeason = selectedSeason ?: realSeasons.first().seasonNumber
+
+                // Season selector chips
+                if (realSeasons.size > 1) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding        = PaddingValues(vertical = 4.dp),
+                    ) {
+                        items(realSeasons) { s ->
+                            val isActive = s.seasonNumber == effectiveSeason
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (isActive) colors.accent else colors.paper2)
+                                    .clickable { selectedSeason = s.seasonNumber }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                            ) {
+                                Text(
+                                    text  = "S${s.seasonNumber}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color      = if (isActive) Color.White else colors.dim,
+                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                when {
+                    seasonLoading -> {
+                        Box(
+                            modifier         = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                color       = colors.accent,
+                                modifier    = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    }
+                    seasonDetail?.episodes.isNullOrEmpty() -> {
+                        Text(
+                            text  = "No episodes available",
+                            style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
+                        )
+                    }
+                    else -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            seasonDetail!!.episodes.forEach { ep -> EpisodeRow(ep) }
+                        }
                     }
                 }
             }
@@ -570,6 +666,94 @@ private fun CastCard(member: CastMember, onClick: () -> Unit = {}) {
                 textAlign = TextAlign.Center,
                 modifier  = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+@Composable
+private fun EpisodeRow(ep: Episode) {
+    val colors = CinemoodTheme.colors
+    var overviewExpanded by remember(ep.episodeNumber) { mutableStateOf(false) }
+
+    Row(
+        modifier              = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment     = Alignment.Top,
+    ) {
+        // Still image (w300 thumbnail)
+        Box(
+            modifier         = Modifier
+                .width(100.dp)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(6.dp))
+                .background(colors.paper2),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (ep.stillPath != null) {
+                AsyncImage(
+                    model              = "https://image.tmdb.org/t/p/w300${ep.stillPath}",
+                    contentDescription = ep.name,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    imageVector        = Icons.Rounded.Tv,
+                    contentDescription = null,
+                    tint               = colors.faint,
+                    modifier           = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        // Metadata
+        Column(
+            modifier            = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            // Episode number + name
+            val label = buildString {
+                append("E${ep.episodeNumber}")
+                if (!ep.name.isNullOrBlank()) append(" · ${ep.name}")
+            }
+            Text(
+                text     = label,
+                style    = MaterialTheme.typography.bodySmall.copy(
+                    color      = colors.ink,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            // Air date + runtime
+            val meta = listOfNotNull(
+                ep.airDate?.take(10),
+                ep.runtime?.let { "${it}m" },
+            ).joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(
+                    text  = meta,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color    = colors.dim,
+                        fontSize = 10.sp,
+                    ),
+                )
+            }
+
+            // Collapsible overview (tap to expand/collapse)
+            if (!ep.overview.isNullOrBlank()) {
+                Text(
+                    text     = ep.overview,
+                    style    = MaterialTheme.typography.bodySmall.copy(
+                        color    = colors.faint,
+                        fontSize = 11.sp,
+                    ),
+                    maxLines = if (overviewExpanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { overviewExpanded = !overviewExpanded },
+                )
+            }
         }
     }
 }
