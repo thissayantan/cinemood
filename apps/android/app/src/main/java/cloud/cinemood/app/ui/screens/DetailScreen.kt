@@ -2,7 +2,6 @@ package cloud.cinemood.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -41,6 +40,7 @@ import cloud.cinemood.app.ui.theme.CinemoodTheme
 private const val TMDB_BACKDROP = "https://image.tmdb.org/t/p/w780"
 private const val TMDB_POSTER_LG = "https://image.tmdb.org/t/p/w342"
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     item: WatchlistItem,
@@ -62,12 +62,15 @@ fun DetailScreen(
         api?.getTitle(item.title.type, item.title.id)?.onSuccess { freshTitle = it }
     }
 
-    var overviewExpanded by remember { mutableStateOf(false) }
-    var currentStatus by remember(item.status) { mutableStateOf(item.status) }
+    var overviewExpanded  by remember { mutableStateOf(false) }
+    var currentStatus     by remember(item.status) { mutableStateOf(item.status) }
+    var showOverflowMenu  by remember { mutableStateOf(false) }
+    var showRemoveConfirm by remember { mutableStateOf(false) }
 
     val backdropUrl = t.backdropPath?.let { "$TMDB_BACKDROP$it" }
     val posterUrl   = t.posterPath?.let { "$TMDB_POSTER_LG$it" }
     val heroUrl     = backdropUrl ?: posterUrl
+    val providers   = remember(t, region) { t.streamingProviders(region) }
 
     Column(
         modifier = modifier
@@ -98,6 +101,7 @@ fun DetailScreen(
                 ),
             )
 
+            // Back button — top-left
             IconButton(
                 onClick  = onBack,
                 modifier = Modifier
@@ -107,6 +111,47 @@ fun DetailScreen(
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
             }
+
+            // Overflow menu — top-right (only when removal is available)
+            if (onRemove != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(8.dp),
+                ) {
+                    IconButton(onClick = { showOverflowMenu = true }) {
+                        Icon(Icons.Rounded.MoreVert, "More options", tint = Color.White)
+                    }
+                    DropdownMenu(
+                        expanded         = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Remove from library",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = MaterialTheme.colorScheme.error,
+                                    ),
+                                )
+                            },
+                            onClick = {
+                                showOverflowMenu  = false
+                                showRemoveConfirm = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.DeleteOutline,
+                                    contentDescription = null,
+                                    tint               = MaterialTheme.colorScheme.error,
+                                    modifier           = Modifier.size(18.dp),
+                                )
+                            },
+                        )
+                    }
+                }
+            }
         }
 
         // ── Poster-left / Facts-right header ─────────────────────────────────
@@ -115,8 +160,8 @@ fun DetailScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .offset(y = (-40).dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment         = Alignment.Bottom,
+            horizontalArrangement     = Arrangement.spacedBy(16.dp),
         ) {
             // Poster thumbnail
             if (posterUrl != null) {
@@ -148,7 +193,7 @@ fun DetailScreen(
 
             // Facts column
             Column(
-                modifier = Modifier
+                modifier            = Modifier
                     .weight(1f)
                     .padding(bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -159,7 +204,7 @@ fun DetailScreen(
                         color      = colors.ink,
                         lineHeight = 30.sp,
                     ),
-                    maxLines = 3,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
 
@@ -228,6 +273,37 @@ fun DetailScreen(
                         }
                     }
                 }
+
+                // Genres + OTT providers: genres on the left (wrapping), provider logos right-aligned (horizontal, wrapping)
+                if (t.genres.isNotEmpty() || providers.isNotEmpty()) {
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment     = Alignment.Top,
+                    ) {
+                        if (t.genres.isNotEmpty()) {
+                            FlowRow(
+                                modifier              = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement   = Arrangement.spacedBy(6.dp),
+                            ) {
+                                t.genres.forEach { genre -> ThemedChip(genre) }
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+
+                        if (providers.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                                verticalArrangement   = Arrangement.spacedBy(6.dp),
+                                maxItemsInEachRow     = 4,
+                            ) {
+                                providers.forEach { info -> ProviderLogoChip(info) }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -255,11 +331,11 @@ fun DetailScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         TextButton(
-                            onClick = {
+                            onClick        = {
                                 currentStatus = value
                                 onSetStatus(value)
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier       = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(0.dp),
                         ) {
                             Icon(
@@ -278,21 +354,6 @@ fun DetailScreen(
                                 ),
                             )
                         }
-                    }
-                }
-            }
-        }
-
-        // ── Where to watch ────────────────────────────────────────────────────
-        val providers = t.streamingProviders(region)
-        if (providers.isNotEmpty()) {
-            DetailSection(label = "Where to watch", icon = Icons.Rounded.LiveTv) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding        = PaddingValues(vertical = 4.dp),
-                ) {
-                    items(providers) { info ->
-                        ProviderCard(info)
                     }
                 }
             }
@@ -338,66 +399,26 @@ fun DetailScreen(
             }
         }
 
-        // ── Genres ────────────────────────────────────────────────────────────
-        if (t.genres.isNotEmpty()) {
-            DetailSection(label = "Genres", icon = Icons.Rounded.Theaters) {
-                Row(
-                    modifier              = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    t.genres.forEach { genre ->
-                        ThemedChip(genre)
+        // ── Remove confirm dialog ─────────────────────────────────────────────
+        if (showRemoveConfirm) {
+            AlertDialog(
+                onDismissRequest = { showRemoveConfirm = false },
+                title            = { Text("Remove from library?") },
+                text             = {
+                    Text("This will remove \"${item.title.title}\" from your library. You can always add it again later.")
+                },
+                confirmButton    = {
+                    TextButton(onClick = {
+                        showRemoveConfirm = false
+                        onRemove?.invoke()
+                    }) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
                     }
-                }
-            }
-        }
-
-        // ── Remove from library ───────────────────────────────────────────────
-        if (onRemove != null) {
-            var showConfirm by remember { mutableStateOf(false) }
-            Box(
-                modifier         = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                TextButton(
-                    onClick = { showConfirm = true },
-                ) {
-                    Icon(
-                        imageVector        = Icons.Rounded.DeleteOutline,
-                        contentDescription = null,
-                        modifier           = Modifier.size(16.dp),
-                        tint               = MaterialTheme.colorScheme.error,
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "Remove from library",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            color = MaterialTheme.colorScheme.error,
-                        ),
-                    )
-                }
-            }
-            if (showConfirm) {
-                AlertDialog(
-                    onDismissRequest = { showConfirm = false },
-                    title            = { Text("Remove from library?") },
-                    text             = { Text("This will remove \"${item.title.title}\" from your library. You can always add it again later.") },
-                    confirmButton    = {
-                        TextButton(onClick = {
-                            showConfirm = false
-                            onRemove()
-                        }) {
-                            Text("Remove", color = MaterialTheme.colorScheme.error)
-                        }
-                    },
-                    dismissButton    = {
-                        TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
-                    },
-                )
-            }
+                },
+                dismissButton    = {
+                    TextButton(onClick = { showRemoveConfirm = false }) { Text("Cancel") }
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(120.dp))
@@ -422,7 +443,7 @@ private fun DetailSection(
     ) {
         if (label != null) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 if (icon != null) {
@@ -451,20 +472,52 @@ private fun ThemedChip(label: String) {
     val colors = CinemoodTheme.colors
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(colors.paper2)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Text(
             text  = label,
-            style = MaterialTheme.typography.bodySmall.copy(color = colors.ink),
+            style = MaterialTheme.typography.labelSmall.copy(
+                color    = colors.dim,
+                fontSize = 10.sp,
+            ),
         )
     }
 }
 
 @Composable
-private fun CastCard(member: CastMember, onClick: () -> Unit = {}) {
+private fun ProviderLogoChip(info: ProviderInfo) {
     val colors = CinemoodTheme.colors
+    Box(
+        modifier         = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.paper2),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (info.logoPath != null) {
+            AsyncImage(
+                model              = "https://image.tmdb.org/t/p/w92${info.logoPath}",
+                contentDescription = info.name,
+                contentScale       = ContentScale.Crop,
+                modifier           = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
+            )
+        } else {
+            Text(
+                text  = info.name.take(2).uppercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color    = colors.faint,
+                    fontSize = 9.sp,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CastCard(member: CastMember, onClick: () -> Unit = {}) {
+    val colors    = CinemoodTheme.colors
     val clickable = member.id != 0
     Column(
         modifier            = Modifier
@@ -518,48 +571,5 @@ private fun CastCard(member: CastMember, onClick: () -> Unit = {}) {
                 modifier  = Modifier.fillMaxWidth(),
             )
         }
-    }
-}
-
-@Composable
-private fun ProviderCard(info: ProviderInfo) {
-    val colors = CinemoodTheme.colors
-    Column(
-        modifier            = Modifier.width(64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(
-            modifier         = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.paper2),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (info.logoPath != null) {
-                AsyncImage(
-                    model              = "https://image.tmdb.org/t/p/w92${info.logoPath}",
-                    contentDescription = info.name,
-                    contentScale       = ContentScale.Crop,
-                    modifier           = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)),
-                )
-            } else {
-                Text(
-                    text  = info.name.take(2).uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
-                )
-            }
-        }
-        Text(
-            text      = info.name,
-            style     = MaterialTheme.typography.labelSmall.copy(
-                color    = colors.dim,
-                fontSize = 9.sp,
-            ),
-            maxLines  = 2,
-            overflow  = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier  = Modifier.fillMaxWidth(),
-        )
     }
 }

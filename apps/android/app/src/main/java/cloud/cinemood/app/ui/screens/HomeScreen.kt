@@ -58,6 +58,51 @@ class HomeViewModel(private val api: CinemoodApi) : ViewModel() {
 
     init { load() }
 
+    // Recompute all watchlist-derived shelves from a known list (no network call).
+    // Called both by load() and by syncWatchlist() so status changes reflect immediately.
+    private fun recompute(all: List<WatchlistItem>) {
+        val pending = all.filter { it.status == "pending" }
+
+        watchingItems = all.filter { it.status == "watching" }
+
+        val quick = pending
+            .filter { (it.title.runtime ?: 999) < 100 }
+            .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+            .take(10)
+        quickWatches = quick
+        val quickIds = quick.map { it.title.id }.toSet()
+
+        topRated = pending
+            .filter { (it.title.imdbRating ?: it.title.voteAverage ?: 0.0) >= 7.5 }
+            .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+            .take(15)
+
+        pendingFilms = pending
+            .filter { it.title.type == "film" && it.title.id !in quickIds }
+            .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+            .take(15)
+
+        pendingSeries = pending
+            .filter { it.title.type == "series" }
+            .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
+            .take(15)
+
+        watchedItems = all
+            .filter { it.status == "watched" }
+            .sortedByDescending { it.watchedAt ?: it.addedAt }
+            .take(15)
+
+        recentlyAdded = all
+            .sortedByDescending { it.addedAt }
+            .take(15)
+    }
+
+    // Called by MainScaffold when sharedWatchlist changes (e.g. status flip on Detail).
+    // Instantly recomputes all shelves without a network round-trip.
+    fun syncWatchlist(items: List<WatchlistItem>) {
+        recompute(items)
+    }
+
     fun load(forceRefresh: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!forceRefresh && cachedAt > 0 && now - cachedAt < 5 * 60 * 1000L) return
@@ -65,41 +110,8 @@ class HomeViewModel(private val api: CinemoodApi) : ViewModel() {
             loading = true
             error   = null
             try {
-                val all     = api.listWatchlist(limit = 200).getOrThrow()
-                val pending = all.filter { it.status == "pending" }
-
-                watchingItems = all.filter { it.status == "watching" }
-
-                val quick = pending
-                    .filter { (it.title.runtime ?: 999) < 100 }
-                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
-                    .take(10)
-                quickWatches = quick
-                val quickIds = quick.map { it.title.id }.toSet()
-
-                topRated = pending
-                    .filter { (it.title.imdbRating ?: it.title.voteAverage ?: 0.0) >= 7.5 }
-                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
-                    .take(15)
-
-                pendingFilms = pending
-                    .filter { it.title.type == "film" && it.title.id !in quickIds }
-                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
-                    .take(15)
-
-                pendingSeries = pending
-                    .filter { it.title.type == "series" }
-                    .sortedByDescending { it.title.imdbRating ?: it.title.voteAverage }
-                    .take(15)
-
-                watchedItems = all
-                    .filter { it.status == "watched" }
-                    .sortedByDescending { it.watchedAt ?: it.addedAt }
-                    .take(15)
-
-                recentlyAdded = all
-                    .sortedByDescending { it.addedAt }
-                    .take(15)
+                val all = api.listWatchlist(limit = 200).getOrThrow()
+                recompute(all)
 
                 val recs = api.recommend(mood = "great film tonight", status = "pending", limit = 10)
                     .getOrNull()

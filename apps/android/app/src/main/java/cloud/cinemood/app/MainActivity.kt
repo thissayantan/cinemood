@@ -232,10 +232,13 @@ fun MainScaffold(
 
     val settings = appVm.settingsStore
 
-    // Sync shared watchlist to per-screen VMs whenever it updates
+    // Sync shared watchlist to per-screen VMs whenever it updates.
+    // homeVm.syncWatchlist() recomputes all shelves instantly so a status flip on Detail
+    // shows up immediately in Continue Watching without waiting for the 5-min cache.
     LaunchedEffect(appVm.sharedWatchlist) {
         val shared = appVm.sharedWatchlist
         if (shared.isNotEmpty()) {
+            homeVm.syncWatchlist(shared)
             watchlistVm.updateAllItems(shared)
             decideVm.watchlist   = shared
         }
