@@ -1139,13 +1139,10 @@ private fun TmdbPreviewSheet(
     onRemove:  () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val colors     = CinemoodTheme.colors
-    // Skip the half-expanded peek state — sheet opens fully expanded immediately
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val colors = CinemoodTheme.colors
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState       = sheetState,
         containerColor   = colors.paper,
         contentColor     = colors.ink,
         shape            = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
@@ -1169,7 +1166,6 @@ private fun TmdbPreviewSheet(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     // Poster + title/meta/genres header
