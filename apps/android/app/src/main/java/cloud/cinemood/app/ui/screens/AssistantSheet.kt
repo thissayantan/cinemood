@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,12 +42,17 @@ import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.api.CinemoodApi
 import cloud.cinemood.app.data.model.ParsedQuery
+import cloud.cinemood.app.data.model.Title
 import cloud.cinemood.app.data.model.TmdbResult
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.ui.components.AiSearchIcon
 import cloud.cinemood.app.ui.theme.CinemoodTheme
 import cloud.cinemood.app.ui.util.rememberReducedMotion
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 private const val TMDB_POSTER = "https://image.tmdb.org/t/p/w185"
@@ -79,14 +85,33 @@ sealed interface AssistantState {
 
 class AssistantViewModel(private val api: CinemoodApi) : ViewModel() {
 
-    var state    by mutableStateOf<AssistantState>(AssistantState.Idle)
-    var query    by mutableStateOf("")
-    var addedIds by mutableStateOf<Set<Int>>(emptySet())
+    var state       by mutableStateOf<AssistantState>(AssistantState.Idle)
+    var query       by mutableStateOf("")
+    var addedIds    by mutableStateOf<Set<Int>>(emptySet())
         private set
+    var removedIds  by mutableStateOf<Set<Int>>(emptySet())
+        private set
+
+    // Preview sheet state
+    var previewItem  by mutableStateOf<TmdbResult?>(null)
+    var previewTitle by mutableStateOf<Title?>(null)
+    var previewLoading by mutableStateOf(false)
 
     // Private backing field to avoid JVM signature clash with setMode() (CLAUDE.md rule)
     private var _mode by mutableStateOf(AssistantMode.Discover)
     val mode: AssistantMode get() = _mode
+
+    init {
+        // Auto-search as the user types with 500 ms debounce
+        viewModelScope.launch {
+            snapshotFlow { query }
+                .drop(1)
+                .map { it.trim() }
+                .distinctUntilChanged()
+                .debounce(500L)
+                .collect { trimmed -> if (trimmed.isNotBlank()) search(trimmed) }
+        }
+    }
 
     fun setMode(m: AssistantMode) {
         _mode = m
@@ -97,7 +122,6 @@ class AssistantViewModel(private val api: CinemoodApi) : ViewModel() {
     fun search(q: String) {
         val trimmed = q.trim()
         if (trimmed.isBlank()) return
-        query = trimmed
         viewModelScope.launch {
             state = AssistantState.Thinking(trimmed)
             when (mode) {
@@ -133,17 +157,53 @@ class AssistantViewModel(private val api: CinemoodApi) : ViewModel() {
 
     fun addToWatchlist(item: TmdbResult) {
         if (addedIds.contains(item.id)) return
+        // Optimistic: show checkmark immediately
+        addedIds = addedIds + item.id
+        removedIds = removedIds - item.id
         viewModelScope.launch {
-            api.addToWatchlist(item.id, item.type).onSuccess {
-                addedIds = addedIds + item.id
+            api.addToWatchlist(item.id, item.type).onFailure {
+                // Revert on failure
+                addedIds = addedIds - item.id
             }
         }
     }
 
+    fun removeFromWatchlist(item: TmdbResult) {
+        if (removedIds.contains(item.id)) return
+        removedIds = removedIds + item.id
+        addedIds   = addedIds  - item.id
+        viewModelScope.launch {
+            api.removeFromWatchlist(item.id).onFailure {
+                removedIds = removedIds - item.id
+                addedIds   = addedIds   + item.id
+            }
+        }
+    }
+
+    fun openPreview(item: TmdbResult) {
+        previewItem  = item
+        previewTitle = null
+        previewLoading = true
+        viewModelScope.launch {
+            api.getTitle(item.type, item.id).onSuccess { previewTitle = it }
+            previewLoading = false
+        }
+    }
+
+    fun closePreview() {
+        previewItem    = null
+        previewTitle   = null
+        previewLoading = false
+    }
+
     fun reset() {
-        state    = AssistantState.Idle
-        query    = ""
-        addedIds = emptySet()
+        state          = AssistantState.Idle
+        query          = ""
+        addedIds       = emptySet()
+        removedIds     = emptySet()
+        previewItem    = null
+        previewTitle   = null
+        previewLoading = false
     }
 }
 
@@ -260,11 +320,12 @@ fun AssistantSheet(
                     }
                     is AssistantState.DiscoverResults -> {
                         DiscoverResultsList(
-                            results   = s.results,
-                            addedIds  = vm.addedIds,
-                            reduced   = reduced,
-                            onAdd     = { vm.addToWatchlist(it) },
-                            onOpen    = { /* Discover results aren't in library yet */ },
+                            results    = s.results,
+                            addedIds   = vm.addedIds,
+                            reduced    = reduced,
+                            onAdd      = { vm.addToWatchlist(it) },
+                            onRemove   = { vm.removeFromWatchlist(it) },
+                            onOpen     = { vm.openPreview(it) },
                         )
                     }
                     is AssistantState.LibraryResults -> {
@@ -295,6 +356,19 @@ fun AssistantSheet(
                 }
             }
         }
+    }
+
+    // Preview sheet — shown when user taps a discover result card
+    vm.previewItem?.let { item ->
+        TmdbPreviewSheet(
+            item     = item,
+            title    = vm.previewTitle,
+            loading  = vm.previewLoading,
+            added    = vm.addedIds.contains(item.id),
+            onAdd    = { vm.addToWatchlist(item) },
+            onRemove = { vm.removeFromWatchlist(item) },
+            onDismiss = { vm.closePreview() },
+        )
     }
 }
 
@@ -690,6 +764,7 @@ private fun DiscoverResultsList(
     addedIds: Set<Int>,
     reduced:  Boolean,
     onAdd:    (TmdbResult) -> Unit,
+    onRemove: (TmdbResult) -> Unit,
     onOpen:   (TmdbResult) -> Unit,
 ) {
     val colors = CinemoodTheme.colors
@@ -728,6 +803,8 @@ private fun DiscoverResultsList(
                     item     = item,
                     added    = addedIds.contains(item.id),
                     onAdd    = { onAdd(item) },
+                    onRemove = { onRemove(item) },
+                    onOpen   = { onOpen(item) },
                 )
             }
         }
@@ -736,9 +813,11 @@ private fun DiscoverResultsList(
 
 @Composable
 private fun DiscoverResultCard(
-    item:  TmdbResult,
-    added: Boolean,
-    onAdd: () -> Unit,
+    item:     TmdbResult,
+    added:    Boolean,
+    onAdd:    () -> Unit,
+    onRemove: () -> Unit,
+    onOpen:   () -> Unit,
 ) {
     val colors = CinemoodTheme.colors
 
@@ -746,89 +825,110 @@ private fun DiscoverResultCard(
         modifier              = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(colors.paper2)
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment     = Alignment.Top,
+            .background(colors.paper2),
+        horizontalArrangement = Arrangement.spacedBy(0.dp),
+        verticalAlignment     = Alignment.CenterVertically,
     ) {
-        // Poster
-        if (item.posterPath != null) {
-            AsyncImage(
-                model              = "$TMDB_POSTER${item.posterPath}",
-                contentDescription = null,
-                contentScale       = ContentScale.Crop,
-                modifier           = Modifier
-                    .size(width = 44.dp, height = 64.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(colors.rule),
-            )
-        } else {
-            Box(
-                modifier         = Modifier
-                    .size(width = 44.dp, height = 64.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(colors.rule),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    item.title.take(2).uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
+        // Tappable content area (poster + info) → opens preview sheet
+        Row(
+            modifier              = Modifier
+                .weight(1f)
+                .clickable(onClick = onOpen)
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+        ) {
+            // Poster
+            if (item.posterPath != null) {
+                AsyncImage(
+                    model              = "$TMDB_POSTER${item.posterPath}",
+                    contentDescription = null,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier
+                        .size(width = 44.dp, height = 64.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.rule),
                 )
+            } else {
+                Box(
+                    modifier         = Modifier
+                        .size(width = 44.dp, height = 64.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.rule),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        item.title.take(2).uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(color = colors.faint),
+                    )
+                }
             }
-        }
 
-        // Info
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text     = item.title,
-                style    = MaterialTheme.typography.bodyMedium.copy(color = colors.ink),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val meta = listOfNotNull(
-                item.releaseDate?.take(4),
-                if (item.type == "series") "Series" else "Film",
-                item.voteAverage?.let { "★ ${"%.1f".format(it)}" },
-            ).joinToString(" · ")
-            Text(
-                text  = meta,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color    = colors.faint,
-                    fontSize = 10.sp,
-                ),
-            )
-            if (!item.overview.isNullOrBlank()) {
+            // Info
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text     = item.overview,
-                    style    = MaterialTheme.typography.bodySmall.copy(
-                        color    = colors.dim,
-                        fontSize = 11.sp,
-                    ),
-                    maxLines = 2,
+                    text     = item.title,
+                    style    = MaterialTheme.typography.bodyMedium.copy(color = colors.ink),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                val meta = listOfNotNull(
+                    item.releaseDate?.take(4),
+                    if (item.type == "series") "Series" else "Film",
+                    item.voteAverage?.let { "★ ${"%.1f".format(it)}" },
+                ).joinToString(" · ")
+                Text(
+                    text  = meta,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color    = colors.faint,
+                        fontSize = 10.sp,
+                    ),
+                )
+                if (!item.overview.isNullOrBlank()) {
+                    Text(
+                        text     = item.overview,
+                        style    = MaterialTheme.typography.bodySmall.copy(
+                            color    = colors.dim,
+                            fontSize = 11.sp,
+                        ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
 
-        // Add action
-        if (added) {
-            Icon(
-                Icons.Rounded.CheckCircle,
-                null,
-                tint     = Color(0xFF34A853),
-                modifier = Modifier.size(22.dp).padding(top = 2.dp),
-            )
-        } else {
-            FilledTonalIconButton(
-                onClick  = onAdd,
-                modifier = Modifier.size(32.dp),
-                shape    = RoundedCornerShape(8.dp),
-                colors   = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = colors.accent.copy(alpha = 0.12f),
-                    contentColor   = colors.accent,
-                ),
-            ) {
-                Icon(Icons.Rounded.Add, "Add to library", modifier = Modifier.size(18.dp))
+        // Add / Remove action — 44 dp touch target, separate from the card tap area
+        Box(
+            modifier         = Modifier
+                .size(64.dp)
+                .padding(end = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (added) {
+                FilledTonalIconButton(
+                    onClick  = onRemove,
+                    modifier = Modifier.size(44.dp),
+                    shape    = RoundedCornerShape(10.dp),
+                    colors   = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = Color(0xFF34A853).copy(alpha = 0.12f),
+                        contentColor   = Color(0xFF34A853),
+                    ),
+                ) {
+                    Icon(Icons.Rounded.CheckCircle, "Remove from library", modifier = Modifier.size(22.dp))
+                }
+            } else {
+                FilledTonalIconButton(
+                    onClick  = onAdd,
+                    modifier = Modifier.size(44.dp),
+                    shape    = RoundedCornerShape(10.dp),
+                    colors   = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = colors.accent.copy(alpha = 0.12f),
+                        contentColor   = colors.accent,
+                    ),
+                ) {
+                    Icon(Icons.Rounded.Add, "Add to library", modifier = Modifier.size(22.dp))
+                }
             }
         }
     }
@@ -1019,6 +1119,132 @@ private fun ErrorContent(message: String) {
             text  = message,
             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error),
         )
+    }
+}
+
+// ── TMDB preview sheet ────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TmdbPreviewSheet(
+    item:     TmdbResult,
+    title:    Title?,
+    loading:  Boolean,
+    added:    Boolean,
+    onAdd:    () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = CinemoodTheme.colors
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor   = colors.paper,
+        contentColor     = colors.ink,
+        shape            = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        dragHandle       = { BottomSheetDefaults.DragHandle(color = colors.rule) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (loading || title == null) {
+                // Skeleton while loading
+                Box(
+                    modifier         = Modifier.fillMaxWidth().height(180.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
+                }
+            } else {
+                // Poster + title row
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment     = Alignment.Top,
+                ) {
+                    if (title.posterPath != null) {
+                        AsyncImage(
+                            model              = "https://image.tmdb.org/t/p/w185${title.posterPath}",
+                            contentDescription = null,
+                            contentScale       = ContentScale.Crop,
+                            modifier           = Modifier
+                                .width(80.dp)
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.paper2),
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text  = title.title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                color      = colors.ink,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                        )
+                        val meta = listOfNotNull(
+                            title.releaseDate?.take(4),
+                            if (title.type == "series") "Series" else "Film",
+                            title.runtime?.let { "${it}m" },
+                            (title.imdbRating ?: title.voteAverage)?.let { "★ ${"%.1f".format(it)}" },
+                        ).joinToString(" · ")
+                        Text(
+                            text  = meta,
+                            style = MaterialTheme.typography.labelSmall.copy(color = colors.faint, fontSize = 11.sp),
+                        )
+                        if (title.genres.isNotEmpty()) {
+                            Text(
+                                text  = title.genres.take(3).joinToString(", "),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color    = colors.accent,
+                                    fontSize = 10.sp,
+                                ),
+                            )
+                        }
+                    }
+                }
+
+                // Overview
+                if (!title.overview.isNullOrBlank()) {
+                    Text(
+                        text  = title.overview,
+                        style = MaterialTheme.typography.bodySmall.copy(color = colors.dim, fontSize = 12.sp),
+                    )
+                }
+
+                // Top cast
+                if (title.cast.isNotEmpty()) {
+                    Text(
+                        text  = title.cast.take(5).joinToString(", ") { it.name },
+                        style = MaterialTheme.typography.labelSmall.copy(color = colors.faint, fontSize = 10.sp),
+                    )
+                }
+            }
+
+            // Action button
+            val btnText = if (added) "In Watchlist" else "Add to Watchlist"
+            Button(
+                onClick  = { if (added) onRemove() else onAdd() },
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor = if (added) Color(0xFF34A853).copy(alpha = 0.15f) else colors.accent,
+                    contentColor   = if (added) Color(0xFF34A853) else Color.White,
+                ),
+            ) {
+                Icon(
+                    imageVector  = if (added) Icons.Rounded.CheckCircle else Icons.Rounded.Add,
+                    contentDescription = null,
+                    modifier     = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(btnText, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+            }
+        }
     }
 }
 

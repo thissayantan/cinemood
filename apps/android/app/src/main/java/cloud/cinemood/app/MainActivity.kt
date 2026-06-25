@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import cloud.cinemood.app.data.api.CinemoodApi
 import cloud.cinemood.app.data.auth.TokenStore
+import cloud.cinemood.app.data.local.WatchlistCache
 import cloud.cinemood.app.data.model.UserProfile
 import cloud.cinemood.app.data.model.WatchlistItem
 import cloud.cinemood.app.data.settings.SettingsStore
@@ -43,21 +44,30 @@ class AppViewModel(
     private val tokenStore: TokenStore,
     private val api: CinemoodApi,
     val settingsStore: SettingsStore,
+    private val cache: WatchlistCache,
 ) : ViewModel() {
 
     var isSignedIn  by mutableStateOf(tokenStore.hasToken())
     var authError   by mutableStateOf<String?>(null)
     var userProfile by mutableStateOf<UserProfile?>(null)
 
-    // Shared watchlist cache — single source of truth across all tabs
+    // Shared watchlist — single source of truth across all tabs.
+    // Pre-populated from disk on init so the UI is instant on cold start.
     var sharedWatchlist by mutableStateOf<List<WatchlistItem>>(emptyList())
         private set
 
     // Pending item for Detail navigation (avoids ID-only nav gap)
     var pendingDetailItem by mutableStateOf<WatchlistItem?>(null)
 
+    // Title received from Android Share Sheet
+    var pendingShareTitle by mutableStateOf<String?>(null)
+        private set
+
     init {
         if (isSignedIn) {
+            // Show cached data immediately, then refresh in background
+            val cached = cache.load()
+            if (cached.isNotEmpty()) sharedWatchlist = cached
             fetchProfile()
             loadSharedWatchlist()
         }
@@ -65,13 +75,17 @@ class AppViewModel(
 
     fun loadSharedWatchlist() {
         viewModelScope.launch {
-            api.listWatchlist(limit = 500).onSuccess { sharedWatchlist = it }
+            api.listWatchlist(limit = 500).onSuccess {
+                sharedWatchlist = it
+                cache.save(it)
+            }
         }
     }
 
     fun addToSharedWatchlist(item: WatchlistItem) {
         if (sharedWatchlist.none { it.title.id == item.title.id }) {
             sharedWatchlist = sharedWatchlist + item
+            cache.save(sharedWatchlist)
         }
     }
 
@@ -79,11 +93,20 @@ class AppViewModel(
         sharedWatchlist = sharedWatchlist.map {
             if (it.title.id == titleId) it.copy(status = status) else it
         }
+        cache.save(sharedWatchlist)
     }
 
     fun removeFromCache(titleId: Int) {
         sharedWatchlist = sharedWatchlist.filter { it.title.id != titleId }
+        cache.save(sharedWatchlist)
     }
+
+    fun handleShare(rawText: String) {
+        val title = rawText.replace(Regex("https?://\\S+"), "").trim().ifBlank { rawText.trim() }
+        if (title.isNotBlank()) pendingShareTitle = title
+    }
+
+    fun clearPendingShare() { pendingShareTitle = null }
 
     private fun fetchProfile() {
         viewModelScope.launch {
@@ -110,21 +133,24 @@ class AppViewModel(
 
     fun signOut() {
         tokenStore.clearToken()
-        authError        = null
-        isSignedIn       = false
-        userProfile      = null
-        sharedWatchlist  = emptyList()
+        cache.clear()
+        authError         = null
+        isSignedIn        = false
+        userProfile       = null
+        sharedWatchlist   = emptyList()
         pendingDetailItem = null
+        pendingShareTitle = null
     }
 
     class Factory(
         private val tokenStore: TokenStore,
         private val api: CinemoodApi,
         private val settingsStore: SettingsStore,
+        private val cache: WatchlistCache,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            AppViewModel(tokenStore, api, settingsStore) as T
+            AppViewModel(tokenStore, api, settingsStore, cache) as T
     }
 }
 
@@ -161,10 +187,17 @@ class MainActivity : ComponentActivity() {
             ?.takeIf { it.scheme == "cinemood" && it.host == "auth" }
             ?.getQueryParameter("code")
 
+    private fun handleShareIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { appVm.handleShare(it) }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         extractDeviceCode(intent)?.let { appVm.handleDeviceCode(it) }
+        handleShareIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -176,10 +209,11 @@ class MainActivity : ComponentActivity() {
 
         appVm = ViewModelProvider(
             this,
-            AppViewModel.Factory(app.tokenStore, app.api, app.settingsStore),
+            AppViewModel.Factory(app.tokenStore, app.api, app.settingsStore, app.watchlistCache),
         )[AppViewModel::class.java]
 
         extractDeviceCode(intent)?.let { appVm.handleDeviceCode(it) }
+        handleShareIntent(intent)
 
         setContent {
             val settings = appVm.settingsStore
@@ -382,6 +416,19 @@ fun MainScaffold(
                 navigateToDetail(item)
             },
             onDismiss   = { showAssistant = false },
+        )
+    }
+
+    // Share-received sheet — shown when text is shared to Cinemood from another app
+    appVm.pendingShareTitle?.let { title ->
+        ShareReceiveSheet(
+            api      = api,
+            title    = title,
+            onAdded  = { item ->
+                appVm.addToSharedWatchlist(item)
+                appVm.clearPendingShare()
+            },
+            onDismiss = { appVm.clearPendingShare() },
         )
     }
 }

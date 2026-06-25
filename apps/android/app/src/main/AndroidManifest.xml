@@ -33,6 +33,13 @@
                 <data android:scheme="cinemood" android:host="auth" />
             </intent-filter>
 
+            <!-- Share sheet: receive movie/series names shared from other apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
             <!-- Deep links for Google Assistant App Actions -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
