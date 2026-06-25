@@ -12,6 +12,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -31,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +44,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
 import cloud.cinemood.app.data.api.CinemoodApi
+import cloud.cinemood.app.data.model.CastMember
 import cloud.cinemood.app.data.model.ParsedQuery
 import cloud.cinemood.app.data.model.Title
 import cloud.cinemood.app.data.model.TmdbResult
@@ -1124,15 +1128,15 @@ private fun ErrorContent(message: String) {
 
 // ── TMDB preview sheet ────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun TmdbPreviewSheet(
-    item:     TmdbResult,
-    title:    Title?,
-    loading:  Boolean,
-    added:    Boolean,
-    onAdd:    () -> Unit,
-    onRemove: () -> Unit,
+    item:      TmdbResult,
+    title:     Title?,
+    loading:   Boolean,
+    added:     Boolean,
+    onAdd:     () -> Unit,
+    onRemove:  () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = CinemoodTheme.colors
@@ -1144,46 +1148,67 @@ private fun TmdbPreviewSheet(
         shape            = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         dragHandle       = { BottomSheetDefaults.DragHandle(color = colors.rule) },
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (loading || title == null) {
-                // Skeleton while loading
-                Box(
-                    modifier         = Modifier.fillMaxWidth().height(180.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(28.dp), strokeWidth = 2.5.dp)
-                }
-            } else {
-                // Poster + title row
+        if (loading || title == null) {
+            Box(
+                modifier         = Modifier.fillMaxWidth().height(240.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp), strokeWidth = 2.5.dp)
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .padding(bottom = 32.dp),
+            ) {
+                // Poster + title/meta/genres header
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier              = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment     = Alignment.Top,
                 ) {
                     if (title.posterPath != null) {
                         AsyncImage(
-                            model              = "https://image.tmdb.org/t/p/w185${title.posterPath}",
+                            model              = "https://image.tmdb.org/t/p/w342${title.posterPath}",
                             contentDescription = null,
                             contentScale       = ContentScale.Crop,
                             modifier           = Modifier
-                                .width(80.dp)
+                                .width(96.dp)
                                 .aspectRatio(2f / 3f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(colors.paper2),
                         )
+                    } else {
+                        Box(
+                            modifier         = Modifier
+                                .width(96.dp)
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(colors.paper2),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                title.title.take(2).uppercase(),
+                                style = MaterialTheme.typography.headlineSmall.copy(color = colors.faint),
+                            )
+                        }
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+                    Column(
+                        modifier            = Modifier.weight(1f).padding(top = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(
                             text  = title.title,
-                            style = MaterialTheme.typography.titleMedium.copy(
+                            style = MaterialTheme.typography.titleLarge.copy(
                                 color      = colors.ink,
                                 fontWeight = FontWeight.Bold,
+                                lineHeight = 28.sp,
                             ),
                         )
                         val meta = listOfNotNull(
@@ -1194,56 +1219,175 @@ private fun TmdbPreviewSheet(
                         ).joinToString(" · ")
                         Text(
                             text  = meta,
-                            style = MaterialTheme.typography.labelSmall.copy(color = colors.faint, fontSize = 11.sp),
+                            style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
                         )
                         if (title.genres.isNotEmpty()) {
-                            Text(
-                                text  = title.genres.take(3).joinToString(", "),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color    = colors.accent,
-                                    fontSize = 10.sp,
-                                ),
-                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement   = Arrangement.spacedBy(4.dp),
+                            ) {
+                                title.genres.take(4).forEach { genre ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(colors.accent.copy(alpha = 0.12f))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    ) {
+                                        Text(
+                                            text  = genre,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color    = colors.accent,
+                                                fontSize = 11.sp,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
+                HorizontalDivider(
+                    color     = colors.rule,
+                    thickness = 0.5.dp,
+                    modifier  = Modifier.padding(horizontal = 16.dp),
+                )
+
                 // Overview
                 if (!title.overview.isNullOrBlank()) {
-                    Text(
-                        text  = title.overview,
-                        style = MaterialTheme.typography.bodySmall.copy(color = colors.dim, fontSize = 12.sp),
-                    )
+                    Column(
+                        modifier            = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 14.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text  = "OVERVIEW",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color         = colors.dim,
+                                fontWeight    = FontWeight.SemiBold,
+                                letterSpacing = 1.sp,
+                                fontSize      = 10.sp,
+                            ),
+                        )
+                        Text(
+                            text  = title.overview,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color      = colors.ink,
+                                lineHeight = 22.sp,
+                            ),
+                        )
+                    }
                 }
 
-                // Top cast
+                // Cast
                 if (title.cast.isNotEmpty()) {
+                    Column(
+                        modifier            = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text  = "CAST",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color         = colors.dim,
+                                fontWeight    = FontWeight.SemiBold,
+                                letterSpacing = 1.sp,
+                                fontSize      = 10.sp,
+                            ),
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                        LazyRow(
+                            contentPadding        = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            items(title.cast.take(8)) { member ->
+                                CastAvatarCard(member = member, colors = colors)
+                            }
+                        }
+                    }
+                }
+
+                // Action button
+                val btnText = if (added) "In Watchlist" else "Add to Watchlist"
+                Button(
+                    onClick  = { if (added) onRemove() else onAdd() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(52.dp),
+                    shape    = RoundedCornerShape(14.dp),
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor = if (added) Color(0xFF34A853).copy(alpha = 0.15f) else colors.accent,
+                        contentColor   = if (added) Color(0xFF34A853) else Color.White,
+                    ),
+                ) {
+                    Icon(
+                        imageVector        = if (added) Icons.Rounded.CheckCircle else Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier           = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text  = title.cast.take(5).joinToString(", ") { it.name },
-                        style = MaterialTheme.typography.labelSmall.copy(color = colors.faint, fontSize = 10.sp),
+                        text  = btnText,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     )
                 }
             }
+        }
+    }
+}
 
-            // Action button
-            val btnText = if (added) "In Watchlist" else "Add to Watchlist"
-            Button(
-                onClick  = { if (added) onRemove() else onAdd() },
-                modifier = Modifier.fillMaxWidth(),
-                shape    = RoundedCornerShape(12.dp),
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = if (added) Color(0xFF34A853).copy(alpha = 0.15f) else colors.accent,
-                    contentColor   = if (added) Color(0xFF34A853) else Color.White,
-                ),
-            ) {
-                Icon(
-                    imageVector  = if (added) Icons.Rounded.CheckCircle else Icons.Rounded.Add,
-                    contentDescription = null,
-                    modifier     = Modifier.size(18.dp),
+@Composable
+private fun CastAvatarCard(
+    member: CastMember,
+    colors: cloud.cinemood.app.ui.theme.CinemoodColors,
+) {
+    Column(
+        modifier            = Modifier.width(68.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(
+            modifier         = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(colors.paper2),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (member.profilePath != null) {
+                AsyncImage(
+                    model              = "https://image.tmdb.org/t/p/w185${member.profilePath}",
+                    contentDescription = member.name,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize(),
                 )
-                Spacer(Modifier.width(6.dp))
-                Text(btnText, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+            } else {
+                Text(
+                    text  = member.name.take(2).uppercase(),
+                    style = MaterialTheme.typography.labelMedium.copy(color = colors.faint),
+                )
             }
+        }
+        Text(
+            text      = member.name,
+            style     = MaterialTheme.typography.labelSmall.copy(color = colors.ink, fontSize = 11.sp),
+            maxLines  = 2,
+            overflow  = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier  = Modifier.fillMaxWidth(),
+        )
+        if (!member.character.isNullOrBlank()) {
+            Text(
+                text      = member.character,
+                style     = MaterialTheme.typography.labelSmall.copy(color = colors.faint, fontSize = 9.sp),
+                maxLines  = 1,
+                overflow  = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier  = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
