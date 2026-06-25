@@ -51,7 +51,7 @@ class HomeViewModel(private val api: CinemoodApi) : ViewModel() {
     var pendingSeries   by mutableStateOf<List<WatchlistItem>>(emptyList())
     var watchedItems    by mutableStateOf<List<WatchlistItem>>(emptyList())
     var recentlyAdded   by mutableStateOf<List<WatchlistItem>>(emptyList())
-    var loading         by mutableStateOf(true)
+    var loading         by mutableStateOf(false)
     var error           by mutableStateOf<String?>(null)
 
     private var cachedAt = 0L
@@ -101,14 +101,19 @@ class HomeViewModel(private val api: CinemoodApi) : ViewModel() {
     // Instantly recomputes all shelves without a network round-trip.
     fun syncWatchlist(items: List<WatchlistItem>) {
         recompute(items)
+        loading = false  // cached data is ready — dismiss spinner immediately
     }
 
     fun load(forceRefresh: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!forceRefresh && cachedAt > 0 && now - cachedAt < 5 * 60 * 1000L) return
         viewModelScope.launch {
-            loading = true
-            error   = null
+            // Only show spinner when there is genuinely nothing to display yet.
+            // If syncWatchlist already populated the shelves from disk cache, refresh silently.
+            val noData = watchingItems.isEmpty() && pendingFilms.isEmpty() &&
+                pendingSeries.isEmpty() && quickWatches.isEmpty() && recentlyAdded.isEmpty()
+            if (noData) loading = true
+            error = null
             try {
                 val all = api.listWatchlist(limit = 200).getOrThrow()
                 recompute(all)
