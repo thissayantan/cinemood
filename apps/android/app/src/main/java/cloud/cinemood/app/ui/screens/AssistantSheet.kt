@@ -1139,10 +1139,13 @@ private fun TmdbPreviewSheet(
     onRemove:  () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val colors = CinemoodTheme.colors
+    val colors     = CinemoodTheme.colors
+    // Skip the half-expanded peek state — sheet opens fully expanded immediately
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState       = sheetState,
         containerColor   = colors.paper,
         contentColor     = colors.ink,
         shape            = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
@@ -1150,173 +1153,183 @@ private fun TmdbPreviewSheet(
     ) {
         if (loading || title == null) {
             Box(
-                modifier         = Modifier.fillMaxWidth().height(240.dp),
+                modifier         = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .navigationBarsPadding(),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp), strokeWidth = 2.5.dp)
             }
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-                    .padding(bottom = 32.dp),
-            ) {
-                // Poster + title/meta/genres header
-                Row(
-                    modifier              = Modifier
+            // Outer column: scrollable content above + sticky button below
+            Column(modifier = Modifier.fillMaxWidth()) {
+
+                // ── Scrollable region ─────────────────────────────────────
+                Column(
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment     = Alignment.Top,
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
                 ) {
-                    if (title.posterPath != null) {
-                        AsyncImage(
-                            model              = "https://image.tmdb.org/t/p/w342${title.posterPath}",
-                            contentDescription = null,
-                            contentScale       = ContentScale.Crop,
-                            modifier           = Modifier
-                                .width(96.dp)
-                                .aspectRatio(2f / 3f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(colors.paper2),
-                        )
-                    } else {
-                        Box(
-                            modifier         = Modifier
-                                .width(96.dp)
-                                .aspectRatio(2f / 3f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(colors.paper2),
-                            contentAlignment = Alignment.Center,
+                    // Poster + title/meta/genres header
+                    Row(
+                        modifier              = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment     = Alignment.Top,
+                    ) {
+                        if (title.posterPath != null) {
+                            AsyncImage(
+                                model              = "https://image.tmdb.org/t/p/w342${title.posterPath}",
+                                contentDescription = null,
+                                contentScale       = ContentScale.Crop,
+                                modifier           = Modifier
+                                    .width(96.dp)
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(colors.paper2),
+                            )
+                        } else {
+                            Box(
+                                modifier         = Modifier
+                                    .width(96.dp)
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(colors.paper2),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    title.title.take(2).uppercase(),
+                                    style = MaterialTheme.typography.headlineSmall.copy(color = colors.faint),
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier            = Modifier.weight(1f).padding(top = 2.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(
-                                title.title.take(2).uppercase(),
-                                style = MaterialTheme.typography.headlineSmall.copy(color = colors.faint),
+                                text  = title.title,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    color      = colors.ink,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 28.sp,
+                                ),
+                            )
+                            val meta = listOfNotNull(
+                                title.releaseDate?.take(4),
+                                if (title.type == "series") "Series" else "Film",
+                                title.runtime?.let { "${it}m" },
+                                (title.imdbRating ?: title.voteAverage)?.let { "★ ${"%.1f".format(it)}" },
+                            ).joinToString(" · ")
+                            Text(
+                                text  = meta,
+                                style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
+                            )
+                            if (title.genres.isNotEmpty()) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement   = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    title.genres.take(4).forEach { genre ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(20.dp))
+                                                .background(colors.accent.copy(alpha = 0.12f))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                                        ) {
+                                            Text(
+                                                text  = genre,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    color    = colors.accent,
+                                                    fontSize = 11.sp,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color     = colors.rule,
+                        thickness = 0.5.dp,
+                        modifier  = Modifier.padding(horizontal = 16.dp),
+                    )
+
+                    // Overview
+                    if (!title.overview.isNullOrBlank()) {
+                        Column(
+                            modifier            = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(top = 14.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text  = "OVERVIEW",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color         = colors.dim,
+                                    fontWeight    = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp,
+                                    fontSize      = 10.sp,
+                                ),
+                            )
+                            Text(
+                                text  = title.overview,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color      = colors.ink,
+                                    lineHeight = 22.sp,
+                                ),
                             )
                         }
                     }
 
-                    Column(
-                        modifier            = Modifier.weight(1f).padding(top = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text  = title.title,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                color      = colors.ink,
-                                fontWeight = FontWeight.Bold,
-                                lineHeight = 28.sp,
-                            ),
-                        )
-                        val meta = listOfNotNull(
-                            title.releaseDate?.take(4),
-                            if (title.type == "series") "Series" else "Film",
-                            title.runtime?.let { "${it}m" },
-                            (title.imdbRating ?: title.voteAverage)?.let { "★ ${"%.1f".format(it)}" },
-                        ).joinToString(" · ")
-                        Text(
-                            text  = meta,
-                            style = MaterialTheme.typography.bodySmall.copy(color = colors.faint),
-                        )
-                        if (title.genres.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement   = Arrangement.spacedBy(4.dp),
+                    // Cast
+                    if (title.cast.isNotEmpty()) {
+                        Column(
+                            modifier            = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(
+                                text  = "CAST",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color         = colors.dim,
+                                    fontWeight    = FontWeight.SemiBold,
+                                    letterSpacing = 1.sp,
+                                    fontSize      = 10.sp,
+                                ),
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                            LazyRow(
+                                contentPadding        = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                title.genres.take(4).forEach { genre ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(colors.accent.copy(alpha = 0.12f))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp),
-                                    ) {
-                                        Text(
-                                            text  = genre,
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                color    = colors.accent,
-                                                fontSize = 11.sp,
-                                            ),
-                                        )
-                                    }
+                                items(title.cast.take(8)) { member ->
+                                    CastAvatarCard(member = member, colors = colors)
                                 }
                             }
                         }
                     }
                 }
 
-                HorizontalDivider(
-                    color     = colors.rule,
-                    thickness = 0.5.dp,
-                    modifier  = Modifier.padding(horizontal = 16.dp),
-                )
-
-                // Overview
-                if (!title.overview.isNullOrBlank()) {
-                    Column(
-                        modifier            = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 14.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text  = "OVERVIEW",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color         = colors.dim,
-                                fontWeight    = FontWeight.SemiBold,
-                                letterSpacing = 1.sp,
-                                fontSize      = 10.sp,
-                            ),
-                        )
-                        Text(
-                            text  = title.overview,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color      = colors.ink,
-                                lineHeight = 22.sp,
-                            ),
-                        )
-                    }
-                }
-
-                // Cast
-                if (title.cast.isNotEmpty()) {
-                    Column(
-                        modifier            = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            text  = "CAST",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color         = colors.dim,
-                                fontWeight    = FontWeight.SemiBold,
-                                letterSpacing = 1.sp,
-                                fontSize      = 10.sp,
-                            ),
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
-                        LazyRow(
-                            contentPadding        = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            items(title.cast.take(8)) { member ->
-                                CastAvatarCard(member = member, colors = colors)
-                            }
-                        }
-                    }
-                }
-
-                // Action button
+                // ── Sticky action button — always visible, above nav bar ──
+                HorizontalDivider(color = colors.rule, thickness = 0.5.dp)
                 val btnText = if (added) "In Watchlist" else "Add to Watchlist"
                 Button(
                     onClick  = { if (added) onRemove() else onAdd() },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(horizontal = 16.dp)
+                        .padding(top = 12.dp, bottom = 16.dp)
                         .height(52.dp),
                     shape    = RoundedCornerShape(14.dp),
                     colors   = ButtonDefaults.buttonColors(
