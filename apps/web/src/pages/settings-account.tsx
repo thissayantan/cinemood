@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { RouteTitle } from "@/components/route-title";
 import { logoutEverywhere } from "@/lib/use-user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/avatar";
+import { useRegion, REGIONS } from "@/lib/region";
 
 function initials(user: User): string {
   const source = user.name?.trim() || user.email;
@@ -22,6 +23,7 @@ export default function SettingsAccountPage({ user }: { user: User }) {
   const m = useMotionConfig();
   const [confirming, setConfirming] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const { region, setRegion } = useRegion();
   const fadeUpInitial = m.reduced ? false : { opacity: 0, y: m.fadeY };
   const entryTransition = m.reduced ? { duration: 0 } : m.springEntry;
   const delayedEntry = (delay: number) =>
@@ -161,11 +163,39 @@ export default function SettingsAccountPage({ user }: { user: User }) {
           </ul>
         </motion.section>
 
+        {/* Streaming region */}
+        <motion.section
+          initial={fadeUpInitial}
+          animate={{ opacity: 1, y: 0 }}
+          transition={delayedEntry(0.1)}
+          className="mt-5 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-6"
+        >
+          <h2 className="font-label text-[10px] text-[var(--paper-faint)]">
+            Streaming region
+          </h2>
+          <p className="mt-2 max-w-[58ch] text-[13px] leading-snug text-[var(--paper-dim)]">
+            Streaming provider availability in title details is shown for your selected region.
+          </p>
+          <div className="mt-4">
+            <select
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              className="rounded-xl border border-[var(--rule)] bg-[var(--paper-3)] px-4 py-2.5 text-[14px] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+            >
+              {REGIONS.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name} ({r.code})
+                </option>
+              ))}
+            </select>
+          </div>
+        </motion.section>
+
         {/* Security / danger zone */}
         <motion.section
           initial={fadeUpInitial}
           animate={{ opacity: 1, y: 0 }}
-          transition={delayedEntry(0.11)}
+          transition={delayedEntry(0.13)}
           className="mt-5 rounded-2xl border border-[var(--rule)] bg-[var(--paper-2)] p-6"
         >
           <h2 className="font-label text-[10px] text-[var(--paper-faint)]">

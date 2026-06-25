@@ -164,9 +164,26 @@ export default function HomePage({ user }: { user: User }) {
   const items = wl.visible;
   const isEmpty = wl.all !== null && wl.all.length === 0;
   const filtersCount = activeFilterCount(wl.filters);
-  // "Continue watching" shelf — items the user is currently watching,
-  // from the unfiltered set so it's always visible regardless of filters.
+  // All shelf derivations from the unfiltered set so they're filter-independent.
   const watchingItems = wl.all?.filter((i) => i.status === "watching") ?? [];
+  const pending = wl.all?.filter((i) => i.status === "pending") ?? [];
+  const quickWatchItems = pending
+    .filter((i) => (i.title.runtime ?? 999) < 100)
+    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .slice(0, 10);
+  const quickWatchIds = new Set(quickWatchItems.map((i) => i.title.id));
+  const highlyRatedItems = pending
+    .filter((i) => (i.title.imdb_rating ?? i.title.vote_average ?? 0) >= 7.5)
+    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .slice(0, 15);
+  const pendingFilms = pending
+    .filter((i) => i.title.type === "movie" && !quickWatchIds.has(i.title.id))
+    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .slice(0, 15);
+  const pendingSeries = pending
+    .filter((i) => i.title.type === "series")
+    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .slice(0, 15);
 
   const isSelectMode = selectedIds.size > 0;
 
@@ -222,28 +239,57 @@ export default function HomePage({ user }: { user: User }) {
           </div>
 
           <section>
-            {/* "Continue watching" shelf — only visible when the user has
-                items in-progress; hidden when filtered to avoid duplication. */}
-            {watchingItems.length > 0 && !wl.filters.status && (
-              <div className="mb-6 border-b border-[var(--rule)] pb-6">
-                <h2 className="mb-3 font-label text-[10px] uppercase tracking-widest text-[var(--accent)]">
-                  Continue watching
-                </h2>
-                <div className="flex gap-4 overflow-x-auto pb-1">
-                  {watchingItems.map((item) => (
-                    <div key={item.title.id} className="w-[120px] shrink-0">
-                      <PosterCard
-                        item={item}
-                        index={0}
-                        onOpen={() => setDetailItem(item)}
-                        onSetStatus={(status) => handleSetStatus(item, status)}
-                        onRemove={() => handleRemove(item)}
-                        focusable
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Shelves — always from the unfiltered set, hidden when a
+                status or type filter is active (would be redundant). */}
+            {!wl.filters.status && !wl.filters.type && (
+              <>
+                {watchingItems.length > 0 && (
+                  <HomeShelf
+                    title="Continue watching"
+                    items={watchingItems}
+                    onOpen={(item) => setDetailItem(item)}
+                    onSetStatus={handleSetStatus}
+                    onRemove={handleRemove}
+                    accent
+                  />
+                )}
+                {quickWatchItems.length > 0 && (
+                  <HomeShelf
+                    title="Quick watches · under 100 min"
+                    items={quickWatchItems}
+                    onOpen={(item) => setDetailItem(item)}
+                    onSetStatus={handleSetStatus}
+                    onRemove={handleRemove}
+                  />
+                )}
+                {highlyRatedItems.length > 0 && (
+                  <HomeShelf
+                    title="Highly rated"
+                    items={highlyRatedItems}
+                    onOpen={(item) => setDetailItem(item)}
+                    onSetStatus={handleSetStatus}
+                    onRemove={handleRemove}
+                  />
+                )}
+                {pendingFilms.length > 0 && (
+                  <HomeShelf
+                    title="Films"
+                    items={pendingFilms}
+                    onOpen={(item) => setDetailItem(item)}
+                    onSetStatus={handleSetStatus}
+                    onRemove={handleRemove}
+                  />
+                )}
+                {pendingSeries.length > 0 && (
+                  <HomeShelf
+                    title="Series"
+                    items={pendingSeries}
+                    onOpen={(item) => setDetailItem(item)}
+                    onSetStatus={handleSetStatus}
+                    onRemove={handleRemove}
+                  />
+                )}
+              </>
             )}
 
             <ActiveChips
@@ -415,6 +461,46 @@ export default function HomePage({ user }: { user: User }) {
         onDismiss={() => setImportToast(null)}
         duration={6000}
       />
+    </div>
+  );
+}
+
+function HomeShelf({
+  title,
+  items,
+  onOpen,
+  onSetStatus,
+  onRemove,
+  accent,
+}: {
+  title: string;
+  items: WatchlistItem[];
+  onOpen: (item: WatchlistItem) => void;
+  onSetStatus: (item: WatchlistItem, status: WatchStatus) => void;
+  onRemove: (item: WatchlistItem) => void;
+  accent?: boolean;
+}) {
+  return (
+    <div className="mb-6 border-b border-[var(--rule)] pb-6">
+      <h2
+        className={`mb-3 font-label text-[10px] uppercase tracking-widest ${accent ? "text-[var(--accent)]" : "text-[var(--paper-faint)]"}`}
+      >
+        {title}
+      </h2>
+      <div className="flex gap-4 overflow-x-auto pb-1">
+        {items.map((item) => (
+          <div key={item.title.id} className="w-[120px] shrink-0">
+            <PosterCard
+              item={item}
+              index={0}
+              onOpen={() => onOpen(item)}
+              onSetStatus={(status) => onSetStatus(item, status)}
+              onRemove={() => onRemove(item)}
+              focusable
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
