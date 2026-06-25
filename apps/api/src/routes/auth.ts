@@ -25,9 +25,6 @@ const STATE_COOKIE = "cm_oauth_state";
 const STATE_TTL_SECONDS = 600;
 const STATE_KV_PREFIX = "oauthstate:";
 
-// Hard-coded list of setup_error codes the landing page knows how to
-// render. Keep the names short, snake_case, and stable — they ship in
-// query strings and may be bookmarked by a confused fork operator.
 function googleOauthConfigured(env: Env): boolean {
   return checkSetupStatus(env).secrets.google_oauth;
 }

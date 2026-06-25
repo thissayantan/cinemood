@@ -30,10 +30,9 @@ export function ActiveChips({ filters, total, onPatch, onReset }: Props) {
     });
   }
   if (filters.status) {
-    const statusLabel =
-      filters.status === "watched" ? "Watched" :
-      filters.status === "watching" ? "Watching" :
-      "To watch";
+    let statusLabel = "To watch";
+    if (filters.status === "watched") statusLabel = "Watched";
+    else if (filters.status === "watching") statusLabel = "Watching";
     chips.push({
       key: `status-${filters.status}`,
       label: statusLabel,
@@ -105,7 +104,7 @@ export function ActiveChips({ filters, total, onPatch, onReset }: Props) {
         </span>
       ) : null}
 
-      {chips.length > 0 && total !== undefined && (
+      {isFiltered && (
         <span aria-hidden className="h-3 w-px bg-[var(--rule)]" />
       )}
 

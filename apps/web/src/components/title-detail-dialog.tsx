@@ -75,6 +75,10 @@ function Body({
   const tmdbHref = `https://www.themoviedb.org/${t.type === "series" ? "tv" : "movie"}/${t.id}`;
   const isSeries = t.type === "series";
 
+  let statusLabel = "On your shelf";
+  if (isWatched) statusLabel = "Watched";
+  else if (isWatching) statusLabel = "Watching now";
+
   const providers = pickProviders(t.providers, region);
 
   // Season/episode state (series only)
@@ -179,7 +183,7 @@ function Body({
       {/* Action bar */}
       <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--rule)] px-5 py-4 sm:px-7 md:px-10">
         <span className="font-label text-[10px] text-[var(--paper-faint)]">
-          {isWatched ? "Watched" : isWatching ? "Watching now" : "On your shelf"}
+          {statusLabel}
         </span>
         <div className="flex flex-wrap gap-2">
           {!isWatching && !isWatched && (

@@ -49,17 +49,14 @@ export const authMiddleware: MiddlewareHandler<{
         if (!expired && !revoked) {
           c.set("user", tokenAuth.user);
           c.set("authMethod", "bearer");
-          // Touch last_used_at asynchronously (waitUntil so the response isn't delayed)
+          // Touch last_used_at asynchronously (waitUntil so the response isn't delayed).
+          // UPDATE by hash (not id) — findUserByTokenHash doesn't return token.id, and
+          // the WHERE is a no-op if the row was revoked in the meantime.
           c.executionCtx?.waitUntil(
-            findUserByTokenHash(c.env.DB, hash).then((t) => {
-              if (!t) return;
-              // We don't have token.id directly from findUserByTokenHash — call a minimal
-              // UPDATE by hash instead of by id to avoid adding another query in the hot path.
-              return c.env.DB
-                .prepare(`UPDATE access_tokens SET last_used_at = ?1 WHERE token_hash = ?2`)
-                .bind(now, hash)
-                .run();
-            }),
+            c.env.DB
+              .prepare(`UPDATE access_tokens SET last_used_at = ?1 WHERE token_hash = ?2`)
+              .bind(now, hash)
+              .run(),
           );
           await next();
           return;

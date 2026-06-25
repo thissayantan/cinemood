@@ -24,11 +24,10 @@ function Root() {
   const authError = params.get("auth_error");
   const authDetail = params.get("detail");
   const setupError = params.get("setup_error");
-  const fullError = authError
-    ? authDetail
-      ? `${authError} — ${authDetail}`
-      : authError
-    : null;
+  let fullError: string | null = null;
+  if (authError) {
+    fullError = authDetail ? `${authError} — ${authDetail}` : authError;
+  }
 
   if (state.status === "loading") return <Loading />;
   if (state.status === "ok") return <HomePage user={state.user} />;

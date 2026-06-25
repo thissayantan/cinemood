@@ -16,10 +16,7 @@ function extractText(result: unknown): string {
   const r = result as Record<string, unknown>;
 
   if (typeof r.response === "string") return r.response;
-  if (
-    r.result &&
-    typeof r.result === "object"
-  ) {
+  if (r.result && typeof r.result === "object") {
     const inner = (r.result as Record<string, unknown>).response;
     if (typeof inner === "string") return inner;
   }

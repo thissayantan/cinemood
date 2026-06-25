@@ -111,6 +111,5 @@ export function tryParseJsonObject(text: string): unknown {
 }
 
 export function validateParsedQuery(value: unknown): ParsedQuery {
-  const parsed = ParsedQuerySchema.parse(value);
-  return parsed as ParsedQuery;
+  return ParsedQuerySchema.parse(value) as ParsedQuery;
 }

@@ -24,6 +24,16 @@ import { CompareTable } from "@/components/decide/compare-table";
 import { SwipeDeck } from "@/components/decide/swipe-deck";
 import { DecideHub } from "@/components/decide/decide-hub";
 
+/** A title's effective rating — IMDb if known, else TMDB, else 0. Used to
+ *  rank shelves and gate the "highly rated" cut. */
+function ratingScore(item: WatchlistItem): number {
+  return item.title.imdb_rating ?? item.title.vote_average ?? 0;
+}
+
+function byRatingDesc(a: WatchlistItem, b: WatchlistItem): number {
+  return ratingScore(b) - ratingScore(a);
+}
+
 function activeFilterCount(filters: ReturnType<typeof useWatchlist>["filters"]): number {
   let n = 0;
   if (filters.type) n++;
@@ -114,16 +124,18 @@ export default function HomePage({ user }: { user: User }) {
       if (res.ok) {
         setReloadKey((k) => k + 1);
         const now = Math.floor(Date.now() / 1000);
-        setDetailItem((prev) =>
-          prev && prev.title.id === item.title.id
-            ? {
-                ...prev,
-                status,
-                started_at: status === "watching" ? (prev.started_at ?? now) : status === "pending" ? null : prev.started_at,
-                watched_at: status === "watched" ? now : null,
-              }
-            : prev,
-        );
+        setDetailItem((prev) => {
+          if (!prev || prev.title.id !== item.title.id) return prev;
+          let nextStartedAt = prev.started_at;
+          if (status === "watching") nextStartedAt = prev.started_at ?? now;
+          else if (status === "pending") nextStartedAt = null;
+          return {
+            ...prev,
+            status,
+            started_at: nextStartedAt,
+            watched_at: status === "watched" ? now : null,
+          };
+        });
       }
     },
     [],
@@ -169,20 +181,20 @@ export default function HomePage({ user }: { user: User }) {
   const pending = wl.all?.filter((i) => i.status === "pending") ?? [];
   const quickWatchItems = pending
     .filter((i) => (i.title.runtime ?? 999) < 100)
-    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .sort(byRatingDesc)
     .slice(0, 10);
   const quickWatchIds = new Set(quickWatchItems.map((i) => i.title.id));
   const highlyRatedItems = pending
-    .filter((i) => (i.title.imdb_rating ?? i.title.vote_average ?? 0) >= 7.5)
-    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .filter((i) => ratingScore(i) >= 7.5)
+    .sort(byRatingDesc)
     .slice(0, 15);
   const pendingFilms = pending
     .filter((i) => i.title.type === "movie" && !quickWatchIds.has(i.title.id))
-    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .sort(byRatingDesc)
     .slice(0, 15);
   const pendingSeries = pending
     .filter((i) => i.title.type === "series")
-    .sort((a, b) => ((b.title.imdb_rating ?? b.title.vote_average ?? 0) - (a.title.imdb_rating ?? a.title.vote_average ?? 0)))
+    .sort(byRatingDesc)
     .slice(0, 15);
 
   const isSelectMode = selectedIds.size > 0;

@@ -248,7 +248,7 @@ async function resolveOne(
       // Score the hit against the original candidate title AND against every
       // query that produced it; keep the best.
       let best = score(
-        { ...cand, title: cand.title, year: effectiveYear },
+        { ...cand, year: effectiveYear },
         found.hit,
         found.rank,
         found.total,

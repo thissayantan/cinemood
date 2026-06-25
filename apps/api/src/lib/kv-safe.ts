@@ -24,8 +24,7 @@ export async function kvPutSafe(
   } catch (err) {
     // Don't spam the log with the same daily-cap message on every miss —
     // one short line is enough.
-    const msg =
-      err instanceof Error ? err.message : String(err);
+    const msg = err instanceof Error ? err.message : String(err);
     console.warn("kv put failed (non-fatal)", key, msg);
   }
 }

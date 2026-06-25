@@ -80,6 +80,14 @@ function reducer(state: Phase, action: Action): Phase {
   }
 }
 
+// Progress dot width/colour by position relative to the current question:
+// answered (accent), current (ink), pending (faint).
+function progressDotClass(i: number, currentIdx: number): string {
+  if (i < currentIdx) return "w-4 bg-[var(--accent)]";
+  if (i === currentIdx) return "w-4 bg-[var(--ink)]";
+  return "w-1.5 bg-[var(--paper-faint)]";
+}
+
 export function SwipeDeck({ open, onOpenChange, titleIds, onOpenItem }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -170,11 +178,7 @@ function SwipeDeckBody({
                 key={i}
                 className={cn(
                   "h-1.5 rounded-full transition-all",
-                  i < state.currentIdx
-                    ? "w-4 bg-[var(--accent)]"
-                    : i === state.currentIdx
-                    ? "w-4 bg-[var(--ink)]"
-                    : "w-1.5 bg-[var(--paper-faint)]",
+                  progressDotClass(i, state.currentIdx),
                 )}
               />
             ))}

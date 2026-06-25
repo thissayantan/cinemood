@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
+import type { Title } from "@cinemood/shared";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
 import { resolveBatch } from "../lib/import-resolve";
@@ -133,7 +134,7 @@ app.post("/api/import/commit", async (c) => {
   );
   const toFetch: typeof items = [];
   // Track full Title objects we'll hand to the index step.
-  const titlesByTmdbId = new Map<number, import("@cinemood/shared").Title>();
+  const titlesByTmdbId = new Map<number, Title>();
   for (const item of items) {
     const cached = existing.get(item.tmdb_id);
     if (cached && now - cached.fetched_at < TITLE_FRESH_SECONDS) {
@@ -238,7 +239,7 @@ app.post("/api/import/commit", async (c) => {
     // -present title wastes the Workers AI embed budget.
     const titlesForIndex = insertedIds
       .map((id) => titlesByTmdbId.get(id))
-      .filter((t): t is import("@cinemood/shared").Title => Boolean(t));
+      .filter((t): t is Title => Boolean(t));
     if (titlesForIndex.length > 0) {
       c.executionCtx.waitUntil(
         addTitlesToIndex(c.env, user.id, titlesForIndex).catch((err) => {

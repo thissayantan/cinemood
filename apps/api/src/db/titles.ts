@@ -129,15 +129,9 @@ export function rowToTitle(row: TitleRow): Title {
     imdb_rating: row.imdb_rating,
     number_of_seasons: row.number_of_seasons,
     number_of_episodes: row.number_of_episodes,
-    seasons: row.seasons
-      ? (() => { try { return JSON.parse(row.seasons) as Season[]; } catch { return null; } })()
-      : null,
-    next_episode_to_air: row.next_episode_to_air
-      ? (() => { try { return JSON.parse(row.next_episode_to_air) as Episode; } catch { return null; } })()
-      : null,
-    last_episode_to_air: row.last_episode_to_air
-      ? (() => { try { return JSON.parse(row.last_episode_to_air) as Episode; } catch { return null; } })()
-      : null,
+    seasons: parseJsonOrNull<Season[]>(row.seasons),
+    next_episode_to_air: parseJsonOrNull<Episode>(row.next_episode_to_air),
+    last_episode_to_air: parseJsonOrNull<Episode>(row.last_episode_to_air),
   };
 }
 
@@ -148,6 +142,15 @@ function parseJsonArray<T>(raw: string | null): T[] {
     return Array.isArray(v) ? (v as T[]) : [];
   } catch {
     return [];
+  }
+}
+
+function parseJsonOrNull<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
   }
 }
 

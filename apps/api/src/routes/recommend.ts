@@ -60,7 +60,7 @@ app.post("/api/recommend", async (c) => {
 
   // ── 2. Call LLM ──────────────────────────────────────────────────────────
   const briefs = candidates.map(toLlmTitleBrief);
-  const candidateIdSet = new Set(candidates.map((c) => c.title.id));
+  const candidateIdSet = new Set(candidates.map((it) => it.title.id));
   const byId = new Map<number, WatchlistItem>(candidates.map((it) => [it.title.id, it]));
 
   let llmResult;

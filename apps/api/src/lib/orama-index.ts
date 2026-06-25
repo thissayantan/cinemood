@@ -84,6 +84,17 @@ async function newDb(): Promise<CachedIndex["db"]> {
   return create({ schema: ORAMA_SCHEMA as any });
 }
 
+function buildTitleIndexText(t: Title): string {
+  return buildIndexText({
+    title: t.title,
+    original_title: t.original_title,
+    overview: t.overview,
+    genres: t.genres,
+    keywords: t.keywords,
+    cast: t.cast,
+  });
+}
+
 function flattenProviders(providers: Title["providers"]): string[] {
   if (!providers || typeof providers !== "object") return [];
   const set = new Set<string>();
@@ -163,16 +174,7 @@ async function backfillFromWatchlist(
   if (items.length === 0) return { docs: new Map(), db: await newDb() };
 
   const titles = items.map((i) => i.title);
-  const texts = titles.map((t) =>
-    buildIndexText({
-      title: t.title,
-      original_title: t.original_title,
-      overview: t.overview,
-      genres: t.genres,
-      keywords: t.keywords,
-      cast: t.cast,
-    }),
-  );
+  const texts = titles.map(buildTitleIndexText);
   const vectors = await embedTexts(env, texts);
   const docs = titles.map((t, i) => titleToIndexDoc(t, vectors[i]!));
   const cached = await buildFromDocs(docs);
@@ -236,16 +238,7 @@ export function addTitlesToIndex(
   if (titles.length === 0) return Promise.resolve();
   return serializePerUser(userId, async () => {
     const cached = await loadIndex(env, userId);
-    const texts = titles.map((t) =>
-      buildIndexText({
-        title: t.title,
-        original_title: t.original_title,
-        overview: t.overview,
-        genres: t.genres,
-        keywords: t.keywords,
-        cast: t.cast,
-      }),
-    );
+    const texts = titles.map(buildTitleIndexText);
     const vectors = await embedTexts(env, texts);
     for (let i = 0; i < titles.length; i++) {
       const doc = titleToIndexDoc(titles[i]!, vectors[i]!);
@@ -271,14 +264,7 @@ export function addTitleToIndex(
 ): Promise<void> {
   return serializePerUser(userId, async () => {
     const cached = await loadIndex(env, userId);
-    const text = buildIndexText({
-      title: title.title,
-      original_title: title.original_title,
-      overview: title.overview,
-      genres: title.genres,
-      keywords: title.keywords,
-      cast: title.cast,
-    });
+    const text = buildTitleIndexText(title);
     const embedding = await embedText(env, text);
     const doc = titleToIndexDoc(title, embedding);
 

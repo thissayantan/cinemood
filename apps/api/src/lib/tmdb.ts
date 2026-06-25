@@ -262,34 +262,9 @@ interface TmdbTvDetail extends TmdbCommonDetail {
   episode_run_time?: number[];
   number_of_seasons?: number;
   number_of_episodes?: number;
-  seasons?: Array<{
-    season_number: number;
-    name: string;
-    episode_count: number;
-    air_date: string | null;
-    poster_path: string | null;
-    overview: string | null;
-  }>;
-  next_episode_to_air?: {
-    air_date: string | null;
-    episode_number: number;
-    season_number: number;
-    name: string | null;
-    still_path: string | null;
-    overview: string | null;
-    runtime: number | null;
-    vote_average: number | null;
-  } | null;
-  last_episode_to_air?: {
-    air_date: string | null;
-    episode_number: number;
-    season_number: number;
-    name: string | null;
-    still_path: string | null;
-    overview: string | null;
-    runtime: number | null;
-    vote_average: number | null;
-  } | null;
+  seasons?: TmdbSeasonSummary[];
+  next_episode_to_air?: TmdbEpisodeSummary | null;
+  last_episode_to_air?: TmdbEpisodeSummary | null;
 }
 
 export async function fetchTmdbDetail(
@@ -364,7 +339,7 @@ export async function fetchTmdbDetail(
       poster_path: s.poster_path,
       overview: s.overview,
     }));
-    const mapEp = (ep: NonNullable<TmdbTvDetail["next_episode_to_air"]> | null | undefined): TmdbEpisodeSummary | null => {
+    const mapEp = (ep: TmdbEpisodeSummary | null | undefined): TmdbEpisodeSummary | null => {
       if (!ep) return null;
       return {
         air_date: ep.air_date,

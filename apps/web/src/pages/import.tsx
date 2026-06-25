@@ -51,6 +51,12 @@ function modeLabel(mode: Mode): string {
   }
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 // LocalStorage persistence for the review state. Lets the user survive
 // failed commits (network blip, validation error, server hiccup) without
 // having to re-resolve and re-pick every row. Cleared once a commit
@@ -178,12 +184,6 @@ export default function ImportPage({ user }: { user: User }) {
     setProgress(null);
     setFailedOutcomes([]);
     savePersisted(null);
-  }
-
-  function chunk<T>(arr: T[], size: number): T[][] {
-    const out: T[][] = [];
-    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-    return out;
   }
 
   function handlePasteParse() {

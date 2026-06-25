@@ -75,7 +75,7 @@ function buildCandidate(
   yearRaw: string | undefined,
   typeRaw: string | undefined,
 ): ImportCandidate {
-  const year = yearRaw ? Number(yearRaw.toString().slice(0, 4)) : undefined;
+  const year = yearRaw ? Number(yearRaw.slice(0, 4)) : undefined;
   const validYear = year !== undefined && Number.isFinite(year) && year > 0
     ? year
     : undefined;

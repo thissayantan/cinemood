@@ -14,7 +14,7 @@ import { z } from "zod";
 import type { AccessTokenPublic } from "@cinemood/shared";
 import type { Env } from "../env";
 import type { AuthVars } from "../middleware/auth";
-import { authGuard, validationError, readJsonBody } from "./_shared";
+import { authGuard, validationError, readJsonBody, type Ctx } from "./_shared";
 import {
   createAccessToken,
   listAccessTokens,
@@ -25,9 +25,7 @@ import { generateRawToken, hashToken, tokenPrefix } from "../lib/access-token";
 const app = new Hono<{ Bindings: Env; Variables: AuthVars }>();
 
 /** Guard: must be signed in AND via a session cookie (not a Bearer token). */
-function cookieOnlyGuard(
-  c: Parameters<typeof authGuard>[0],
-) {
+function cookieOnlyGuard(c: Ctx) {
   const user = authGuard(c);
   if (user instanceof Response) return user;
   if (c.get("authMethod") !== "cookie") {
