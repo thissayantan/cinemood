@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1140,20 +1141,39 @@ private fun TmdbPreviewSheet(
     onDismiss: () -> Unit,
 ) {
     val colors = CinemoodTheme.colors
+    // All inset/layout values are computed OUTSIDE the ModalBottomSheet so they are
+    // immune to the sheet's internal inset consumption.
+    //
+    // skipPartiallyExpanded = true: prevents the sheet from snapping to the 50%-screen
+    // "partiallyExpanded" anchor. Without this, a sheet whose content fits within 50% of
+    // the screen (e.g. Inception) stays at 50% height and clips the button section.
+    //
+    // maxScrollableHeight = screen - M3_min_top_offset(56dp) - dragHandle(48dp)
+    //                       - button_section(12+52+16 dp) - navBarPadding
+    // This cap prevents very-long content from overflowing the maximum sheet height and
+    // pushing the button out of view. For typical movie content it is never reached.
+    val navBarPadding       = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val statusBarPadding    = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val sheetMinTopOffset   = maxOf(56.dp, statusBarPadding)
+    val maxScrollableHeight = LocalConfiguration.current.screenHeightDp.dp -
+        sheetMinTopOffset - 48.dp - 12.dp - 52.dp - 16.dp - navBarPadding
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor   = colors.paper,
-        contentColor     = colors.ink,
-        shape            = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        dragHandle       = { BottomSheetDefaults.DragHandle(color = colors.rule) },
+        onDismissRequest    = onDismiss,
+        sheetState          = sheetState,
+        containerColor      = colors.paper,
+        contentColor        = colors.ink,
+        shape               = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        dragHandle          = { BottomSheetDefaults.DragHandle(color = colors.rule) },
+        contentWindowInsets = { WindowInsets(0) },
     ) {
         if (loading || title == null) {
             Box(
                 modifier         = Modifier
                     .fillMaxWidth()
-                    .height(240.dp)
-                    .navigationBarsPadding(),
+                    .height(240.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp), strokeWidth = 2.5.dp)
@@ -1163,9 +1183,12 @@ private fun TmdbPreviewSheet(
             Column(modifier = Modifier.fillMaxWidth()) {
 
                 // ── Scrollable region ─────────────────────────────────────
+                // heightIn(max) prevents tall content from pushing the button
+                // behind the nav bar; verticalScroll allows scrolling within that bound.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(max = maxScrollableHeight)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     // Poster + title/meta/genres header
@@ -1317,16 +1340,18 @@ private fun TmdbPreviewSheet(
                 }
 
                 // ── Sticky action button — always visible, above nav bar ──
+                // navBarPadding is pre-computed outside the sheet (above) so it is
+                // immune to ModalBottomSheet inset consumption. The button sits at the
+                // bottom of the outer Column; maxScrollableHeight ensures there is
+                // always enough room here regardless of content length.
                 HorizontalDivider(color = colors.rule, thickness = 0.5.dp)
                 val btnText = if (added) "In Watchlist" else "Add to Watchlist"
                 Button(
                     onClick  = { if (added) onRemove() else onAdd() },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
                         .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 16.dp)
-                        .height(52.dp),
+                        .padding(top = 12.dp, bottom = 16.dp + navBarPadding),
                     shape    = RoundedCornerShape(14.dp),
                     colors   = ButtonDefaults.buttonColors(
                         containerColor = if (added) Color(0xFF34A853).copy(alpha = 0.15f) else colors.accent,
