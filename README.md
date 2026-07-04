@@ -62,31 +62,31 @@ Cinemood is a personal watchlist manager that lets you search your collection by
 
 ## Architecture
 
-```
-┌─────────────────────────┐   ┌─────────────────────────┐
-│       Web (React)        │   │   Android (Compose)      │
-│  Vite · Tailwind v4     │   │  Ktor · Haze · Coil     │
-│  Radix · Framer Motion  │   │  Navigation · Material3  │
-└──────────┬──────────────┘   └────────────┬────────────┘
-           │  same-origin fetch             │  HTTPS + PAT / session cookie
-           └────────────────┬──────────────┘
-                            │
-            ┌───────────────▼───────────────┐
-            │  Cloudflare Worker (Hono)      │
-            │  /api/*  ·  /auth/*           │
-            │                               │
-            │  ├─ D1 (SQLite) — titles,     │
-            │  │   watchlist, sessions       │
-            │  ├─ KV — sessions, cache,     │
-            │  │   user LLM configs         │
-            │  ├─ R2 — Orama snapshots      │
-            │  └─ Workers AI — embeddings,  │
-            │     query parsing, picks      │
-            └───────────────────────────────┘
-                            │
-              ┌─────────────┴─────────────┐
-              │  TMDB API   │   OMDB API  │
-              └─────────────┴─────────────┘
+```mermaid
+flowchart TD
+    Web("**Web** — React · Vite · Tailwind v4\nRadix UI · Framer Motion")
+    Android("**Android** — Jetpack Compose · Ktor\nHaze · Coil · Material3")
+
+    Worker("**Cloudflare Worker** — Hono\n/api/*  ·  /auth/*")
+
+    D1[("D1 · SQLite\ntitles · watchlist · sessions")]
+    KV[("KV\nsessions · cache · LLM configs")]
+    R2[("R2\nOrama snapshots")]
+    AI("Workers AI\nembeddings · query parsing · picks")
+
+    TMDB("TMDB API")
+    OMDB("OMDB API")
+
+    Web -- "same-origin fetch" --> Worker
+    Android -- "HTTPS + PAT" --> Worker
+
+    Worker --- D1
+    Worker --- KV
+    Worker --- R2
+    Worker --- AI
+
+    Worker --> TMDB
+    Worker --> OMDB
 ```
 
 **Single domain:** `cinemood.sayantan.cloud` — Cloudflare Pages serves the SPA; a Worker route handles `/api/*` and `/auth/*`. No CORS needed.
