@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea — keep in mind the scope (personal watchlist, no sharing, no mobile app).
+about: Suggest an idea — keep in mind the scope (personal watchlist, no sharing).
 labels: enhancement
 ---
 
